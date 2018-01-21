@@ -1,56 +1,53 @@
 (* ML Declarations *)
-type pos = int
 type lexresult = Tokens.token
 
 val lineNum = ErrorMsg.lineNum
 val linePos = ErrorMsg.linePos
 val errorList = ErrorMsg.errorList
-  (*fun err(p1,p2) = ErrorMsg.error p1*)
 
 val commentNesting = ref 0
 val inString = ref false
 val matchedString = ref ""
 val stringStart = ref 0
-
-fun loopThroughErrorList() =
-  let
-  val eL = rev(!errorList)
-
-  fun  printList([]) = ()
-  | printList(x::xs) = (let val (sLinNum,sColOff,eLinNum,eColOff,msg) = x
-			in print(Int.toString(sLinNum)^"."^Int.toString(sColOff)^"-"^Int.toString(eLinNum)^"."^Int.toString(eColOff)^"Error: "^msg) end ;
-			printList(xs))
-  in printList(eL)
-  end
   
 fun eof() =
   let
   val pos = hd(!linePos)
+  val pwspace = fn n => Int.toString(n)^", "
   val finalCommentNesting:int = !commentNesting
   in
   if !commentNesting <> 0 then
-  (commentNesting := 0; ErrorMsg.error pos ("Unclosed comment at EOF"^Int.toString(finalCommentNesting)))
+  (commentNesting := 0;
+  errorList:= (0, 0, "Unclosed comment at EOF. Nesting level: "^Int.toString(finalCommentNesting)) :: !errorList)
   else if !inString then
-  ErrorMsg.error pos ("Unclosed string literal at EOF")
-    else loopThroughErrorList();
-  Tokens.EOF(pos,pos)
+  (inString:=false;
+  errorList:= (0, 0, "Unclosed string at EOF.") :: !errorList)
+  else ();
+print("Number of lines read:" ^ Int.toString(!lineNum) ^ "\n");
+print("!linePos:\n");
+app print (map pwspace (!linePos));
+print("]\n");
+app ErrorMsg.error (rev (!errorList));
+ErrorMsg.reset();
+Tokens.EOF(pos,pos)
   end
+
 
 (* Lex definitions *)
 (* we assume there are no \r being used in {ws}.*)
 (* COMMENT and STRING states defined here *)
 %%
 alpha=[A-Za-z];
-Upperalpha=[A-Z];
-Loweralpha=[a-z];
 digit=[0-9];
 ws = [ \t];
-escape = [\]@A-Z\\_.?\[^];
-notEscape = [^\]@A-Z\\_.?\[^];
-%s COMMENT STRING;
+escape = [n\\t\"\ddd];
+controlEscape = [\]@A-Z\\_\[^];
+notEscape = [^n\\t\"\ddd];
+notControlEscape = [^\]@A-Z\\_\[^];
+%s COMMENT STRING SKIPSTRING;
 
 %%
-<INITIAL, COMMENT>\n|\r       => (lineNum := !lineNum+1; linePos := yypos :: !linePos; continue());
+<INITIAL, COMMENT, SKIPSTRING>\n|\r       => (lineNum := !lineNum+1; linePos := yypos :: !linePos; continue());
 
 <INITIAL>"type"   => (Tokens.TYPE(yypos,yypos+4));
 <INITIAL>"var"   => (Tokens.VAR(yypos,yypos+3));
@@ -69,8 +66,6 @@ notEscape = [^\]@A-Z\\_.?\[^];
 <INITIAL>"if"     => (Tokens.IF(yypos,yypos+2));
 <INITIAL>"then"   => (Tokens.THEN(yypos,yypos+4));
 <INITIAL>"array"  => (Tokens.ARRAY(yypos,yypos+5));
-
-
 
 <INITIAL>","      => (Tokens.COMMA(yypos,yypos+1));
 <INITIAL>":"      => (Tokens.COLON(yypos,yypos+1));
@@ -96,14 +91,11 @@ notEscape = [^\]@A-Z\\_.?\[^];
 <INITIAL>"&"      => (Tokens.AND(yypos,yypos+1));
 <INITIAL>":="     => (Tokens.ASSIGN(yypos,yypos+2));
 
-
 <INITIAL>{digit}+ => (Tokens.INT(valOf(Int.fromString(yytext)),
 			yypos, yypos+size(yytext)));
 
-
-<INITIAL>{alpha}({alpha}|{digit}|"_")* => (Tokens.ID(yytext,
-					    yypos, yypos+size(yytext)));
-
+<INITIAL>{alpha}({alpha}|{digit}|"_")* => (Tokens.ID(yytext, yypos,
+					   yypos+size(yytext)));
 
 <INITIAL, COMMENT>"/*"     => (commentNesting := !commentNesting+1;
 			       YYBEGIN COMMENT; continue());
@@ -114,31 +106,30 @@ notEscape = [^\]@A-Z\\_.?\[^];
 <COMMENT>. => (continue());
 
 
-
 <INITIAL>\"       => (inString := true; stringStart := yypos+1; matchedString := "";
 		      YYBEGIN STRING; continue());
-<STRING>"H" => (errorList := (!lineNum, yypos - hd(!linePos),
-			      !lineNum, yypos - hd(!linePos)+size(yytext),
-			      "caught a hyphen: illegal escape character:" ^ yytext) :: !errorList;
-		continue());
-<STRING>"\^"{notEscape} => (errorList := (!lineNum, yypos - hd(!linePos),
-			      !lineNum, yypos - hd(!linePos)+size(yytext),
-			      "caught a hyphen: illegal escape character:" ^ yytext) :: !errorList;
-		continue());
-<STRING>\\[n\\t\"\ddd] => (matchedString := !matchedString ^ yytext;
-			   if ((yytext = "\n") orelse (yytext = "\r")) then (lineNum := !lineNum+1; linePos := yypos :: !linePos) else ();
-		 continue());
-<STRING>"\"({ws}|\n)+"\" => (continue());
-<STRING>[^"]* => (matchedString := !matchedString ^ yytext;
+
+<STRING>[^\032-\127]  => (errorList := (yypos, yypos+size(yytext),
+					"Illegal non-printing character in string:" ^ yytext) :: !errorList; continue());
+
+<STRING>\\({ws}|\n) => (if (yytext = "\\\n") then (lineNum := !lineNum+1; linePos := yypos :: !linePos) else (); YYBEGIN SKIPSTRING; continue());
+<SKIPSTRING>{ws}+   => (continue());
+<SKIPSTRING>\\   => (YYBEGIN STRING; continue());
+
+
+<STRING>(\\{notEscape}|\\"^"{notControlEscape}) => (errorList := (yypos, yypos +size(yytext),
+								  "Illegal escape character: " ^ yytext) :: !errorList; continue());
+
+<STRING>[^"]|\\\\ => (matchedString := !matchedString ^ yytext;
 		   continue());
+
 <STRING>\"   => (inString := false; YYBEGIN INITIAL;
 		 Tokens.STRING(!matchedString, !stringStart, yypos));
 
 
 <INITIAL>{ws}    => (continue());
 
-<INITIAL>.        => (errorList := (!lineNum, yypos - hd(!linePos),
-			      !lineNum, yypos - hd(!linePos)+size(yytext),
+<INITIAL>.        => (errorList := (yypos, yypos+size(yytext),
 			      "Illegal character error:" ^ yytext) :: !errorList;
 continue());
 
