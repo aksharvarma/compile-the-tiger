@@ -33,7 +33,7 @@ structure Mlex  = struct
 	fun nextId() = !next before (next := !next + 1)
 	end
 
-	val initPos = 2 (* ml-lex bug compatibility *)
+	val initPos = 0 (* ml-lex bug compatibility *)
 
 	fun mkStream inputN = let
               val strm = TSIO.mkInstream 
@@ -128,7 +128,7 @@ fun eof() =
   errorList:= (0, 0, "Unclosed string at EOF.") :: !errorList)
   else ();
 print("Number of lines read:" ^ Int.toString(!lineNum) ^ "\n");
-print("!linePos:\n");
+print("!linePos: [");
 app print (map pwspace (!linePos));
 print("]\n");
 app ErrorMsg.error (rev (!errorList));
@@ -291,8 +291,8 @@ fun yyAction41 (strm, lastMatch : yymatch) = let
 fun yyAction42 (strm, lastMatch : yymatch) = let
       val yytext = yymktext(strm)
       in
-        yystrm := strm; (Tokens.ID(yytext,
-					    yypos, yypos+size(yytext)))
+        yystrm := strm; (Tokens.ID(yytext, yypos,
+					   yypos+size(yytext)))
       end
 fun yyAction43 (strm, lastMatch : yymatch) = (yystrm := strm;
       (commentNesting := !commentNesting+1;

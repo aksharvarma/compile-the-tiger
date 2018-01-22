@@ -18,13 +18,13 @@ fun eof() =
   in
   if !commentNesting <> 0 then
   (commentNesting := 0;
-  errorList:= (0, 0, "Unclosed comment at EOF. Nesting level: "^Int.toString(finalCommentNesting)) :: !errorList)
+  errorList:= (0, 0, "Open comment at EOF. Nesting level: "^Int.toString(finalCommentNesting)) :: !errorList)
   else if !inString then
   (inString:=false;
   errorList:= (0, 0, "Unclosed string at EOF.") :: !errorList)
   else ();
 print("Number of lines read:" ^ Int.toString(!lineNum) ^ "\n");
-print("!linePos:\n");
+print("!linePos: [");
 app print (map pwspace (!linePos));
 print("]\n");
 app ErrorMsg.error (rev (!errorList));
@@ -37,6 +37,7 @@ Tokens.EOF(pos,pos)
 (* we assume there are no \r being used in {ws}.*)
 (* COMMENT and STRING states defined here *)
 %%
+
 alpha=[A-Za-z];
 digit=[0-9];
 ws = [ \t];
@@ -119,10 +120,8 @@ notControlEscape = [^\]@A-Z\\_\[^];
 
 <STRING>(\\{notEscape}|\\"^"{notControlEscape}) => (errorList := (yypos, yypos +size(yytext),
 								  "Illegal escape character: " ^ yytext) :: !errorList; continue());
-
 <STRING>[^"]|\\\\ => (matchedString := !matchedString ^ yytext;
 		   continue());
-
 <STRING>\"   => (inString := false; YYBEGIN INITIAL;
 		 Tokens.STRING(!matchedString, !stringStart, yypos));
 
