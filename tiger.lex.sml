@@ -113,28 +113,36 @@ val commentNesting = ref 0
 val inString = ref false
 val matchedString = ref ""
 val stringStart = ref 0
-  
+		      
 fun eof() =
-  let
-  val pos = hd(!linePos)
-  val pwspace = fn n => Int.toString(n)^", "
-  val finalCommentNesting:int = !commentNesting
-  in
-  if !commentNesting <> 0 then
-  (commentNesting := 0;
-  errorList:= (0, 0, "Unclosed comment at EOF. Nesting level: "^Int.toString(finalCommentNesting)) :: !errorList)
-  else if !inString then
-  (inString:=false;
-  errorList:= (0, 0, "Unclosed string at EOF.") :: !errorList)
-  else ();
-print("Number of lines read:" ^ Int.toString(!lineNum) ^ "\n");
-print("!linePos: [");
-app print (map pwspace (!linePos));
-print("]\n");
-app ErrorMsg.error (rev (!errorList));
-ErrorMsg.reset();
-Tokens.EOF(pos,pos)
-  end
+    let
+	val pos = hd(!linePos)
+	val finalCommentNesting:int = !commentNesting
+	(* Next definition used for debugging *)
+	(* val pwspace = fn n => Int.toString(n)^", " *)
+    in
+	(* If inside a comment at EOF, add to errorList *)
+	if !commentNesting <> 0 then
+	    (commentNesting := 0;
+	     errorList:= (0, 0, "Open comment at EOF. Nesting level: "^Int.toString(finalCommentNesting)) :: !errorList)
+	else if !inString then
+	    (* If inside a string at EOF, add to errorList *)
+	    (inString:=false;
+	     errorList:= (0, 0, "Unclosed string at EOF.") :: !errorList)
+	else ();
+	(* A few debugging statements follow *)
+	(* print("Number of lines read:" ^ Int.toString(!lineNum)); *)
+	(* print("\n!linePos: [");app print(map pwspace(!linePos)); *)
+	(* print("]\n"); *)
+
+	(* Print all the errors *)
+	app ErrorMsg.error (rev (!errorList));
+	(* Resets errors, etc. *)
+	ErrorMsg.reset();
+	(* The EOF token position might be slightly off due to
+	   presence/lack of a newline at the end of the file*)
+	Tokens.EOF(pos,pos)
+    end
 
 
 (* Lex definitions *)
@@ -200,7 +208,11 @@ Vector.fromList []
 	    in 
 let
 fun yyAction0 (strm, lastMatch : yymatch) = (yystrm := strm;
-      (lineNum := !lineNum+1; linePos := yypos :: !linePos; continue()))
+      (
+		       (* Count lines and store line-end position *)
+		       lineNum := !lineNum+1;
+		       linePos := yypos :: !linePos;
+		       continue()))
 fun yyAction1 (strm, lastMatch : yymatch) = (yystrm := strm;
       (Tokens.TYPE(yypos,yypos+4)))
 fun yyAction2 (strm, lastMatch : yymatch) = (yystrm := strm;
@@ -285,39 +297,54 @@ fun yyAction41 (strm, lastMatch : yymatch) = let
       val yytext = yymktext(strm)
       in
         yystrm := strm;
-        (Tokens.INT(valOf(Int.fromString(yytext)),
-			yypos, yypos+size(yytext)))
+        ((* Integers *)
+    Tokens.INT(valOf(Int.fromString(yytext)),
+	       yypos, yypos+size(yytext)))
       end
 fun yyAction42 (strm, lastMatch : yymatch) = let
       val yytext = yymktext(strm)
       in
-        yystrm := strm; (Tokens.ID(yytext, yypos,
-					   yypos+size(yytext)))
+        yystrm := strm;
+        ((* Identifiers *)
+    Tokens.ID(yytext, yypos, yypos+size(yytext)))
       end
 fun yyAction43 (strm, lastMatch : yymatch) = (yystrm := strm;
-      (commentNesting := !commentNesting+1;
-			       YYBEGIN COMMENT; continue()))
+      ((* Comment starts, increment nesting *)
+    commentNesting := !commentNesting+1;
+    YYBEGIN COMMENT; continue()))
 fun yyAction44 (strm, lastMatch : yymatch) = (yystrm := strm;
-      (commentNesting := !commentNesting-1;
-		  if !commentNesting = 0
-		  then YYBEGIN INITIAL else YYBEGIN COMMENT;
-		  continue()))
+      ((* Comment ends, change state based on nesting *)
+    commentNesting := !commentNesting-1;
+    if !commentNesting = 0
+    then YYBEGIN INITIAL else YYBEGIN COMMENT;
+    continue()))
 fun yyAction45 (strm, lastMatch : yymatch) = (yystrm := strm; (continue()))
 fun yyAction46 (strm, lastMatch : yymatch) = (yystrm := strm;
-      (inString := true; stringStart := yypos+1; matchedString := "";
-		      YYBEGIN STRING; continue()))
+      ((* String literal starts *)
+    inString := true;
+    stringStart := yypos+1;
+    matchedString := "";
+    YYBEGIN STRING; continue()))
 fun yyAction47 (strm, lastMatch : yymatch) = let
       val yytext = yymktext(strm)
       in
         yystrm := strm;
-        (errorList := (yypos, yypos+size(yytext),
-					"Illegal non-printing character in string:" ^ yytext) :: !errorList; continue())
+        ((* Catch non-printable characters *)
+    errorList := (yypos, yypos+size(yytext),
+		  "Illegal non-printing character in string:" ^
+		  yytext) :: !errorList;
+    continue())
       end
 fun yyAction48 (strm, lastMatch : yymatch) = let
       val yytext = yymktext(strm)
       in
         yystrm := strm;
-        (if (yytext = "\\\n") then (lineNum := !lineNum+1; linePos := yypos :: !linePos) else (); YYBEGIN SKIPSTRING; continue())
+        ((* Skip whitespace between two backslashes
+			   Uses a special state called SKIPSTRING *)
+    if (yytext = "\\\n")
+    then (lineNum := !lineNum+1; linePos := yypos :: !linePos)
+    else ();
+    YYBEGIN SKIPSTRING; continue())
       end
 fun yyAction49 (strm, lastMatch : yymatch) = (yystrm := strm; (continue()))
 fun yyAction50 (strm, lastMatch : yymatch) = (yystrm := strm;
@@ -326,27 +353,34 @@ fun yyAction51 (strm, lastMatch : yymatch) = let
       val yytext = yymktext(strm)
       in
         yystrm := strm;
-        (errorList := (yypos, yypos +size(yytext),
-								  "Illegal escape character: " ^ yytext) :: !errorList; continue())
+        ((* Catch all illegal escapes *)
+  errorList := (yypos, yypos +size(yytext),
+		"Illegal escape character: " ^ yytext) :: !errorList;
+  continue())
       end
 fun yyAction52 (strm, lastMatch : yymatch) = let
       val yytext = yymktext(strm)
       in
         yystrm := strm;
-        (matchedString := !matchedString ^ yytext;
-		   continue())
+        ((* Double backslash is addressed here because
+		      that regex was easier to write *) 
+		      matchedString := !matchedString ^ yytext;
+		      continue())
       end
 fun yyAction53 (strm, lastMatch : yymatch) = (yystrm := strm;
-      (inString := false; YYBEGIN INITIAL;
-		 Tokens.STRING(!matchedString, !stringStart, yypos)))
-fun yyAction54 (strm, lastMatch : yymatch) = (yystrm := strm; (continue()))
+      ((* String literal ends, token is generated here. *) 
+	     	    inString := false; YYBEGIN INITIAL;
+	     	    Tokens.STRING(!matchedString, !stringStart, yypos)))
+fun yyAction54 (strm, lastMatch : yymatch) = (yystrm := strm;
+      ((* Skip whitespace *) continue()))
 fun yyAction55 (strm, lastMatch : yymatch) = let
       val yytext = yymktext(strm)
       in
         yystrm := strm;
-        (errorList := (yypos, yypos+size(yytext),
-			      "Illegal character error:" ^ yytext) :: !errorList;
-continue())
+        ((* Catch any other illegal characters *) 
+		     errorList := (yypos, yypos+size(yytext),
+		     "Illegal character error:"^yytext) :: !errorList;
+		     continue())
       end
 fun yyQ56 (strm, lastMatch : yymatch) = (case (yygetc(strm))
        of NONE => yyAction26(strm, yyNO_MATCH)

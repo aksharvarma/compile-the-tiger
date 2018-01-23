@@ -9,28 +9,36 @@ val commentNesting = ref 0
 val inString = ref false
 val matchedString = ref ""
 val stringStart = ref 0
-  
+		      
 fun eof() =
-  let
-  val pos = hd(!linePos)
-  val pwspace = fn n => Int.toString(n)^", "
-  val finalCommentNesting:int = !commentNesting
-  in
-  if !commentNesting <> 0 then
-  (commentNesting := 0;
-  errorList:= (0, 0, "Open comment at EOF. Nesting level: "^Int.toString(finalCommentNesting)) :: !errorList)
-  else if !inString then
-  (inString:=false;
-  errorList:= (0, 0, "Unclosed string at EOF.") :: !errorList)
-  else ();
-print("Number of lines read:" ^ Int.toString(!lineNum) ^ "\n");
-print("!linePos: [");
-app print (map pwspace (!linePos));
-print("]\n");
-app ErrorMsg.error (rev (!errorList));
-ErrorMsg.reset();
-Tokens.EOF(pos,pos)
-  end
+    let
+	val pos = hd(!linePos)
+	val finalCommentNesting:int = !commentNesting
+	(* Next definition used for debugging *)
+	(* val pwspace = fn n => Int.toString(n)^", " *)
+    in
+	(* If inside a comment at EOF, add to errorList *)
+	if !commentNesting <> 0 then
+	    (commentNesting := 0;
+	     errorList:= (0, 0, "Open comment at EOF. Nesting level: "^Int.toString(finalCommentNesting)) :: !errorList)
+	else if !inString then
+	    (* If inside a string at EOF, add to errorList *)
+	    (inString:=false;
+	     errorList:= (0, 0, "Unclosed string at EOF.") :: !errorList)
+	else ();
+	(* A few debugging statements follow *)
+	(* print("Number of lines read:" ^ Int.toString(!lineNum)); *)
+	(* print("\n!linePos: [");app print(map pwspace(!linePos)); *)
+	(* print("]\n"); *)
+
+	(* Print all the errors *)
+	app ErrorMsg.error (rev (!errorList));
+	(* Resets errors, etc. *)
+	ErrorMsg.reset();
+	(* The EOF token position might be slightly off due to
+	   presence/lack of a newline at the end of the file*)
+	Tokens.EOF(pos,pos)
+    end
 
 
 (* Lex definitions *)
@@ -45,10 +53,15 @@ escape = [n\\t\"\ddd];
 controlEscape = [\]@A-Z\\_\[^];
 notEscape = [^n\\t\"\ddd];
 notControlEscape = [^\]@A-Z\\_\[^];
+
 %s COMMENT STRING SKIPSTRING;
 
 %%
-<INITIAL, COMMENT, SKIPSTRING>\n|\r       => (lineNum := !lineNum+1; linePos := yypos :: !linePos; continue());
+<INITIAL, COMMENT, SKIPSTRING>\n|\r   => (
+		       (* Count lines and store line-end position *)
+		       lineNum := !lineNum+1;
+		       linePos := yypos :: !linePos;
+		       continue());
 
 <INITIAL>"type"   => (Tokens.TYPE(yypos,yypos+4));
 <INITIAL>"var"   => (Tokens.VAR(yypos,yypos+3));
@@ -92,45 +105,66 @@ notControlEscape = [^\]@A-Z\\_\[^];
 <INITIAL>"&"      => (Tokens.AND(yypos,yypos+1));
 <INITIAL>":="     => (Tokens.ASSIGN(yypos,yypos+2));
 
-<INITIAL>{digit}+ => (Tokens.INT(valOf(Int.fromString(yytext)),
-			yypos, yypos+size(yytext)));
+<INITIAL>{digit}+ => ((* Integers *)
+    Tokens.INT(valOf(Int.fromString(yytext)),
+	       yypos, yypos+size(yytext)));
 
-<INITIAL>{alpha}({alpha}|{digit}|"_")* => (Tokens.ID(yytext, yypos,
-					   yypos+size(yytext)));
+<INITIAL>{alpha}({alpha}|{digit}|"_")* => ((* Identifiers *)
+    Tokens.ID(yytext, yypos, yypos+size(yytext)));
 
-<INITIAL, COMMENT>"/*"     => (commentNesting := !commentNesting+1;
-			       YYBEGIN COMMENT; continue());
-<COMMENT>"*/" => (commentNesting := !commentNesting-1;
-		  if !commentNesting = 0
-		  then YYBEGIN INITIAL else YYBEGIN COMMENT;
-		  continue());
+<INITIAL, COMMENT>"/*"     => ((* Comment starts, increment nesting *)
+    commentNesting := !commentNesting+1;
+    YYBEGIN COMMENT; continue());
+<COMMENT>"*/" => ((* Comment ends, change state based on nesting *)
+    commentNesting := !commentNesting-1;
+    if !commentNesting = 0
+    then YYBEGIN INITIAL else YYBEGIN COMMENT;
+    continue());
 <COMMENT>. => (continue());
 
 
-<INITIAL>\"       => (inString := true; stringStart := yypos+1; matchedString := "";
-		      YYBEGIN STRING; continue());
+<INITIAL>\"       => ((* String literal starts *)
+    inString := true;
+    stringStart := yypos+1;
+    matchedString := "";
+    YYBEGIN STRING; continue());
 
-<STRING>[^\032-\127]  => (errorList := (yypos, yypos+size(yytext),
-					"Illegal non-printing character in string:" ^ yytext) :: !errorList; continue());
+<STRING>[^\032-\127]  => ((* Catch non-printable characters *)
+    errorList := (yypos, yypos+size(yytext),
+		  "Illegal non-printing character in string:" ^
+		  yytext) :: !errorList;
+    continue());
 
-<STRING>\\({ws}|\n) => (if (yytext = "\\\n") then (lineNum := !lineNum+1; linePos := yypos :: !linePos) else (); YYBEGIN SKIPSTRING; continue());
+<STRING>\\({ws}|\n) => ((* Skip whitespace between two backslashes
+			   Uses a special state called SKIPSTRING *)
+    if (yytext = "\\\n")
+    then (lineNum := !lineNum+1; linePos := yypos :: !linePos)
+    else ();
+    YYBEGIN SKIPSTRING; continue());
 <SKIPSTRING>{ws}+   => (continue());
 <SKIPSTRING>\\   => (YYBEGIN STRING; continue());
 
 
-<STRING>(\\{notEscape}|\\"^"{notControlEscape}) => (errorList := (yypos, yypos +size(yytext),
-								  "Illegal escape character: " ^ yytext) :: !errorList; continue());
-<STRING>[^"]|\\\\ => (matchedString := !matchedString ^ yytext;
-		   continue());
-<STRING>\"   => (inString := false; YYBEGIN INITIAL;
-		 Tokens.STRING(!matchedString, !stringStart, yypos));
+<STRING>(\\{notEscape}|\\"^"{notControlEscape}) =>
+((* Catch all illegal escapes *)
+  errorList := (yypos, yypos +size(yytext),
+		"Illegal escape character: " ^ yytext) :: !errorList;
+  continue());
+<STRING>[^"]|\\\\ => ((* Double backslash is addressed here because
+		      that regex was easier to write *) 
+		      matchedString := !matchedString ^ yytext;
+		      continue());
+<STRING>\"   => ((* String literal ends, token is generated here. *) 
+	     	    inString := false; YYBEGIN INITIAL;
+	     	    Tokens.STRING(!matchedString, !stringStart, yypos));
 
 
-<INITIAL>{ws}    => (continue());
+<INITIAL>{ws}     =>  ((* Skip whitespace *) continue());
 
-<INITIAL>.        => (errorList := (yypos, yypos+size(yytext),
-			      "Illegal character error:" ^ yytext) :: !errorList;
-continue());
+<INITIAL>.        => ((* Catch any other illegal characters *) 
+		     errorList := (yypos, yypos+size(yytext),
+		     "Illegal character error:"^yytext) :: !errorList;
+		     continue());
 
 
 
