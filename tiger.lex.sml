@@ -33,7 +33,7 @@ structure Mlex  = struct
 	fun nextId() = !next before (next := !next + 1)
 	end
 
-	val initPos = 0 (* ml-lex bug compatibility *)
+	val initPos = 1 (* ml-lex bug compatibility *)
 
 	fun mkStream inputN = let
               val strm = TSIO.mkInstream 
@@ -111,43 +111,43 @@ val errorList = ErrorMsg.errorList
 
 val commentNesting = ref 0
 val inString = ref false
-val matchedString = ref ""
+val matchedString = ref []: string list ref
 val stringStart = ref 0
-		      
-fun eof() =
+
+fun eof(fileName) =
     let
-	val pos = hd(!linePos)
+        val pos = hd(!linePos)
 	val finalCommentNesting:int = !commentNesting
-	(* Next definition used for debugging *)
-	(* val pwspace = fn n => Int.toString(n)^", " *)
     in
 	(* If inside a comment at EOF, add to errorList *)
-	if !commentNesting <> 0 then
-	    (commentNesting := 0;
-	     errorList:= (0, 0, "Open comment at EOF. Nesting level: "^Int.toString(finalCommentNesting)) :: !errorList)
-	else if !inString then
-	    (* If inside a string at EOF, add to errorList *)
-	    (inString:=false;
-	     errorList:= (0, 0, "Unclosed string at EOF.") :: !errorList)
+	if !commentNesting <> 0
+        then (commentNesting := 0;
+	    errorList:= (0, 0, "Open comment at EOF. Nesting level: " ^
+                Int.toString(finalCommentNesting)) :: !errorList)
+	else if !inString
+        then (* If inside a string at EOF, add to errorList *)
+	    (inString := false;
+            errorList:= (0, 0, "Unclosed string at EOF.") :: !errorList)
 	else ();
-	(* A few debugging statements follow *)
-	(* print("Number of lines read:" ^ Int.toString(!lineNum)); *)
-	(* print("\n!linePos: [");app print(map pwspace(!linePos)); *)
-	(* print("]\n"); *)
 
-	(* Print all the errors *)
-	app ErrorMsg.error (rev (!errorList));
-	(* Resets errors, etc. *)
+        (* Set the filename for error printing *)
+        ErrorMsg.fileName := fileName;
+	(* If there were errors, print them and throw an exception *)
+        if (length(!errorList) > 0)
+        then (app ErrorMsg.error (rev (!errorList));
+            ErrorMsg.throwCompilerError())
+        else ();
+
+	(* Resets errors lineNum, etc. *)
 	ErrorMsg.reset();
-	(* The EOF token position might be slightly off due to
+
+	(* The EOF token position might appear to be slightly off due to
 	   presence/lack of a newline at the end of the file*)
 	Tokens.EOF(pos,pos)
     end
 
-
 (* Lex definitions *)
-(* we assume there are no \r being used in {ws}.*)
-(* COMMENT and STRING states defined here *)
+(* COMMENT, STRING, and SKIPSTRING states defined here *)
 
 
       end
@@ -173,7 +173,7 @@ Vector.fromList []
 	fun yymktext(strm) = yyInput.subtract (strm, !yystrm)
         open UserDeclarations
         fun lex 
-(yyarg as ()) = let 
+(yyarg as (fileName:string)) () = let 
      fun continue() = let
             val yylastwasn = yyInput.lastWasNL (!yystrm)
             fun yystuck (yyNO_MATCH) = raise Fail "stuck state"
@@ -298,8 +298,7 @@ fun yyAction41 (strm, lastMatch : yymatch) = let
       in
         yystrm := strm;
         ((* Integers *)
-    Tokens.INT(valOf(Int.fromString(yytext)),
-	       yypos, yypos+size(yytext)))
+    Tokens.INT(valOf(Int.fromString(yytext)), yypos, yypos + size(yytext)))
       end
 fun yyAction42 (strm, lastMatch : yymatch) = let
       val yytext = yymktext(strm)
@@ -310,29 +309,33 @@ fun yyAction42 (strm, lastMatch : yymatch) = let
       end
 fun yyAction43 (strm, lastMatch : yymatch) = (yystrm := strm;
       ((* Comment starts, increment nesting *)
-    commentNesting := !commentNesting+1;
-    YYBEGIN COMMENT; continue()))
+    commentNesting := !commentNesting + 1;
+    YYBEGIN COMMENT;
+    continue()))
 fun yyAction44 (strm, lastMatch : yymatch) = (yystrm := strm;
       ((* Comment ends, change state based on nesting *)
-    commentNesting := !commentNesting-1;
+    commentNesting := !commentNesting - 1;
     if !commentNesting = 0
-    then YYBEGIN INITIAL else YYBEGIN COMMENT;
+    then YYBEGIN INITIAL
+    else YYBEGIN COMMENT;
     continue()))
-fun yyAction45 (strm, lastMatch : yymatch) = (yystrm := strm; (continue()))
+fun yyAction45 (strm, lastMatch : yymatch) = (yystrm := strm;
+      ((* In the middle of the comment, continue *)
+    continue()))
 fun yyAction46 (strm, lastMatch : yymatch) = (yystrm := strm;
       ((* String literal starts *)
     inString := true;
     stringStart := yypos+1;
-    matchedString := "";
-    YYBEGIN STRING; continue()))
+    matchedString := [];
+    YYBEGIN STRING;
+    continue()))
 fun yyAction47 (strm, lastMatch : yymatch) = let
       val yytext = yymktext(strm)
       in
         yystrm := strm;
         ((* Catch non-printable characters *)
     errorList := (yypos, yypos+size(yytext),
-		  "Illegal non-printing character in string:" ^
-		  yytext) :: !errorList;
+	"Illegal non-printing character in string:" ^ yytext) :: !errorList;
     continue())
       end
 fun yyAction48 (strm, lastMatch : yymatch) = let
@@ -340,11 +343,12 @@ fun yyAction48 (strm, lastMatch : yymatch) = let
       in
         yystrm := strm;
         ((* Skip whitespace between two backslashes
-			   Uses a special state called SKIPSTRING *)
-    if (yytext = "\\\n")
+	Uses a special state called SKIPSTRING *)
+    if (yytext = "\\\n" orelse yytext = "\\\r")
     then (lineNum := !lineNum+1; linePos := yypos :: !linePos)
     else ();
-    YYBEGIN SKIPSTRING; continue())
+    YYBEGIN SKIPSTRING;
+    continue())
       end
 fun yyAction49 (strm, lastMatch : yymatch) = (yystrm := strm; (continue()))
 fun yyAction50 (strm, lastMatch : yymatch) = (yystrm := strm;
@@ -354,33 +358,34 @@ fun yyAction51 (strm, lastMatch : yymatch) = let
       in
         yystrm := strm;
         ((* Catch all illegal escapes *)
-  errorList := (yypos, yypos +size(yytext),
-		"Illegal escape character: " ^ yytext) :: !errorList;
-  continue())
+    errorList := (yypos, yypos +size(yytext),
+        "Illegal escape character: " ^ yytext) :: !errorList;
+    continue())
       end
 fun yyAction52 (strm, lastMatch : yymatch) = let
       val yytext = yymktext(strm)
       in
         yystrm := strm;
         ((* Double backslash is addressed here because
-		      that regex was easier to write *) 
-		      matchedString := !matchedString ^ yytext;
-		      continue())
+	that regex was easier to write *)
+    matchedString := yytext :: !matchedString;
+    continue())
       end
 fun yyAction53 (strm, lastMatch : yymatch) = (yystrm := strm;
-      ((* String literal ends, token is generated here. *) 
-	     	    inString := false; YYBEGIN INITIAL;
-	     	    Tokens.STRING(!matchedString, !stringStart, yypos)))
+      ((* String literal ends, token is generated here. *)
+    inString := false;
+    YYBEGIN INITIAL;
+    Tokens.STRING(concat(rev(!matchedString)), !stringStart, yypos)))
 fun yyAction54 (strm, lastMatch : yymatch) = (yystrm := strm;
       ((* Skip whitespace *) continue()))
 fun yyAction55 (strm, lastMatch : yymatch) = let
       val yytext = yymktext(strm)
       in
         yystrm := strm;
-        ((* Catch any other illegal characters *) 
-		     errorList := (yypos, yypos+size(yytext),
-		     "Illegal character error:"^yytext) :: !errorList;
-		     continue())
+        ((* Catch any other illegal characters *)
+    errorList := (yypos, yypos+size(yytext),
+        "Illegal character error:"^yytext) :: !errorList;
+    continue())
       end
 fun yyQ56 (strm, lastMatch : yymatch) = (case (yygetc(strm))
        of NONE => yyAction26(strm, yyNO_MATCH)
@@ -2396,37 +2401,47 @@ fun yyQ9 (strm, lastMatch : yymatch) = (case (yygetc(strm))
 fun yyQ7 (strm, lastMatch : yymatch) = (case (yygetc(strm))
        of NONE => yyAction52(strm, yyNO_MATCH)
         | SOME(inp, strm') =>
-            if inp = #"]"
-              then yyQ8(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
-            else if inp < #"]"
-              then if inp = #"!"
+            if inp = #"\\"
+              then yyQ5(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
+            else if inp < #"\\"
+              then if inp = #"\^N"
                   then yyQ8(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
-                else if inp < #"!"
+                else if inp < #"\^N"
                   then if inp = #"\v"
                       then yyQ8(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
                     else if inp < #"\v"
                       then if inp <= #"\b"
                           then yyQ8(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
                           else yyQ9(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
-                    else if inp = #" "
+                    else if inp = #"\r"
                       then yyQ9(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
                       else yyQ8(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
-                else if inp = #"#"
+                else if inp = #"!"
                   then yyQ8(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
-                else if inp < #"#"
-                  then yyAction52(strm, yyNO_MATCH)
-                else if inp = #"\\"
-                  then yyQ5(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
-                  else yyQ8(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
-            else if inp = #"n"
-              then yyAction52(strm, yyNO_MATCH)
-            else if inp < #"n"
-              then if inp = #"d"
-                  then yyAction52(strm, yyNO_MATCH)
-                else if inp < #"d"
-                  then if inp = #"^"
-                      then yyQ10(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
+                else if inp < #"!"
+                  then if inp = #" "
+                      then yyQ9(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
                       else yyQ8(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
+                else if inp = #"\""
+                  then yyAction52(strm, yyNO_MATCH)
+                  else yyQ8(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
+            else if inp = #"e"
+              then yyQ8(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
+            else if inp < #"e"
+              then if inp = #"_"
+                  then yyQ8(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
+                else if inp < #"_"
+                  then if inp = #"]"
+                      then yyQ8(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
+                      else yyQ10(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
+                else if inp = #"d"
+                  then yyAction52(strm, yyNO_MATCH)
+                  else yyQ8(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
+            else if inp = #"o"
+              then yyQ8(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
+            else if inp < #"o"
+              then if inp = #"n"
+                  then yyAction52(strm, yyNO_MATCH)
                   else yyQ8(strm', yyMATCH(strm, yyAction52, yyNO_MATCH))
             else if inp = #"t"
               then yyAction52(strm, yyNO_MATCH)

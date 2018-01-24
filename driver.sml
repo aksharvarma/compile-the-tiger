@@ -1,9 +1,9 @@
 structure Parse =
-struct 
+struct
   fun parse filename =
       let val file = TextIO.openIn filename
 	  fun get _ = TextIO.input file
-	  val lexer = Mlex.makeLexer get
+	  val lexer = Mlex.makeLexer get filename
 	  fun do_it() =
 	      let val t = lexer()
 	       in print t; print "\n";
