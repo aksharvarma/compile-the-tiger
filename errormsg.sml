@@ -51,8 +51,8 @@ fun error (posStart:int, posEnd:int, msg:string) =
 	  | mylook ([], searchpos, n) = print("0.0");
     in
         anyErrors := true;
-        print(Int.toString(!lineNum));
-        print((!fileName)^":");
+        (* print(Int.toString(!lineNum)); *)
+        print((!fileName)^": ");
         print("[");
         mylook(!linePos, posStart, !lineNum);
         print("--");
@@ -66,7 +66,7 @@ fun error (posStart:int, posEnd:int, msg:string) =
     end
 
 fun throwCompilerError() =
-    (app print ["Error: Compiler encountered ",
+    (app print ["\nError: Compiler encountered ",
         Int.toString(length(!errorList)),
         " errors\n"];
     reset();

@@ -179,6 +179,6 @@ notControlEscape = [^\]@A-Z\\_\[^];
 <INITIAL>. =>
     ((* Catch any other illegal characters *)
     errorList := (yypos, yypos+size(yytext),
-        "Illegal character error:"^yytext) :: !errorList;
+        "Illegal character: "^yytext) :: !errorList;
     continue());
 

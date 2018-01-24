@@ -384,7 +384,7 @@ fun yyAction55 (strm, lastMatch : yymatch) = let
         yystrm := strm;
         ((* Catch any other illegal characters *)
     errorList := (yypos, yypos+size(yytext),
-        "Illegal character error:"^yytext) :: !errorList;
+        "Illegal character: "^yytext) :: !errorList;
     continue())
       end
 fun yyQ56 (strm, lastMatch : yymatch) = (case (yygetc(strm))
