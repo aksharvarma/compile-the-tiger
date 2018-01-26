@@ -1,0 +1,125 @@
+%%
+%term
+    EOF 
+  | ID of string
+  | INT of int | STRING of string 
+  | COMMA | COLON | SEMICOLON | LPAREN | RPAREN | LBRACK | RBRACK 
+  | LBRACE | RBRACE | DOT 
+  | PLUS | MINUS | TIMES | DIVIDE | EQ | NEQ | LT | LE | GT | GE
+  | AND | OR | ASSIGN
+  | ARRAY | IF | THEN | ELSE | WHILE | FOR | TO | DO | LET | IN | END | OF 
+  | BREAK | NIL
+  | FUNCTION | VAR | TYPE
+  | UMINUS
+
+%nonterm  program | expr
+	| lvalue | valuelessExpr | exprSeq | noval | funcall | funparam
+	| op
+	| record | recordFields | array
+	| decs | tydec | ty | tyfields | vardec | fundec
+	  
+
+%pos int
+%verbose
+%start program
+%eop EOF
+%noshift EOF
+
+		(* Define associativity and precedence *)
+%left OR
+%left AND
+%nonassoc EQ NEQ LT LE GT GE
+%left MINUS PLUS
+%left TIMES DIVIDE
+%left UMINUS
+
+%name Tiger
+
+%keyword WHILE FOR TO BREAK LET IN END FUNCTION VAR TYPE ARRAY IF THEN ELSE 
+	DO OF NIL
+
+%prefer THEN ELSE LPAREN
+
+%value ID ("bogus")
+%value INT (1)
+%value STRING ("")
+
+%%
+
+program	: expr				(print("always print this\n"))
+
+expr : lvalue (print("expr -> lvalue\n"))
+     | ID LPAREN funparam RPAREN (print("expr -> funname(foo,...)\n"))
+     | lvalue ASSIGN expr (print("expr -> lvalue := expr \n"))
+     | WHILE expr DO expr ()
+     | BREAK ()
+     | LPAREN RPAREN ()
+     | LET IN END ()
+     | NIL ()
+     | INT (print("Integer\n"))
+     | STRING (print("string\n"))
+     | MINUS expr   %prec UMINUS (print("Unary minus\n"))
+     | expr op expr () (* (print("expr -> expr op expr")) *)
+     | record (print("expr -> record\n"))
+     | array (print("expr -> array creation\n"))
+     | IF expr THEN expr ()
+     | IF expr THEN expr ELSE expr ()
+     | FOR ID ASSIGN expr TO expr DO expr ()
+     | LET decs IN END (print("expr -> LET with 0 expr\n"))
+     | LET decs IN expr END (print("expr -> LET with 1 expr\n"))
+     | LET decs IN exprSeq END (print("expr -> LET with exprSeq\n"))
+     | LPAREN expr RPAREN ()
+     | LPAREN exprSeq RPAREN ()
+	   
+lvalue : ID (print("lvalue -> ID\n"))
+       | lvalue DOT ID (print("lvalue -> lvalue.ID\n"))
+       | lvalue LBRACK expr RBRACK (print("lvalue -> lvalue[expr]\n"))
+
+exprSeq : expr SEMICOLON expr (print("expr -> expr ; expr\n"))
+	| exprSeq SEMICOLON expr (print("expr -> exprSeq ; expr\n"))
+		
+funparam : 			(* empty call *) ()
+	| expr ()
+	| funparam COMMA expr ()
+		 
+op : TIMES ()
+   | PLUS ()
+   | MINUS ()
+   | DIVIDE ()
+   | EQ ()
+   | NEQ ()
+   | LT ()
+   | LE ()
+   | GT ()
+   | GE ()
+   | AND ()
+   | OR ()				      
+
+record : ID LBRACE RBRACE ()
+       | ID LBRACE recordFields RBRACE  ()
+
+recordFields : ID EQ expr ()
+	     | ID EQ expr COMMA recordFields ()
+
+array : ID LBRACK expr RBRACK OF expr (print("array -> id[expr] of expr\n"))
+
+decs: 			()	(* empty *)
+    | tydec decs ()
+    | vardec decs ()
+    | fundec decs ()
+	  
+tydec : TYPE ID EQ ty ()
+
+ty : ID ()
+   | LBRACE tyfields RBRACE ()
+   | ARRAY OF ID ()
+
+tyfields :	 ()		(* epsilon *)
+   | ID COLON ID  ()
+   | ID COLON ID COMMA tyfields ()
+
+fundec : FUNCTION ID LPAREN tyfields RPAREN EQ expr ()
+       | FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ expr ()
+
+vardec : VAR ID ASSIGN expr (print("vardec -> var id := expr\n"))
+       | VAR ID COLON ID ASSIGN expr (print("vardec -> var id:id := expr\n"))
