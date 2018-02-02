@@ -10,7 +10,7 @@
   | ARRAY | IF | THEN | ELSE | WHILE | FOR | TO | DO | LET | IN | END | OF 
   | BREAK | NIL
   | FUNCTION | VAR | TYPE
-  | UMINUS
+  | UMINUS | LOWERTHANOPHACK
 
 %nonterm  program | expr
 	| lvalue | valuelessExpr | exprSeq | noval | funcall | funparam
@@ -28,6 +28,7 @@
 (* %nonassoc ASSIGN DO OF *)
 (* %nonassoc ELSE *)
 (* %nonassoc THEN *)
+%nonassoc LOWERTHANOPHACK
 %nonassoc ASSIGN
 %left OR
 %left AND
@@ -50,47 +51,47 @@
 
 program	: expr   (print("always print this\n"))
 
-expr : lvalue (print("expr -> lvalue\n"))
+expr : lvalue ()
 		(* NilExp, IntExp, StringExp, CallExp *)
      | NIL ()
-     | INT (print("Integer:"^Int.toString(INT)^"\n"))
-     | STRING (print("string:"^STRING^"\n"))
-     | ID LPAREN funparam RPAREN (print("expr -> "^ID^"(foo,...)\n"))
+     | INT (print(","^Int.toString(INT)^","))
+     | STRING (print(","^STRING^","))
+     | ID LPAREN funparam RPAREN (print("funcall:"^ID^"\n"))
 		(* OpExp *)
      | MINUS expr   %prec UMINUS (print("Unary minus\n"))
-     | expr TIMES expr (print("expr -> expr TIMES exp\n"))
-     | expr PLUS expr (print("expr -> expr PLUS exp\n"))
-     | expr MINUS expr (print("expr -> expr ope exp\n"))
-     | expr DIVIDE expr (print("expr -> expr ope exp\n"))
-     | expr EQ expr (print("expr -> expr ope exp\n"))
-     | expr NEQ expr (print("expr -> expr ope exp\n"))
-     | expr LT expr (print("expr -> expr ope exp\n"))
-     | expr LE expr (print("expr -> expr ope exp\n"))
-     | expr GT expr (print("expr -> expr ope exp\n"))
-     | expr GE expr (print("expr -> expr ope exp\n"))
-     | expr AND expr (print("expr -> expr ope exp\n"))
-     | expr OR expr (print("expr -> expr OR exp\n"))
+     | expr TIMES expr (print("TIMES\n"))
+     | expr PLUS expr (print("PLUS\n"))
+     | expr MINUS expr (print("MINUS\n"))
+     | expr DIVIDE expr (print("ope\n"))
+     | expr EQ expr (print("ope\n"))
+     | expr NEQ expr (print("ope\n"))
+     | expr LT expr (print("LT\n"))
+     | expr LE expr (print("LE\n"))
+     | expr GT expr (print("GT\n"))
+     | expr GE expr (print("GE\n"))
+     | expr AND expr (print("AND\n"))
+     | expr OR expr (print("OR\n"))
 		(* RecordExp, SeqExp, AssingExp *)
-     | record (print("expr -> record\n"))
+     | record (print("record\n"))
      | LPAREN RPAREN ()
      | LPAREN expr RPAREN ()
      | LPAREN exprSeq RPAREN ()
-     | lvalue ASSIGN expr (print("expr -> lvalue := expr \n"))
+     | lvalue ASSIGN expr ()
 		(* IfExp, WhileExp, ForExp, BreakExp *)
-     | IF expr THEN expr ()
-     | IF expr THEN expr ELSE expr ()
-     | WHILE expr DO expr ()
-     | FOR ID ASSIGN expr TO expr DO expr ()
+     | IF expr THEN expr %prec LOWERTHANOPHACK (print("if--then\n"))
+     | IF expr THEN expr ELSE expr %prec LOWERTHANOPHACK (print("if--then--else\n"))
+     | WHILE expr DO expr %prec LOWERTHANOPHACK (print("while--do\n"))
+     | FOR ID ASSIGN expr TO expr DO expr %prec LOWERTHANOPHACK (print("for"^ID^"\n"))
      | BREAK ()
 		(* LetExp *)
      | LET decs IN END (print("expr -> LET with 0 expr\n"))
      | LET decs IN expr END (print("expr -> LET with 1 expr\n"))
      | LET decs IN exprSeq END (print("expr -> LET with exprSeq\n"))
 		(* ArrayExp *)
-     | ID LBRACK expr RBRACK OF expr (print("array -> id[expr] of expr\n"))
+     | ID LBRACK expr RBRACK OF expr %prec LOWERTHANOPHACK ()
 	  
 (* SimpleVar, FieldVar, SubscriptVar *)
-lvalue : ID (print("lvalue -> ID:"^ID^"\n"))
+lvalue : ID (print(ID))
        | lvalue DOT ID ()
        | ID LBRACK expr RBRACK ()
        | lvalue LBRACK expr RBRACK ()
@@ -130,13 +131,13 @@ ty : ID ()
 (* Helper for Ty. *)
 tyfields :	 ()		(* epsilon *)
    | ID COLON ID  ()
-   | ID COLON ID COMMA tyfields ()
+   | tyfields COMMA ID COLON ID  ()
 
 (* FunctionDec, helper for Dec(s) *)
 fundec : FUNCTION ID LPAREN tyfields RPAREN EQ expr ()
        | FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ expr ()
 
 (* VarDec, a helper for Dec(s) *)
-vardec : VAR ID ASSIGN expr (print("vardec -> var id := expr\n"))
-       | VAR ID COLON ID ASSIGN expr (print("vardec -> var id:id := expr\n"))
+vardec : VAR ID ASSIGN expr ()
+       | VAR ID COLON ID ASSIGN expr ()
 

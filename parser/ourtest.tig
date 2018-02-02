@@ -4,5 +4,4 @@ if 5 <= 5 then 0 else 1; /* just trying */
 print  "ft\3457guybhnj" 
 */
 
-(ar := 4 = 6 * 5;
-2 * 3 + 7)
+if 2 = 3 then if 4 > 2 then "asdf" else "barasdfsd"
