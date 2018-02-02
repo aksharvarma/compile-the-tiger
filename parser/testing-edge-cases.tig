@@ -4,4 +4,5 @@ if 5 <= 5 then 0 else 1; /* just trying */
 print  "ft\3457guybhnj" 
 */
 
-4 + 6 - 5
+(ar := 4 = 6 * 5;
+2 * 3 + 7)
