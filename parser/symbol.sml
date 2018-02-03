@@ -1,7 +1,7 @@
 signature SYMBOL =
 sig
   eqtype symbol
-  val symbol : string -> symbol
+  val symbolize : string -> symbol
   val name : symbol -> string
   type 'a table
   val empty : 'a table
@@ -22,7 +22,7 @@ struct
   val hashtable : (string,int) H.hash_table = 
 		H.mkTable(HashString.hashString, op = ) (sizeHint,Symbol)
   
-  fun symbol name =
+  fun symbolize(name) =
       case H.find hashtable name
        of SOME i => (name,i)
         | NONE => let val i = !nextsym

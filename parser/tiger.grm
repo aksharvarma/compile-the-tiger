@@ -1,3 +1,9 @@
+structure A = Absyn
+val sym = Symbol.symbolize
+type symbol = Symbol.symbol
+val name = Symbol.name
+type recordFieldsT = ((symbol * A.exp * A.pos) list)
+			 
 %%
 %term
     EOF 
@@ -11,23 +17,29 @@
   | BREAK | NIL
   | FUNCTION | VAR | TYPE
   | UMINUS | LOWERTHANOPHACK
-
-%nonterm  program | expr
-	| lvalue | valuelessExpr | exprSeq | noval | funcall | funparam
-	| record | recordFields | array
-	| decs | tydec | ty | tyfields | vardec | fundec
+    
+%nonterm  program of A.exp | expr of A.exp
+	| lvalue of A.var | exprSeq of (A.exp * A.pos) list
+	| funparam of A.exp list
+	| record of A.exp
+	| recordFields of recordFieldsT
+	| decs of A.dec list
+	| tydec of {name:symbol, ty:A.ty, pos:A.pos}
+	| tydecs of {name:symbol, ty:A.ty, pos:A.pos} list
+	| ty of A.ty
+	| tyfields of A.field list
+	  (* | tyfields of (sym * bool ref * sym * pos) list *)
+	| vardec of A.dec
+	| fundec of A.fundec | fundecs of A.fundec list
 	  
 
-%pos int
+%pos Absyn.pos
 %verbose
 %start program
 %eop EOF
 %noshift EOF
 
 		(* Define associativity and precedence *)
-(* %nonassoc ASSIGN DO OF *)
-(* %nonassoc ELSE *)
-(* %nonassoc THEN *)
 %nonassoc LOWERTHANOPHACK
 %nonassoc ASSIGN
 %left OR
@@ -49,95 +61,158 @@
 
 %%
 
-program	: expr   (print("always print this\n"))
+program	: expr  (expr)
 
-expr : lvalue ()
+expr : lvalue (A.VarExp(lvalue))
 		(* NilExp, IntExp, StringExp, CallExp *)
-     | NIL ()
-     | INT (print(","^Int.toString(INT)^","))
-     | STRING (print(","^STRING^","))
-     | ID LPAREN funparam RPAREN (print("funcall:"^ID^"\n"))
+     | NIL (A.NilExp)
+     | INT (A.IntExp(INT))
+     | STRING (A.StringExp(STRING, STRINGleft))
+     | ID LPAREN funparam RPAREN (A.CallExp({func=sym(ID),
+					    args=funparam,
+					    pos=IDleft}))
 		(* OpExp *)
-     | MINUS expr   %prec UMINUS (print("Unary minus\n"))
-     | expr TIMES expr (print("TIMES\n"))
-     | expr PLUS expr (print("PLUS\n"))
-     | expr MINUS expr (print("MINUS\n"))
-     | expr DIVIDE expr (print("ope\n"))
-     | expr EQ expr (print("ope\n"))
-     | expr NEQ expr (print("ope\n"))
-     | expr LT expr (print("LT\n"))
-     | expr LE expr (print("LE\n"))
-     | expr GT expr (print("GT\n"))
-     | expr GE expr (print("GE\n"))
-     | expr AND expr (print("AND\n"))
-     | expr OR expr (print("OR\n"))
+     | MINUS expr   %prec UMINUS (A.OpExp({left=A.IntExp(0),
+					  oper=A.MinusOp,
+					  right=expr, pos=exprleft}))
+     | expr TIMES expr (A.OpExp({left=expr1,
+				oper=A.TimesOp,
+				right=expr2, pos=TIMESleft}))
+     | expr PLUS expr (A.OpExp({left=expr1,
+				oper=A.PlusOp,
+				right=expr2, pos=PLUSleft}))
+     | expr MINUS expr (A.OpExp({left=expr1,
+				oper=A.MinusOp,
+				right=expr2, pos=MINUSleft}))
+     | expr DIVIDE expr (A.OpExp({left=expr1,
+				oper=A.DivideOp,
+				right=expr2, pos=DIVIDEleft}))
+     | expr EQ expr (A.OpExp({left=expr1,
+				oper=A.EqOp,
+				right=expr2, pos=EQleft}))
+     | expr NEQ expr (A.OpExp({left=expr1,
+				oper=A.NeqOp,
+				right=expr2, pos=NEQleft}))
+     | expr LT expr (A.OpExp({left=expr1,
+				oper=A.LtOp,
+				right=expr2, pos=LTleft}))
+     | expr LE expr (A.OpExp({left=expr1,
+				oper=A.LeOp,
+				right=expr2, pos=LEleft}))
+     | expr GT expr (A.OpExp({left=expr1,
+				oper=A.GtOp,
+				right=expr2, pos=GTleft}))
+     | expr GE expr (A.OpExp({left=expr1,
+			     oper=A.GeOp,
+			     right=expr2, pos=GEleft}))
+     | expr AND expr (A.IfExp({test=expr1, then'=expr2, else'=SOME(A.IntExp(0)), pos=ANDleft}))
+     | expr OR expr (A.IfExp({test=expr1, then'=A.IntExp(1), else'=SOME(expr2), pos=ORleft}))
 		(* RecordExp, SeqExp, AssingExp *)
-     | record (print("record\n"))
-     | LPAREN RPAREN ()
-     | LPAREN expr RPAREN ()
-     | LPAREN exprSeq RPAREN ()
-     | lvalue ASSIGN expr ()
+     | record (record)
+     | LPAREN RPAREN (A.SeqExp([]))
+     | LPAREN expr RPAREN (A.SeqExp([(expr, exprleft)]))
+     | LPAREN exprSeq RPAREN (A.SeqExp(exprSeq))
+     | lvalue ASSIGN expr (A.AssignExp({var=lvalue, exp=expr, pos=ASSIGNleft}))
 		(* IfExp, WhileExp, ForExp, BreakExp *)
-     | IF expr THEN expr %prec LOWERTHANOPHACK (print("if--then\n"))
-     | IF expr THEN expr ELSE expr %prec LOWERTHANOPHACK (print("if--then--else\n"))
-     | WHILE expr DO expr %prec LOWERTHANOPHACK (print("while--do\n"))
-     | FOR ID ASSIGN expr TO expr DO expr %prec LOWERTHANOPHACK (print("for"^ID^"\n"))
-     | BREAK ()
+     | IF expr THEN expr %prec LOWERTHANOPHACK (A.IfExp({test=expr1,
+							then'=expr2,
+							else'=NONE,
+							pos=IFleft}))
+     | IF expr THEN expr ELSE expr %prec LOWERTHANOPHACK (A.IfExp({test=expr1, then'=expr2, else'=SOME(expr3), pos=IFleft}))
+     | WHILE expr DO expr %prec LOWERTHANOPHACK (A.WhileExp({test=expr1, body=expr2, pos=WHILEleft}))
+     | FOR ID ASSIGN expr TO expr DO expr %prec LOWERTHANOPHACK (A.ForExp({var=sym(ID), escape=ref true, lo=expr1, hi=expr2, body=expr3, pos=FORleft}))
+     | BREAK (A.BreakExp(BREAKleft))
 		(* LetExp *)
-     | LET decs IN END (print("expr -> LET with 0 expr\n"))
-     | LET decs IN expr END (print("expr -> LET with 1 expr\n"))
-     | LET decs IN exprSeq END (print("expr -> LET with exprSeq\n"))
+     | LET decs IN END (A.LetExp({decs=decs, body=A.SeqExp([]),
+				 pos=LETleft}))
+     | LET decs IN expr END (A.LetExp({decs=decs,
+				      body=expr, pos=LETleft}))
+     | LET decs IN exprSeq END (A.LetExp({decs=decs,
+					 body=A.SeqExp(exprSeq),
+					 pos=LETleft}))
 		(* ArrayExp *)
-     | ID LBRACK expr RBRACK OF expr %prec LOWERTHANOPHACK ()
+     | ID LBRACK expr RBRACK OF expr %prec LOWERTHANOPHACK (
+	   A.ArrayExp({typ=sym(ID), size=expr1, init=expr2, pos=IDleft}))
 	  
 (* SimpleVar, FieldVar, SubscriptVar *)
-lvalue : ID (print(ID))
-       | lvalue DOT ID ()
-       | ID LBRACK expr RBRACK ()
-       | lvalue LBRACK expr RBRACK ()
+lvalue : ID (A.SimpleVar(sym(ID), IDleft))
+       | lvalue DOT ID (A.FieldVar(lvalue, sym(ID), DOTleft))
+       | ID LBRACK expr RBRACK (A.SubscriptVar(A.SimpleVar(sym(ID),
+							   IDleft),
+					       expr, LBRACKleft))
+       | lvalue LBRACK expr RBRACK (A.SubscriptVar(lvalue,
+						   expr, LBRACKleft))
 
 (* Helper for SeqExp *)
-exprSeq : expr SEMICOLON expr ()
-	| exprSeq SEMICOLON expr ()
+exprSeq : expr SEMICOLON expr ([(expr1, expr1left), (expr2, expr2left)])
+	| exprSeq SEMICOLON expr (exprSeq@[(expr, exprleft)])
 		
 (* Helper for CallExp *)
-funparam : 			(* empty call *) ()
-	| expr ()
-	| funparam COMMA expr ()
+funparam : 			(* empty call *) ([])
+	| expr ([expr])
+	| funparam COMMA expr (funparam@[expr])
 
 (* Helper for RecordExp *)
-record : ID LBRACE RBRACE ()
-       | ID LBRACE recordFields RBRACE  ()
+record : ID LBRACE RBRACE (A.RecordExp({fields=[], typ=sym(ID),
+				       pos=IDleft}))
+       | ID LBRACE recordFields RBRACE (A.RecordExp({fields=recordFields,
+						    typ=sym(ID),
+						    pos=IDleft}))
 
 (* Helper for record *)
-recordFields : ID EQ expr ()
-	     | ID EQ expr COMMA recordFields ()
+recordFields : ID EQ expr ([(sym(ID), expr, EQleft)])
+	     | recordFields COMMA ID EQ expr (recordFields@[(sym(ID), expr, EQleft)])
 
 
 (* Decs *)
-decs: 			()	(* empty *)
-    | tydec decs ()
-    | vardec decs ()
-    | fundec decs ()
+decs: 			([])	(* empty *)
+    | decs tydecs (decs@[A.TypeDec(tydecs)])
+    | decs vardec (decs@[vardec])
+    | decs fundecs (decs@[A.FunctionDec(fundecs)])
 	  
 (* TypeDec: helper for decs *)
-tydec : TYPE ID EQ ty ()
+tydecs : tydec ([tydec])
+       | tydecs tydec  (tydecs@[tydec])
+tydec : TYPE ID EQ ty ({name=sym(ID), ty=ty, pos=EQleft})
 
 (* Ty, Helper for TypeDec. NameTy, RecordTy, ArrayTy *)
-ty : ID ()
-   | LBRACE tyfields RBRACE ()
-   | ARRAY OF ID ()
+ty : ID (A.NameTy(sym(ID), IDleft))
+   | LBRACE tyfields RBRACE (A.RecordTy(tyfields))
+   | ARRAY OF ID (A.ArrayTy(sym(ID), IDleft))
 
 (* Helper for Ty. *)
-tyfields :	 ()		(* epsilon *)
-   | ID COLON ID  ()
-   | tyfields COMMA ID COLON ID  ()
+tyfields :	 ([])		(* epsilon *)
+   | ID COLON ID  ([{name=sym(ID1),
+		     escape=ref true,
+		     typ=sym(ID2),
+		     pos=COLONleft}])
+   | tyfields COMMA ID COLON ID  (tyfields@[{name=sym(ID1),
+					     escape=ref true,
+					     typ=sym(ID2),
+					     pos=COLONleft}])
 
 (* FunctionDec, helper for Dec(s) *)
-fundec : FUNCTION ID LPAREN tyfields RPAREN EQ expr ()
-       | FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ expr ()
+fundecs : fundec ([fundec])
+	| fundecs fundec (fundecs@[fundec])
+
+fundec : FUNCTION ID LPAREN tyfields RPAREN EQ expr ({name=sym(ID),
+						      params=tyfields,
+						      result=NONE,
+						      body=expr,
+						      pos=IDleft})
+       | FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ expr (
+	     {name=sym(ID1),
+	      params=tyfields,
+	      result=SOME((sym(ID2), ID2left)),
+	      body=expr, pos=ID1left})
 
 (* VarDec, a helper for Dec(s) *)
-vardec : VAR ID ASSIGN expr ()
-       | VAR ID COLON ID ASSIGN expr ()
-
+vardec : VAR ID ASSIGN expr (A.VarDec({name=sym(ID), escape=ref true,
+				       typ=NONE, init=expr,
+				       pos=ASSIGNleft}))
+       | VAR ID COLON ID ASSIGN expr (A.VarDec({name=sym(ID1),
+						escape=ref true,
+						typ=SOME((sym(ID2),
+							  COLONleft)),
+						init=expr,
+						pos=ASSIGNleft}))

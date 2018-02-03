@@ -9,7 +9,7 @@ fun print (outstream, e0) =
   fun sayln s= (say s; say "\n") 
 
   fun indent 0 = ()
-    | indent i = (say " "; indent(i-1))
+    | indent i = (say "  "; indent(i-1))
 
   fun opname A.PlusOp = "PlusOp"
     | opname A.MinusOp = "MinusOp"
