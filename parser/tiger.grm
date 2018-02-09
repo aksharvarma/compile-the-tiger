@@ -51,13 +51,16 @@ type recordFieldsT = ((symbol * A.exp * A.pos) list)
 
 %name Tiger
 
+		(* Error recovery related things *)
 %keyword WHILE FOR TO BREAK LET IN END FUNCTION VAR TYPE ARRAY IF THEN ELSE DO OF NIL
 
-%prefer THEN ELSE LPAREN
+%prefer THEN ELSE LPAREN RPAREN ID PLUS EQ
+
+%change EQ -> ASSIGN | ASSIGN -> EQ | SEMICOLON ELSE -> ELSE | -> IN INT END
 
 %value ID ("bogus")
 %value INT (1)
-%value STRING ("")
+%value STRING ("arbit-string")
 
 %%
 
@@ -74,7 +77,7 @@ expr : lvalue (A.VarExp(lvalue))
 		(* OpExp *)
      | MINUS expr   %prec UMINUS (A.OpExp({left=A.IntExp(0),
 					  oper=A.MinusOp,
-					  right=expr, pos=exprleft}))
+					  right=expr, pos=MINUSleft}))
      | expr TIMES expr (A.OpExp({left=expr1,
 				oper=A.TimesOp,
 				right=expr2, pos=TIMESleft}))
@@ -160,8 +163,8 @@ record : ID LBRACE RBRACE (A.RecordExp({fields=[], typ=sym(ID),
 						    pos=IDleft}))
 
 (* Helper for record *)
-recordFields : ID EQ expr ([(sym(ID), expr, EQleft)])
-	     | recordFields COMMA ID EQ expr (recordFields@[(sym(ID), expr, EQleft)])
+recordFields : ID EQ expr ([(sym(ID), expr, IDleft)])
+	     | recordFields COMMA ID EQ expr (recordFields@[(sym(ID), expr, COMMAleft)])
 
 
 (* Decs *)
@@ -173,23 +176,23 @@ decs: 			([])	(* empty *)
 (* TypeDec: helper for decs *)
 tydecs : tydec ([tydec])
        | tydecs tydec  (tydecs@[tydec])
-tydec : TYPE ID EQ ty ({name=sym(ID), ty=ty, pos=EQleft})
+tydec : TYPE ID EQ ty ({name=sym(ID), ty=ty, pos=TYPEleft})
 
 (* Ty, Helper for TypeDec. NameTy, RecordTy, ArrayTy *)
 ty : ID (A.NameTy(sym(ID), IDleft))
    | LBRACE tyfields RBRACE (A.RecordTy(tyfields))
-   | ARRAY OF ID (A.ArrayTy(sym(ID), IDleft))
+   | ARRAY OF ID (A.ArrayTy(sym(ID), ARRAYleft))
 
 (* Helper for Ty. *)
 tyfields :	 ([])		(* epsilon *)
    | ID COLON ID  ([{name=sym(ID1),
 		     escape=ref true,
 		     typ=sym(ID2),
-		     pos=COLONleft}])
+		     pos=ID1left}])
    | tyfields COMMA ID COLON ID  (tyfields@[{name=sym(ID1),
 					     escape=ref true,
 					     typ=sym(ID2),
-					     pos=COLONleft}])
+					     pos=COMMAleft}])
 
 (* FunctionDec, helper for Dec(s) *)
 fundecs : fundec ([fundec])
@@ -199,20 +202,20 @@ fundec : FUNCTION ID LPAREN tyfields RPAREN EQ expr ({name=sym(ID),
 						      params=tyfields,
 						      result=NONE,
 						      body=expr,
-						      pos=IDleft})
+						      pos=FUNCTIONleft})
        | FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ expr (
 	     {name=sym(ID1),
 	      params=tyfields,
 	      result=SOME((sym(ID2), ID2left)),
-	      body=expr, pos=ID1left})
+	      body=expr, pos=FUNCTIONleft})
 
 (* VarDec, a helper for Dec(s) *)
 vardec : VAR ID ASSIGN expr (A.VarDec({name=sym(ID), escape=ref true,
 				       typ=NONE, init=expr,
-				       pos=ASSIGNleft}))
+				       pos=VARleft}))
        | VAR ID COLON ID ASSIGN expr (A.VarDec({name=sym(ID1),
 						escape=ref true,
 						typ=SOME((sym(ID2),
 							  COLONleft)),
 						init=expr,
-						pos=ASSIGNleft}))
+						pos=VARleft}))

@@ -33,7 +33,7 @@ functor TigerLexFun(structure Tokens: Tiger_TOKENS)  = struct
 	fun nextId() = !next before (next := !next + 1)
 	end
 
-	val initPos = 2 (* ml-lex bug compatibility *)
+	val initPos = 0 (* ml-lex bug compatibility *)
 
 	fun mkStream inputN = let
               val strm = TSIO.mkInstream 
@@ -136,16 +136,11 @@ fun eof() =
             errorList:= (0, 0, "Unclosed string at EOF.") :: !errorList)
 	else ();
 
-        (* Set the filename for error printing *)
-        (* ErrorMsg.fileName := fileName; *)
 	(* If there were errors, print them and throw an exception *)
         if (length(!errorList) > 0)
         then (app ErrorMsg.error (rev (!errorList));
             ErrorMsg.throwError())
         else ();
-
-	(* Resets errors lineNum, etc. *)
-	ErrorMsg.reset();
 
 	(* The EOF token position might appear to be slightly off due to
 	   presence/lack of a newline at the end of the file*)
