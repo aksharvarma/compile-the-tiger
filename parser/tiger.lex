@@ -52,7 +52,7 @@ fun eof() =
 
 alpha=[A-Za-z];
 digit=[0-9];
-ws = [ \t];
+ws = [ \t\r];
 escape = [n\\t\"\ddd];
 controlEscape = [\]@A-Z\\_\[^];
 notEscape = [^n\\t\"\ddd];
@@ -61,7 +61,7 @@ notControlEscape = [^\]@A-Z\\_\[^];
 %s COMMENT STRING SKIPSTRING;
 
 %%
-<INITIAL, COMMENT, SKIPSTRING>\n|\r   => (
+<INITIAL, COMMENT, SKIPSTRING>\n   => (
 		       (* Count lines and store line-end position *)
 		       lineNum := !lineNum+1;
 		       linePos := yypos :: !linePos;
@@ -147,10 +147,10 @@ notControlEscape = [^\]@A-Z\\_\[^];
 	"Illegal non-printing character in string:" ^ yytext) :: !errorList;
     continue());
 
-<STRING>\\({ws}|\n|\r) =>
+<STRING>\\({ws}|\n) =>
     ((* Skip whitespace between two backslashes
 	Uses a special state called SKIPSTRING *)
-    if (yytext = "\\\n" orelse yytext = "\\\r")
+    if (yytext = "\\\n")
     then (lineNum := !lineNum+1; linePos := yypos :: !linePos)
     else ();
     YYBEGIN SKIPSTRING;
