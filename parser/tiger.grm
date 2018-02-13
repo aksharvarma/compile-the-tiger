@@ -223,9 +223,7 @@ fundec : FUNCTION ID LPAREN tyfields RPAREN EQ expr
 	      body=expr, pos=FUNCTIONleft})
 
 (* VarDec, a helper for decs: a single variable declaration *)
-vardec : VAR ID ASSIGN expr          (print("parsing vardec: " ^ Int.toString(VARleft) ^ "\n" );
-ErrorMsg.error(VARleft, VARright, "my syntax error\n");
-A.VarDec({name=sym(ID), escape=ref true,
+vardec : VAR ID ASSIGN expr          (A.VarDec({name=sym(ID), escape=ref true,
 				               typ=NONE, init=expr, pos=VARleft}))
        | VAR ID COLON ID ASSIGN expr (A.VarDec({name=sym(ID1), escape=ref true,
 						typ=SOME((sym(ID2), COLONleft)),
