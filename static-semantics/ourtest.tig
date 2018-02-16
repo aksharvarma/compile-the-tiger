@@ -4,5 +4,10 @@ if 5 <= 5 then 0 else 1; /* just trying */
 print  "ft\3457guybhnj" 
 if 2 = 3 then 4 > 2 "asgs"
 */
-
-"afds" < "as"
+let
+	var i := 0
+	var j:int := 1
+	var s:string := "foo"
+in
+(();(print(s);i < j))
+end

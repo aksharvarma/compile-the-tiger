@@ -38,7 +38,12 @@ and ty = NameTy of symbol * pos
        | ArrayTy of symbol * pos
 
 and oper = PlusOp | MinusOp | TimesOp | DivideOp
-         | EqOp | NeqOp | LtOp | LeOp | GtOp | GeOp
+	   | EqOp | NeqOp | LtOp | LeOp | GtOp | GeOp
+
+(* and oper = ArithOp | CompareOp | EqualityOp *)
+(* and ArithOp = PlusOp | MinusOp | TimesOp | DivideOp *)
+(* and EqualityOp = EqOp | NeqOp *)
+(* and CompareOp = LtOp | LeOp | GtOp | GeOp *)
 
 withtype field = {name: symbol, escape: bool ref, 
 		  typ: symbol, pos: pos}

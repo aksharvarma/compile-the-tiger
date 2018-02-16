@@ -1202,13 +1202,11 @@ end)
 
 end
 |  ( 63, ( ( _, ( MlyValue.expr expr1, _, expr1right)) :: _ :: ( _, ( 
-MlyValue.ID ID1, _, _)) :: ( _, ( _, (VARleft as VAR1left), VARright))
- :: rest671)) => let val  result = MlyValue.vardec (fn _ => let val  (
-ID as ID1) = ID1 ()
+MlyValue.ID ID1, _, _)) :: ( _, ( _, (VARleft as VAR1left), _)) :: 
+rest671)) => let val  result = MlyValue.vardec (fn _ => let val  (ID
+ as ID1) = ID1 ()
  val  (expr as expr1) = expr1 ()
  in (
-print("parsing vardec: " ^ Int.toString(VARleft) ^ "\n" );
-ErrorMsg.error(VARleft, VARright, "my syntax error\n");
 A.VarDec({name=sym(ID), escape=ref true,
 				               typ=NONE, init=expr, pos=VARleft})
 )
