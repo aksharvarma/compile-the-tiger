@@ -13,6 +13,11 @@ sig
 
   type expty = {exp: Translate.exp, ty: Ty.ty}
 
+  (* datatype foo = bar of int * string option ref *)
+  (* 	       | baz of int *)
+			  
+  (* val testing: foo -> string * int * string option *)
+
   (* val transVar: venv * tenv * A.var -> expty *)
   (* val transExp: venv * tenv -> A.exp -> expty *)
   (* val transDecs: venv * tenv * A.dec list -> {venv:venv, tenv:tenv} *)
@@ -64,6 +69,27 @@ struct
       else if inList(oper, CompareOp) then Compare
       else Equality
 
+  (* datatype foo = bar of int * string option ref *)
+  (* 	       | baz of int *)
+
+  (* fun testing(bar(i,s)) = ("bar", i, !s) *)
+  (*    |testing(baz(i)) = ("baz", i, NONE) *)
+	     
+  fun actualTy(tenv:tenv, Ty.NAME(a,b)) = actualTy(tenv, valOf(!b))
+    | actualTy(tenv, a) = a
+
+  (* fun actualTy(tenv:tenv, ty:S.symbol) = *)
+  (*     case S.look(tenv, ty) *)
+  (*      of NONE => NONE *)
+  (* 	| SOME(Ty.NAME(a, ref(SOME(Ty.NAME(b, c))))) => actualTy(tenv, b) *)
+  (* 	| SOME(Ty.NAME(a, ref(NONE))) => NONE *)
+  (* 	| SOME(a) => SOME(a) *)
+
+
+  (* fun transTy(tenv, tydec) = *)
+  (*     case #ty(tydec) of *)
+  (* 	  A.NameTy(sym, pos) => S.enter(tenv,  *)
+      
   fun transExp(venv:venv, tenv:tenv) =
       let
 	fun check(expr:A.exp, targetType, pos, msg) =
@@ -88,37 +114,52 @@ struct
 	and findField([], id) = Ty.TOP
 	  | findField((x,ty)::xs, id) = if(id=x) then ty
 					else findField(xs, id)
-	    
+
+	(* trvar: Type-check the Variables *)
 	and trvar(A.SimpleVar(id, pos)) =
-	    (print("simple-var\n");case S.look(venv, id)
+	    (print("simple-var\n");
+	     case S.look(venv, id)
 	      of SOME(Env.VarEntry(ty)) =>
-		 {exp=(), ty=(#ty(ty))}
+		 {exp=(), ty=actualTy(tenv, (#ty(ty)))}
+		   
 	       | _ => (E.error(pos, pos,
 				  "undefined variable:"^S.name(id));
 			 {exp=(), ty=Types.TOP}))
+	  (* fields and records *)
 	  | trvar(A.FieldVar(var, id, pos)) =
-	    (print("field-var\n");case (#ty(trvar(var)))
-		of Ty.RECORD(a,b) =>
-		   (let
-		     val fieldType=findField(a, id)
-		   in
-		     (if fieldType=Ty.TOP
-		      then E.error(pos, pos, "invalid field id:"^S.name(id))
-		      else ();
-		      {exp=(), ty=fieldType})
-		   end)
-	      	 | _ => (E.error(pos, pos, "accessing field of non-record variable:"^S.name(id));{exp=(), ty=Ty.TOP}))
-
+	    (print("field-var\n");
+	     case (#ty(trvar(var)))
+	      of Ty.RECORD(a,b) =>
+		 (let
+		   val fieldType=findField(a, id)
+		 in
+		   (if fieldType=Ty.TOP
+		    then E.error(pos, pos, "invalid field id:"^S.name(id))
+		    else ();
+		    {exp=(), ty=fieldType})
+		 end)
+	       | _ => (E.error(pos, pos, "accessing field of non-record variable:"^S.name(id));{exp=(), ty=Ty.TOP}))
+	  (* Array type variables *)
 	  | trvar(A.SubscriptVar(var, e, pos)) =
 	    (print("array-var\n");case (#ty(trvar(var)))
 	      of Ty.ARRAY(a,b) =>
 		 (check(e, Ty.INT, pos, "non-int subscript");
-		  {exp=(), ty=a})
+		  {exp=(), ty=actualTy(tenv, a)})
 	      | _ => (E.error(pos, pos, "subscripting non-array variable");{exp=(), ty=Ty.TOP}))
+	(* trvar ENDS *)
 
+	(* Helper for adding headers for tydecs *)
+	(* and addTypeHeads([]) = tenv *)
+	(*   | addTypeHeads(x::xs) = S.enter(addTypeHeads(xs), *)
+	(* 				  (#name x), *)
+	(* 				  Ty.NAME((#name x), *)
+	(* 					  ref NONE)) *)
+	      
+	(* trDecs: type check declarations *)
 	and trDecs(a:venv, b:tenv, []) = {venv=a,tenv=b}
 	  | trDecs(a:venv, b:tenv, d::ds) =
 	    (case d
+		    (* normal variables *)
 	      of A.VarDec({name, escape, typ, init, pos}) =>
 		 let
 		   val initType = #ty(transExp(a, b) init)
@@ -134,8 +175,19 @@ struct
 		     trDecs(S.enter(a, name,
 				    Env.VarEntry({ty=initType})), b, ds))
 		 end
+	       (* Types *)
+	       (* | A.TypeDec(tyList) => *)
+	       (* 	 (addTypeHeads(tyList); *)
+	       (* 	  map transTy tyList; *)
+	       (* 	  {tenv=tenv, venv=venv} *)
+	       (* 	 ) *)
+				      
+	       (* Catch all *)
 	       | _ => {venv=a,tenv=b})
+	(* trDecs ENDS *)
+	      
 
+	(* The actual workhorse *)
 	and trexp(A.OpExp{left, oper=someOp, right, pos}) =
 	    (* Handle Arithmetic ops: +,-,*,/ *)
 	    (print("opExp\n");case typeOfOp(someOp) of 
@@ -143,6 +195,7 @@ struct
 		 (print("Arith\n");checkTwo(left, right, Ty.INT, pos,
 			   "integer required");
 		  {exp=(), ty=Ty.INT})
+			       (* comparison ops: <, <=, >=, > *)
 	       | Compare =>
 		 let val leftType = findType(left, [Ty.STRING, Ty.INT])
 		 in
@@ -155,6 +208,7 @@ struct
 			   pos, "both expressions should be int or string");
 		     {exp=(), ty=Ty.INT}))
 		 end
+	       (* Handle equality checks: =, <> *)
 	       | Equality => 
 		 let
 		   val leftType = findType(left, [Ty.INT,
@@ -169,12 +223,15 @@ struct
 			   pos, "both expressions should have same type");
 		     {exp=(), ty=Ty.INT}))
 		 end)
+	  (* Integers, strings, nils *)
 	  | trexp(A.IntExp(number)) = (print("Int\n");
 				       {exp=(), ty=Ty.INT})
 	  | trexp(A.StringExp(string)) = (print("String:"^(#1(string))^"\n");
 					  {exp=(), ty=Ty.STRING})
 	  | trexp(A.NilExp) = {exp=(), ty=Ty.NIL}
+	  (* variables, outsourced to trvar *)
 	  | trexp(A.VarExp(var)) = (print("VarExp\n");trvar(var))
+	  (* Function calls *)
 	  | trexp(A.CallExp({func, args, pos})) = 
 	    (print("calling:"^S.name(func)^"\n");
 	     case S.look(venv, func)
@@ -187,6 +244,7 @@ struct
 	       | _ => (E.error(pos, pos,
 			      "undefined function:"^S.name(func));
 		       {exp=(), ty=Types.TOP}))
+	  (* Assignments, not too difficult *)
 	  | trexp(A.AssignExp({var, exp, pos})) =
 	    let
 	      val varType= #ty(trvar(var))
@@ -199,6 +257,7 @@ struct
 				    Ty.toString(varType));
 	       {exp=(), ty=Ty.UNIT})
 	    end
+	  (* Three kinds of sequences. non-last exp forced to unit  *)
 	  | trexp(A.SeqExp([])) = (print("empty-Seq\n");
 				   {exp=(), ty=Ty.UNIT})
 	  | trexp(A.SeqExp((x, pos)::[])) = (print("single-Seq\n");
@@ -208,6 +267,7 @@ struct
 	    then (print("Seq\n");
 		  trexp(A.SeqExp(xs)))
 	    else (E.error(pos, pos, "Need Unit type for non-final SeqExp expressions."); {exp=(), ty=Ty.TOP})
+	  (* Let expressions. Decs outsourced to trDecs *)
 	  | trexp(A.LetExp({decs, body, pos})) =
 	    let
 	      val {venv=venv', tenv=tenv'}=trDecs(venv, tenv, decs)
@@ -215,14 +275,12 @@ struct
 		transExp(venv', tenv') body)
 	    end
 	  | trexp(_) = (E.error(0,0,"fell-off");{exp=(), ty=Ty.UNIT})
-		       
+			 (* trexp ENDS *)
+			 
       in
 	trexp
       end
 	
-
-  fun transTy(a,b) = Ty.UNIT
-
   fun transProg(e) = (transExp(Env.base_venv, Env.base_tenv) e;
 		      print("Done\n"))
 		 

@@ -11,6 +11,7 @@ struct
            | STRING
            | ARRAY of ty * unique
 	   | NAME of Symbol.symbol * ty option ref
+	   (* NAME is Symbol.symbol * ((ty option) ref) *)
 	   | UNIT		(* valueless expressions *)
 	   | BOTTOM		(* Used only for `break` *)
 	       
@@ -32,7 +33,8 @@ struct
     | toString(STRING) = "String"
     | toString(UNIT) = "Unit"
     | toString(BOTTOM) = "Bottom"
-    | toString(_) = "___"
+    | toString(NAME(sym, ty))  = "NAME("^Symbol.name(sym)^")"
+    (* | toString(_) = "___" *)
 
 			   (* fun meet([], _) = Ty.BOTTOM *)
   (*   | meet(_, []) = Ty.BOTTOM *)
