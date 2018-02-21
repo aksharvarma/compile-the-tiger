@@ -15,7 +15,7 @@ sig
 
   (* datatype foo = bar of int * string option ref *)
   (* 	       | baz of int *)
-			  
+
   (* val testing: foo -> string * int * string option *)
 
   (* val transVar: venv * tenv * A.var -> expty *)
@@ -36,11 +36,11 @@ struct
   (* fun isInt({exp,ty}) = *)
   (*     case ty of Ty.INT => true *)
   (* 	       | _ => false *)
-			
+
   (* fun isString({exp,ty}) = *)
   (*     case ty of Ty.STRING => true *)
   (* 	       | _ => false *)
-			
+
   (* fun check(b, pos, msg) = *)
   (*     if(not(b)) then E.error(pos, pos, msg) else () *)
 
@@ -86,8 +86,8 @@ struct
 	    if(istype(#ty(trexp(expr)), ty))
 	    then SOME(actualTy(ty))
 	    else findType(expr:A.exp, tyList)
-	
-	and checkTwo(left:A.exp, right:A.exp, targetType, pos, msg) = 
+
+	and checkTwo(left:A.exp, right:A.exp, targetType, pos, msg) =
 	    (check(left, targetType, pos, msg);
 	     check(right, targetType, pos, msg))
 
@@ -97,7 +97,7 @@ struct
 	  | checkTypeList(e::es, t::ts) = #ty(trexp(e)) = actualTy(t)
 					  andalso
 					  checkTypeList(es, ts)
-	    
+
 	and findField([], id) = NONE
 	  | findField((x,ty)::xs, id) = if(id=x)
 					then SOME(actualTy(ty))
@@ -132,14 +132,14 @@ struct
 		     | NONE => (E.error(0,0,"Undefined type.\n");
 				Ty.BOTTOM))
 	  | actualTy(a) = a
-			    
-						      
+
+
 	(* trvar: Type-check the Variables *)
 	and trvar(A.SimpleVar(id, pos)) =
 	    (case S.look(venv, id)
 	      of SOME(Env.VarEntry(ty)) =>
 		 {exp=(), ty=actualTy((#ty(ty)))}
-		   
+
 	       | _ => (E.error(pos, pos,
 				  "undefined variable:"^S.name(id));
 			 {exp=(), ty=Types.BOTTOM}))
@@ -155,7 +155,7 @@ struct
 			NONE => (E.error(pos, pos,
 					 "invalid field id:"^S.name(id));
 				 {exp=(), ty=Ty.BOTTOM})
-		     | SOME(t) => 
+		     | SOME(t) =>
 		       {exp=(), ty=t})
 		 end)
 	       | _ => (E.error(pos, pos, "accessing field of non-record variable:"^S.name(id));{exp=(), ty=Ty.BOTTOM}))
@@ -168,24 +168,47 @@ struct
 	      | _ => (E.error(pos, pos, "subscripting non-array variable");{exp=(), ty=Ty.BOTTOM}))
 	(* trvar ENDS *)
 
-	      
+
 	(* Helper for adding headers for tydecs *)
 	and addTypeHeads(tenv, []) = tenv
-	  | addTypeHeads(tenv, x::xs) = 
+	  | addTypeHeads(tenv, x::xs) =
 	    addTypeHeads(S.enter(tenv, (#name x),
 				 Ty.NAME((#name x), ref NONE)), xs)
 
 	(* DON'T USE actualTy *)
 	and trTy(tydec, tenv) =
+            (* case S.look(tenv, (#name(tydec)))
+	        of SOME(Ty.NAME(a, b))  =>
+                    (b := S.look(tenv, sym); tenv)
+		   | _ => tenv *)
 	    case (#ty(tydec)) of
   		A.NameTy(sym, pos) =>
-		(case S.look(tenv, (#name(tydec)))
-		  of SOME(Ty.NAME(a, b))  => (b := S.look(tenv, sym);
-					      tenv)
-		   | _ => (tenv)
-		)
-	      | _ => (tenv)
-				    
+		    (print("name ty: " ^ S.name(sym) ^"\n");
+                    (case S.look(tenv, (#name(tydec)))
+		        of SOME(Ty.NAME(a, b))  => (b := S.look(tenv, sym); tenv)
+		        | _ => tenv))
+                | A.RecordTy(fields) =>
+                    (print("record ty\n");
+                    (case S.look(tenv, (#name(tydec)))
+                        of SOME(Ty.NAME(a, b)) =>
+                            (b := SOME(Ty.RECORD(accRecord(fields, tenv), ref ())); tenv)
+                        | _ => tenv))
+	        | A.ArrayTy(sym, pos) =>
+                    (print("array ty\n");
+                    (case S.look(tenv, (#name(tydec)))
+                        of SOME(Ty.NAME(a, b)) =>
+                            ((case S.look(tenv, sym)
+                                of SOME(ty) => (b := SOME(Ty.ARRAY(ty, ref ())))
+                                | NONE => E.error(pos, pos, "Type for array not found\n"));
+                            tenv)
+                        | _ => tenv))
+
+        and accRecord([], tenv) = []
+          | accRecord(field::fields, tenv) =
+            case (S.look(tenv, (#typ(field))))
+                of NONE => (E.error(#pos(field), #pos(field), "Type of field is not defined"); accRecord(fields, tenv))
+                | SOME(t) => (#name(field), t)::accRecord(fields, tenv)
+
 	(* trDecs: type check declarations *)
 	and trDecs(venv:venv, tenv:tenv, []) = {venv=venv,tenv=tenv}
 	  | trDecs(venv:venv, tenv:tenv, d::ds) =
@@ -235,29 +258,22 @@ struct
 		       cyclic(sym, sym) orelse cyclicList(xs)
 		     (* | cyclicList(_::xs) = true andalso cyclicList(xs) *)
 		 in
-	       	   ((* print("in\n"); *)
-		    foldr trTy tenv' tyList;
-		    (* print("1 pass\n"); *)
-		    (* trDecs(a, tenv', ds); *)
-		    (* print("2nd\n"); *)
-		    (* print("starting cycle checks\n"); *)
+	       	   (foldr trTy tenv' tyList;
 		    if cyclicList(tyList)
 		    then (E.error(0,0, "Cyclic type-def\n");
 			  trDecs(venv, tenv, ds))
 		    else trDecs(venv, tenv', ds)
 		  )
-
-	       	    (* {tenv=tenv, venv=venv} *)
 		 end
 	       (* Catch all *)
 	       | _ => {venv=venv,tenv=tenv})
 	(* trDecs ENDS *)
-	      
+
 
 	(* The actual workhorse *)
 	and trexp(A.OpExp{left, oper=someOp, right, pos}) =
 	    (* Handle Arithmetic ops: +,-,*,/ *)
-	    (case typeOfOp(someOp) of 
+	    (case typeOfOp(someOp) of
 		 Arith =>
 		 (checkTwo(left, right, Ty.INT, pos,
 			   "integer required");
@@ -274,7 +290,7 @@ struct
 		    {exp=(), ty=Ty.INT})
 		 end
 	       (* Handle equality checks: =, <> *)
-	       | Equality => 
+	       | Equality =>
 		 let
 		   val leftType = findType(left, [Ty.INT,
 						  Ty.STRING])
@@ -294,7 +310,7 @@ struct
 	  (* variables, outsourced to trvar *)
 	  | trexp(A.VarExp(var)) = (trvar(var))
 	  (* Function calls *)
-	  | trexp(A.CallExp({func, args, pos})) = 
+	  | trexp(A.CallExp({func, args, pos})) =
 	    (print("calling:"^S.name(func)^"\n");
 	     case S.look(venv, func)
 	      of SOME(Env.FunEntry({formals, result})) =>
@@ -379,18 +395,44 @@ struct
 	    end
 	  | trexp(A.BreakExp(pos)) = (print("break\n");
 				      {exp=(), ty=Ty.BOTTOM})
-	  | trexp(_) = (E.error(0,0,"fell-off");{exp=(), ty=Ty.UNIT})
+          | trexp(A.RecordExp({fields=fields, typ=typ, pos=pos})) =
+                (print("record: "^S.name(typ)^"\n");
+                (case S.look(tenv, typ)
+                    of SOME(t) =>
+                        (case actualTy(t)
+                        of Ty.RECORD(r) => (* TODO: check record fields *)
+                            {exp=(), ty=Ty.RECORD(r)}
+                        | _ => (E. error(pos, pos, "type given is not a record");
+                            {exp=(), ty=Ty.RECORD([], ref ())}))
+                    |  NONE => (E.error(pos, pos, "record type not found");
+                        {exp=(), ty=Ty.RECORD([], ref ())})))
+
+          | trexp(A.ArrayExp({typ=typ, size=size, init=init, pos=pos})) =
+                (print("array: "^S.name(typ)^"\n");
+                check(size, Ty.INT, pos, "Size of array must be of type INT.");
+                (case S.look(tenv, typ)
+                    of NONE => (E. error(pos, pos, "array type not found");
+                        {exp=(), ty=Ty.ARRAY(Ty.BOTTOM, ref ())})
+                    | SOME(t) =>
+                        (print("TYPE: "^Ty.toString(actualTy(t)) ^ "\n");
+                        (case actualTy(t)
+                        of Ty.ARRAY(ty, uniq) => (check(init, ty, pos,
+                            "initial value does not match array type");
+                            {exp=(), ty=actualTy(t)})
+                        | _ => (E. error(pos, pos, "type given is not an array");
+                            {exp=(), ty=Ty.ARRAY(Ty.BOTTOM, ref ())})))))
+(*	  | trexp(_) = (E.error(0,0,"fell-off");{exp=(), ty=Ty.UNIT}) *)
 			 (* trexp ENDS *)
-			 
+
       in
 	trexp
       end
-	
+
   fun transProg(e) = (transExp(Env.base_venv, Env.base_tenv) e;
 		      print("Done\n"))
-		 
+
 end
-  
+
 signature MAIN =
 sig
   val run: string -> unit

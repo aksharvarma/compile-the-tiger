@@ -6,17 +6,23 @@ if 2 = 3 then 4 > 2 "asgs"
 */
 
 let
+        type arr = array of int
+        type arr2 = array of rec
+        type rec = { f: int, g: string }
+/*        type bad = { f: none, g: int } */
+        type list = { first: int, rest: list }
+        type rec2 = { f: int, g: string }
 	type a = b
 	type c = int
+        type h = list
 	type b = c
-/*	type c = a
-	type d = int */
 	var i := 0
 	var j:a := 1
 	var s:b := 0
-/*	var q:c := 2
-	var w:d := 3*/
 	var c := j+s
+        var t:rec := rec { f=0, g="abc" }
+        var l := list { first=0, rest= nil }
+        var arr := arr[5] of 6
 	var s:string := "foo"
 in
 (while i<j do (print(s); break);
