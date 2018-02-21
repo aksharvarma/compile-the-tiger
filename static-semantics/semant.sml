@@ -103,6 +103,13 @@ struct
 					then SOME(actualTy(ty))
 					else findField(xs, id)
 
+        and verifyFields([], recordFields) = ()
+          | verifyFields((sym, exp, pos)::fields, recordFields) = 
+                (case findField(recordFields, sym)
+                    of NONE => E.error(pos, pos, "Invalid field for record")
+                    | SOME(ty) => 
+                        check(exp, actualTy(ty), pos, "Type doesn't match for field"))
+
 	(* and actualTy(Ty.NAME(a,b)) = *)
 	(*     (case b of NONE => (E.error(0,0,"WHAAAA????\n"); *)
 	(* 			Ty.BOTTOM) *)
@@ -400,8 +407,9 @@ struct
                 (case S.look(tenv, typ)
                     of SOME(t) =>
                         (case actualTy(t)
-                        of Ty.RECORD(r) => (* TODO: check record fields *)
-                            {exp=(), ty=Ty.RECORD(r)}
+                        of Ty.RECORD((fieldList, uniq)) => (* TODO: check record fields *)
+                            (verifyFields(fields, fieldList);                           
+                            {exp=(), ty=Ty.RECORD((fieldList, uniq))})
                         | _ => (E. error(pos, pos, "type given is not a record");
                             {exp=(), ty=Ty.RECORD([], ref ())}))
                     |  NONE => (E.error(pos, pos, "record type not found");

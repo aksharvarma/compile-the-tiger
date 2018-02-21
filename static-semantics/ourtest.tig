@@ -20,7 +20,7 @@ let
 	var j:a := 1
 	var s:b := 0
 	var c := j+s
-        var t:rec := rec { f=0, g="abc" }
+        var t:rec := rec{ f="si", g="abc" }
         var l := list { first=0, rest= nil }
         var arr := arr[5] of 6
 	var s:string := "foo"
