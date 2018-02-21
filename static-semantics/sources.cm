@@ -4,6 +4,7 @@ absyn.sml
 errormsg.sml
 env.sml
 parse.sml
+prabsyn.sml
 semant.sml
 symbol.sml
 table.sig

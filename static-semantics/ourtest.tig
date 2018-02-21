@@ -4,10 +4,23 @@ if 5 <= 5 then 0 else 1; /* just trying */
 print  "ft\3457guybhnj" 
 if 2 = 3 then 4 > 2 "asgs"
 */
+
 let
+	type a = b
+	type c = int
+	type b = c
+/*	type c = a
+	type d = int */
 	var i := 0
-	var j:int := 1
+	var j:a := 1
+	var s:b := 0
+/*	var q:c := 2
+	var w:d := 3*/
+	var c := j+s
 	var s:string := "foo"
 in
-(();(print(s);i < j))
+(while i<j do (print(s); break);
+if i then flush();
+if s = "foo" then print("yes") else print("no");
+(let var i := "bas" in print(i) end);(print(s);i < j))
 end

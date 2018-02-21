@@ -69,36 +69,22 @@ struct
       else if inList(oper, CompareOp) then Compare
       else Equality
 
-  (* datatype foo = bar of int * string option ref *)
-  (* 	       | baz of int *)
-
-  (* fun testing(bar(i,s)) = ("bar", i, !s) *)
-  (*    |testing(baz(i)) = ("baz", i, NONE) *)
-	     
-  fun actualTy(tenv:tenv, Ty.NAME(a,b)) = actualTy(tenv, valOf(!b))
-    | actualTy(tenv, a) = a
-
-  (* fun actualTy(tenv:tenv, ty:S.symbol) = *)
-  (*     case S.look(tenv, ty) *)
-  (*      of NONE => NONE *)
-  (* 	| SOME(Ty.NAME(a, ref(SOME(Ty.NAME(b, c))))) => actualTy(tenv, b) *)
-  (* 	| SOME(Ty.NAME(a, ref(NONE))) => NONE *)
-  (* 	| SOME(a) => SOME(a) *)
+  (* Check what happens with NONE (can we assume it won't happen?) *)
+  (* fun actualTy(tenv:tenv, Ty.NAME(a,ref NONE)) = Ty.TOP *)
+  (*   | actualTy(tenv:tenv, Ty.NAME(a,b)) = actualTy(tenv, valOf(!b)) *)
+  (*   | actualTy(tenv, a) = a *)
 
 
-  (* fun transTy(tenv, tydec) = *)
-  (*     case #ty(tydec) of *)
-  (* 	  A.NameTy(sym, pos) => S.enter(tenv,  *)
-      
   fun transExp(venv:venv, tenv:tenv) =
       let
 	fun check(expr:A.exp, targetType, pos, msg) =
-	    if(not(istype(#ty(trexp(expr)), targetType)))
+	    if(not(istype(#ty(trexp(expr)), actualTy(targetType))))
 	    then E.error(pos, pos, msg) else ()
 
-	and findType(expr:A.exp, []) = Ty.TOP
+	and findType(expr:A.exp, []) = NONE
 	  | findType(expr:A.exp, ty::tyList) =
-	    if(istype(#ty(trexp(expr)), ty)) then ty
+	    if(istype(#ty(trexp(expr)), ty))
+	    then SOME(actualTy(ty))
 	    else findType(expr:A.exp, tyList)
 	
 	and checkTwo(left:A.exp, right:A.exp, targetType, pos, msg) = 
@@ -108,23 +94,55 @@ struct
 	and checkTypeList([], []) = true
 	  | checkTypeList([], _) = false
 	  | checkTypeList(_, []) = false
-	  | checkTypeList(e::es, t::ts) = #ty(trexp(e)) = t andalso
-					 checkTypeList(es, ts)
+	  | checkTypeList(e::es, t::ts) = #ty(trexp(e)) = actualTy(t)
+					  andalso
+					  checkTypeList(es, ts)
 	    
-	and findField([], id) = Ty.TOP
-	  | findField((x,ty)::xs, id) = if(id=x) then ty
+	and findField([], id) = NONE
+	  | findField((x,ty)::xs, id) = if(id=x)
+					then SOME(actualTy(ty))
 					else findField(xs, id)
 
+	(* and actualTy(Ty.NAME(a,b)) = *)
+	(*     (case b of NONE => (E.error(0,0,"WHAAAA????\n"); *)
+	(* 			Ty.BOTTOM) *)
+	(* 	     | SOME(t) => (case valOf(!t) *)
+	(* 			    of Ty.NAME(c, d) => *)
+	(* 			       (let *)
+	(* 				 val foo = S.look(tenv, c) *)
+	(* 			       in *)
+	(* 				 (case foo *)
+	(* 				  of NONE => (E.error(0,0,"WHAAAA????\n"); *)
+	(* 					      Ty.BOTTOM) *)
+	(* 				   | SOME(bar) => actualTy(bar)) *)
+	(* 			       end) *)
+	(* 			    | _ => valOf(!t))) *)
+	(*   | actualTy(a) = a *)
+	(*     (* let *) *)
+	(*     (*   val bTy = valOf(!b) *) *)
+	(*     (*   val bbTy = (case bTy of Ty.NAME(c, d) => S.look(tenv, c) *) *)
+	(*     (* 			   | _ => SOME(bTy)) *) *)
+	(*     (* in *) *)
+	(*     (*   (case bbTy of SOME(t) => actualTy(t) *) *)
+	(*     (* 		  | NONE => ) *) *)
+	(*     (* end *) *)
+
+	and actualTy(Ty.NAME(a,b)) =
+	    (case !b of SOME(t) => actualTy(t)
+		     | NONE => (E.error(0,0,"Undefined type.\n");
+				Ty.BOTTOM))
+	  | actualTy(a) = a
+			    
+						      
 	(* trvar: Type-check the Variables *)
 	and trvar(A.SimpleVar(id, pos)) =
-	    (print("simple-var\n");
-	     case S.look(venv, id)
+	    (case S.look(venv, id)
 	      of SOME(Env.VarEntry(ty)) =>
-		 {exp=(), ty=actualTy(tenv, (#ty(ty)))}
+		 {exp=(), ty=actualTy((#ty(ty)))}
 		   
 	       | _ => (E.error(pos, pos,
 				  "undefined variable:"^S.name(id));
-			 {exp=(), ty=Types.TOP}))
+			 {exp=(), ty=Types.BOTTOM}))
 	  (* fields and records *)
 	  | trvar(A.FieldVar(var, id, pos)) =
 	    (print("field-var\n");
@@ -133,80 +151,127 @@ struct
 		 (let
 		   val fieldType=findField(a, id)
 		 in
-		   (if fieldType=Ty.TOP
-		    then E.error(pos, pos, "invalid field id:"^S.name(id))
-		    else ();
-		    {exp=(), ty=fieldType})
+		   (case fieldType of
+			NONE => (E.error(pos, pos,
+					 "invalid field id:"^S.name(id));
+				 {exp=(), ty=Ty.BOTTOM})
+		     | SOME(t) => 
+		       {exp=(), ty=t})
 		 end)
-	       | _ => (E.error(pos, pos, "accessing field of non-record variable:"^S.name(id));{exp=(), ty=Ty.TOP}))
+	       | _ => (E.error(pos, pos, "accessing field of non-record variable:"^S.name(id));{exp=(), ty=Ty.BOTTOM}))
 	  (* Array type variables *)
 	  | trvar(A.SubscriptVar(var, e, pos)) =
 	    (print("array-var\n");case (#ty(trvar(var)))
 	      of Ty.ARRAY(a,b) =>
 		 (check(e, Ty.INT, pos, "non-int subscript");
-		  {exp=(), ty=actualTy(tenv, a)})
-	      | _ => (E.error(pos, pos, "subscripting non-array variable");{exp=(), ty=Ty.TOP}))
+		  {exp=(), ty=actualTy(a)})
+	      | _ => (E.error(pos, pos, "subscripting non-array variable");{exp=(), ty=Ty.BOTTOM}))
 	(* trvar ENDS *)
 
-	(* Helper for adding headers for tydecs *)
-	(* and addTypeHeads([]) = tenv *)
-	(*   | addTypeHeads(x::xs) = S.enter(addTypeHeads(xs), *)
-	(* 				  (#name x), *)
-	(* 				  Ty.NAME((#name x), *)
-	(* 					  ref NONE)) *)
 	      
+	(* Helper for adding headers for tydecs *)
+	and addTypeHeads(tenv, []) = tenv
+	  | addTypeHeads(tenv, x::xs) = 
+	    addTypeHeads(S.enter(tenv, (#name x),
+				 Ty.NAME((#name x), ref NONE)), xs)
+
+	(* DON'T USE actualTy *)
+	and trTy(tydec, tenv) =
+	    case (#ty(tydec)) of
+  		A.NameTy(sym, pos) =>
+		(case S.look(tenv, (#name(tydec)))
+		  of SOME(Ty.NAME(a, b))  => (b := S.look(tenv, sym);
+					      tenv)
+		   | _ => (tenv)
+		)
+	      | _ => (tenv)
+				    
 	(* trDecs: type check declarations *)
-	and trDecs(a:venv, b:tenv, []) = {venv=a,tenv=b}
-	  | trDecs(a:venv, b:tenv, d::ds) =
+	and trDecs(venv:venv, tenv:tenv, []) = {venv=venv,tenv=tenv}
+	  | trDecs(venv:venv, tenv:tenv, d::ds) =
 	    (case d
 		    (* normal variables *)
 	      of A.VarDec({name, escape, typ, init, pos}) =>
 		 let
-		   val initType = #ty(transExp(a, b) init)
+		   val initType = #ty(transExp(venv, tenv) init)
 		 in
-		   ((case typ of
+		   ((* print("found init: "^Ty.toString(initType)^"\n"); *)
+		    (case typ of
 		    	 SOME(ty, pos2) =>
-		    	 (case S.look(b, ty) of
-		    	      SOME(t) => check(init, t, pos2,
-		    			       "init value doesn't match provided type")
+		    	 (case S.look(tenv, ty) of
+		    	      SOME(t) =>
+			      (print("initType: "^Ty.toString(initType)^
+				     ", actualTy: "^Ty.toString(actualTy(t))
+				     ^"\n");
+			       if (not(istype(initType, actualTy(t))))
+			       then E.error(pos2, pos2,
+		    			    "init value doesn't match provided type")
+			       else ())
 		    	    | NONE =>
 		    	      E.error(pos2, pos2, "unknown type chosen for variable:"^S.name(name)))
 		       | NONE => ());
-		     trDecs(S.enter(a, name,
-				    Env.VarEntry({ty=initType})), b, ds))
+		     trDecs(S.enter(venv, name,
+				    Env.VarEntry({ty=initType})), tenv, ds))
 		 end
 	       (* Types *)
-	       (* | A.TypeDec(tyList) => *)
-	       (* 	 (addTypeHeads(tyList); *)
-	       (* 	  map transTy tyList; *)
-	       (* 	  {tenv=tenv, venv=venv} *)
-	       (* 	 ) *)
-				      
+	       | A.TypeDec(tyList) =>
+	       	 let
+		   val tenv' = addTypeHeads(tenv, tyList)
+		   fun cyclic(a, start) =
+		       (case S.look(tenv', a)
+			of NONE => true (* a undefined *)
+			 | SOME(Ty.NAME(sym, typref)) =>
+			   (case !typref
+			     of NONE => true (* a=NAME(_,NONE) *)
+			      | SOME(Ty.NAME(sym2, typref2))
+				=> (if (sym2=start)
+				   then (true)
+				   else cyclic(sym2, start))
+			      | _ => false)
+			 | _ => false)
+
+		   fun cyclicList([]) = false
+		     | cyclicList({name=sym, pos=pos, ty=ty}::xs) =
+		       cyclic(sym, sym) orelse cyclicList(xs)
+		     (* | cyclicList(_::xs) = true andalso cyclicList(xs) *)
+		 in
+	       	   ((* print("in\n"); *)
+		    foldr trTy tenv' tyList;
+		    (* print("1 pass\n"); *)
+		    (* trDecs(a, tenv', ds); *)
+		    (* print("2nd\n"); *)
+		    (* print("starting cycle checks\n"); *)
+		    if cyclicList(tyList)
+		    then (E.error(0,0, "Cyclic type-def\n");
+			  trDecs(venv, tenv, ds))
+		    else trDecs(venv, tenv', ds)
+		  )
+
+	       	    (* {tenv=tenv, venv=venv} *)
+		 end
 	       (* Catch all *)
-	       | _ => {venv=a,tenv=b})
+	       | _ => {venv=venv,tenv=tenv})
 	(* trDecs ENDS *)
 	      
 
 	(* The actual workhorse *)
 	and trexp(A.OpExp{left, oper=someOp, right, pos}) =
 	    (* Handle Arithmetic ops: +,-,*,/ *)
-	    (print("opExp\n");case typeOfOp(someOp) of 
+	    (case typeOfOp(someOp) of 
 		 Arith =>
-		 (print("Arith\n");checkTwo(left, right, Ty.INT, pos,
+		 (checkTwo(left, right, Ty.INT, pos,
 			   "integer required");
 		  {exp=(), ty=Ty.INT})
 			       (* comparison ops: <, <=, >=, > *)
 	       | Compare =>
 		 let val leftType = findType(left, [Ty.STRING, Ty.INT])
 		 in
-		   (print("Compare\n");
-		    if (leftType=Ty.TOP)
-		    then
-		      E.error(pos, pos, "int or string required")
-		    else ();
-		    (check(right, leftType,
-			   pos, "both expressions should be int or string");
-		     {exp=(), ty=Ty.INT}))
+		   ((case leftType of
+			NONE => E.error(pos, pos,
+					"int or string required")
+		      | SOME(t) => check(right, t, pos,
+					 "both expressions should be int or string"));
+		    {exp=(), ty=Ty.INT})
 		 end
 	       (* Handle equality checks: =, <> *)
 	       | Equality => 
@@ -214,23 +279,20 @@ struct
 		   val leftType = findType(left, [Ty.INT,
 						  Ty.STRING])
 		 in
-		   (print("Equality\n");
-		    if (leftType=Ty.TOP)
-		    then
-		      E.error(pos, pos, "can't check equality with this type")
-		    else () ;
-		    (check(right, leftType,
-			   pos, "both expressions should have same type");
-		     {exp=(), ty=Ty.INT}))
+		   ((case leftType of
+			NONE => E.error(pos, pos,
+					"can't check equality with this type")
+		     | SOME(t) => check(right, t, pos,
+					"both expressions should have same type"));
+		    {exp=(), ty=Ty.INT})
 		 end)
 	  (* Integers, strings, nils *)
-	  | trexp(A.IntExp(number)) = (print("Int\n");
-				       {exp=(), ty=Ty.INT})
+	  | trexp(A.IntExp(number)) = ({exp=(), ty=Ty.INT})
 	  | trexp(A.StringExp(string)) = (print("String:"^(#1(string))^"\n");
 					  {exp=(), ty=Ty.STRING})
 	  | trexp(A.NilExp) = {exp=(), ty=Ty.NIL}
 	  (* variables, outsourced to trvar *)
-	  | trexp(A.VarExp(var)) = (print("VarExp\n");trvar(var))
+	  | trexp(A.VarExp(var)) = (trvar(var))
 	  (* Function calls *)
 	  | trexp(A.CallExp({func, args, pos})) = 
 	    (print("calling:"^S.name(func)^"\n");
@@ -240,10 +302,10 @@ struct
 		  then E.error(pos, pos,
 			       "function args don't match type")
 		  else ();
-		   {exp=(), ty=result})
+		   {exp=(), ty=actualTy(result)})
 	       | _ => (E.error(pos, pos,
 			      "undefined function:"^S.name(func));
-		       {exp=(), ty=Types.TOP}))
+		       {exp=(), ty=Types.BOTTOM}))
 	  (* Assignments, not too difficult *)
 	  | trexp(A.AssignExp({var, exp, pos})) =
 	    let
@@ -258,22 +320,65 @@ struct
 	       {exp=(), ty=Ty.UNIT})
 	    end
 	  (* Three kinds of sequences. non-last exp forced to unit  *)
-	  | trexp(A.SeqExp([])) = (print("empty-Seq\n");
-				   {exp=(), ty=Ty.UNIT})
-	  | trexp(A.SeqExp((x, pos)::[])) = (print("single-Seq\n");
-					     trexp(x))
+	  | trexp(A.SeqExp([])) = ({exp=(), ty=Ty.UNIT})
+	  | trexp(A.SeqExp((x, pos)::[])) = (trexp(x))
 	  | trexp(A.SeqExp((x, pos)::xs)) =
 	    if(#ty(trexp(x))=Ty.UNIT)
-	    then (print("Seq\n");
-		  trexp(A.SeqExp(xs)))
-	    else (E.error(pos, pos, "Need Unit type for non-final SeqExp expressions."); {exp=(), ty=Ty.TOP})
+	    then (trexp(A.SeqExp(xs)))
+	    else (E.error(pos, pos, "Need Unit type for non-final SeqExp expressions."); {exp=(), ty=Ty.BOTTOM})
 	  (* Let expressions. Decs outsourced to trDecs *)
 	  | trexp(A.LetExp({decs, body, pos})) =
 	    let
 	      val {venv=venv', tenv=tenv'}=trDecs(venv, tenv, decs)
-	    in (print("Let\n");
-		transExp(venv', tenv') body)
+	    in (transExp(venv', tenv') body)
 	    end
+	  | trexp(A.IfExp({test=exp1,
+			   then'=exp2,
+			   else'=NONE, pos=pos})) =
+	    (print("else-less if\n");
+	     check(exp1, Ty.INT, pos,
+		   "Non-Int condition check in an if expression.");
+	     {exp=(), ty=(#ty(trexp(exp2)))})
+	  | trexp(A.IfExp({test=exp1,
+			   then'=exp2,
+			   else'=SOME(exp3), pos=pos})) =
+	    let
+	      val bodyType= (#ty(trexp(exp2)))
+	    in
+	      (print("if with else\n");
+	       check(exp1,Ty.INT, pos,
+		   "Non-Int condition check in an if expression.");
+	       check(exp3, bodyType, pos,
+		   "if branches need to have same type.");
+	       {exp=(), ty=bodyType})
+	    end
+	  | trexp(A.WhileExp({test=exp1, body=exp2, pos=pos})) =
+	    (print("while\n");
+	     check(exp1, Ty.INT, pos,
+		   "Non-Int condition check in an while expression.");
+	     check(exp2, Ty.UNIT, pos,
+		   "Body of while must be of type UNIT.");
+	     {exp=(), ty=Ty.UNIT}
+	    )
+	  | trexp(A.ForExp({var=sym, escape=esc, lo=exp1, hi=exp2,
+			    body=exp3, pos=pos})) =
+	    let val venv'=S.enter(venv, sym, Env.VarEntry({ty=Ty.INT}))
+	    in
+	      (check(exp1, Ty.INT, pos,
+		     "Low value in `for` must be of type INT.");
+	       check(exp2, Ty.INT, pos,
+		     "High value in `for` must be of type INT.");
+	       (* sym cannot be assigned to. DO THAT! *)
+	       (* This is essentially check which takes in extra
+		venv param. Consider writing another func for this. *)
+	       if (#ty(transExp(venv', tenv) exp3)<> Ty.UNIT)
+	       then E.error(pos, pos,
+			    "Body of for must be of type UNIT.")
+	       else ();
+	       {exp=(), ty=Ty.UNIT})
+	    end
+	  | trexp(A.BreakExp(pos)) = (print("break\n");
+				      {exp=(), ty=Ty.BOTTOM})
 	  | trexp(_) = (E.error(0,0,"fell-off");{exp=(), ty=Ty.UNIT})
 			 (* trexp ENDS *)
 			 
