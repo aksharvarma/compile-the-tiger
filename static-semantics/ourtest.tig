@@ -18,15 +18,25 @@ let
 	type b = c
 	var i := 0
 	var j:a := 1
-	var s:b := 0
-	var c := j+s
-        var t:rec := rec{ f="si", g="abc" }
+	var s9:b := 0
+	var c:c := 1 
+        var t:rec := rec{ f=1, g="abc" }
         var l := list { first=0, rest= nil }
         var arr := arr[5] of 6
+        function ab():int = 5 + ba()
+        function ba():int = 6
+
+
+        function foo(a: int, b: string):int = (print(b); 5 + a)
+        function even(num: int):int = if (num = 0) then 1 else odd(num - 1)
 	var s:string := "foo"
+        function bar(a: string) = print(a)
+        function odd(num: int):int = if (num = 0) then 0 else even(num - 1)
+        
 in
 (while i<j do (print(s); break);
 if i then flush();
-if s = "foo" then print("yes") else print("no");
-(let var i := "bas" in print(i) end);(print(s);i < j))
+for k := 5 to 7 do (print(s));
+if s = "foo" then bar("yes") else print("no");
+(let var i := "bas" in print(i) end);(print(s);i < foo(i, s)))
 end

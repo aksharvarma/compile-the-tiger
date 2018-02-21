@@ -182,6 +182,7 @@ struct
 	    addTypeHeads(S.enter(tenv, (#name x),
 				 Ty.NAME((#name x), ref NONE)), xs)
 
+
 	(* DON'T USE actualTy *)
 	and trTy(tydec, tenv) =
             (* case S.look(tenv, (#name(tydec)))
@@ -273,7 +274,52 @@ struct
 		  )
 		 end
 	       (* Catch all *)
-	       | _ => {venv=venv,tenv=tenv})
+              | A.FunctionDec(funlist) =>
+                let
+                    fun transparam({name, escape, typ, pos}) =
+                        case S.look(tenv, typ)
+                            of SOME(t) => {name=name, ty=actualTy(t)}
+                            | NONE => (E.error(pos, pos, "type of param not found");
+                                        {name=name, ty=Ty.BOTTOM})
+	            fun addFunHeads(venv, []) = venv
+	              | addFunHeads(venv, {name:S.symbol, params, result, body, pos}::xs) =
+                        let
+                            val params' = map transparam params
+                            val resultTy = 
+                                case result
+                            (* Not guaranteed to not be NONE for actualTy *)
+                                    of NONE => Ty.UNIT
+                                    | SOME(rt, pos2) => 
+                                        (case S.look(tenv, rt)
+                                            of NONE => (E.error(pos2, pos2, "Return type not found"); Ty.BOTTOM)
+                                            | SOME(t) => actualTy(t))
+                         in
+	                    addFunHeads(S.enter(venv, name,
+	                        Env.FunEntry({formals= map #ty params', 
+                                result=resultTy})), xs)
+                         end
+                    val venv' = addFunHeads(venv, funlist)
+                    fun secondPass ([]) = venv'
+                      | secondPass ({name:S.symbol, params, result, body, pos}::funs) =
+                        let 
+                            val params' = map transparam params
+                            fun enterparam({name,ty}, venv) =
+                                S.enter(venv, name, Env.VarEntry({ty=ty}))
+                            val venv'' = foldr enterparam venv' params'
+                            val resultType = (case S.look(venv', name)
+                                of SOME(Env.FunEntry({formals, result})) => result
+                                | _ => (E.error(pos, pos, "function header not there");
+                                    Ty.BOTTOM))
+                        in 
+                            (if ((#ty (transExp(venv'', tenv) body))<>resultType) 
+                            then E.error(pos, pos, "Function body does not match result type")
+                            else ();
+                            secondPass(funs))
+                        end
+                in
+                    trDecs(secondPass(funlist), tenv, ds)
+                end)
+                
 	(* trDecs ENDS *)
 
 
@@ -335,11 +381,14 @@ struct
 	      val varType= #ty(trvar(var))
 	      val expType= #ty(trexp(exp))
 	    in
-	      (if(varType=expType) then ()
+	      ((if (varType=Ty.UNASSIGNABLE)
+              then E.error(pos, pos, "Cannot assign to the local variable of for")
+              else
+              (if(varType=expType) then ()
 	       else E.error(pos,pos,"Assigning expression of type "
 				    ^Ty.toString(expType)^
 				    " to variable of type "^
-				    Ty.toString(varType));
+				    Ty.toString(varType))));
 	       {exp=(), ty=Ty.UNIT})
 	    end
 	  (* Three kinds of sequences. non-last exp forced to unit  *)
@@ -385,7 +434,7 @@ struct
 	    )
 	  | trexp(A.ForExp({var=sym, escape=esc, lo=exp1, hi=exp2,
 			    body=exp3, pos=pos})) =
-	    let val venv'=S.enter(venv, sym, Env.VarEntry({ty=Ty.INT}))
+	    let val venv'=S.enter(venv, sym, Env.VarEntry({ty=Ty.UNASSIGNABLE}))
 	    in
 	      (check(exp1, Ty.INT, pos,
 		     "Low value in `for` must be of type INT.");
@@ -407,7 +456,7 @@ struct
                 (case S.look(tenv, typ)
                     of SOME(t) =>
                         (case actualTy(t)
-                        of Ty.RECORD((fieldList, uniq)) => (* TODO: check record fields *)
+                        of Ty.RECORD((fieldList, uniq)) => 
                             (verifyFields(fields, fieldList);                           
                             {exp=(), ty=Ty.RECORD((fieldList, uniq))})
                         | _ => (E. error(pos, pos, "type given is not a record");

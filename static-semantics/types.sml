@@ -14,14 +14,17 @@ struct
 	   (* NAME is Symbol.symbol * ((ty option) ref) *)
 	   | UNIT		(* valueless expressions *)
 	   | BOTTOM		(* Used only for `break` *)
+           | UNASSIGNABLE (* Subtype of int *)
 	       
 	      
   fun isSubtype(BOTTOM, ty2) = true    (* subtype of everything *)
     | isSubtype(NIL, RECORD(_)) = true (* every NIL is a RECORD *)
+    | isSubtype(UNASSIGNABLE, INT) = true (* unassignable is a subtype of int *)
     | isSubtype(_, TOP) = true	       (* TOP is supertype *)
     | isSubtype(a, b) = a=b	       (* handle a=a *)
 			    
   fun join(NIL, RECORD(a)) = RECORD(a)
+    | join(UNASSIGNABLE, INT) = INT
     | join(BOTTOM, a) = a
     | join(a,b)  = if (a=b) then a else TOP
 
@@ -30,6 +33,7 @@ struct
     | toString(ARRAY(_)) = "Array"
     | toString(NIL) = "NIL"
     | toString(INT) = "Int"
+    | toString(UNASSIGNABLE) = "Unassignable"
     | toString(STRING) = "String"
     | toString(UNIT) = "Unit"
     | toString(BOTTOM) = "Bottom"
