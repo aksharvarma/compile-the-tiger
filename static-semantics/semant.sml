@@ -79,6 +79,17 @@ struct
     | addTypeHeads(tenv, {name, ty, pos}::tydecs) =
         addTypeHeads(S.enter(tenv, name, Ty.NAME(name, ref NONE)), tydecs)
 
+  (* Accumulates the fields of a RecordTy into a list of the format (name, ty) *)
+  and accRecord([], tenv) = []
+    | accRecord({name, escape, typ, pos}::fields, tenv) =
+        (* Look up the typ of the field in the tenv *)
+        case (S.look(tenv, typ))
+            (* If not found, print an error and continue recurring *)
+            of NONE => (throwUp(pos, "Type of field is not defined");
+                accRecord(fields, tenv))
+            (* If found, add (name, t) to the list we're building and recur *)
+            | SOME(t) => (name, t)::accRecord(fields, tenv)
+
   (* The main semantic analysis happens here.
      transExp translates/type checks an expression in the given venv and tenv.
      transExp is curried to take in the venv and tenv first and return
@@ -189,117 +200,206 @@ struct
             (* Return the updated tenv *)
             tenv)
 
-        and accRecord([], tenv) = []
-          | accRecord(field::fields, tenv) =
-            case (S.look(tenv, (#typ(field))))
-                of NONE => (throwUp(#pos(field), "Type of field is not defined"); accRecord(fields, tenv))
-                | SOME(t) => (#name(field), t)::accRecord(fields, tenv)
-
-	(* trDecs: type check declarations *)
-	and trDecs(venv:venv, tenv:tenv, []) = {venv=venv,tenv=tenv}
-	  | trDecs(venv:venv, tenv:tenv, d::ds) =
-	    (case d
+	(* trDecs: Translate/type-check all declarations.
+           Returns an updated venv and tenv *)
+	and trDecs(venv:venv, tenv:tenv, []) = (venv, tenv)
+	  | trDecs(venv:venv, tenv:tenv, dec::decs) =
+	        (case dec
 		    (* normal variables *)
-	      of A.VarDec({name, escape, typ, init, pos}) =>
-		 let
-		   val initType = #ty(transExp(venv, tenv) init)
-		 in
-		   ((* print("found init: "^Ty.toString(initType)^"\n"); *)
-		    (case typ of
-		    	 SOME(ty, pos2) =>
-		    	 (case S.look(tenv, ty) of
-		    	      SOME(t) =>
-			      (print("initType: "^Ty.toString(initType)^
-				     ", actualTy: "^Ty.toString(actualTy(t))
-				     ^"\n");
-			       if (not(istype(initType, actualTy(t))))
-			       then throwUp(pos2,
-		    			    "init value doesn't match provided type")
-			       else ())
-		    	    | NONE =>
-		    	      throwUp(pos2, "unknown type chosen for variable:"^S.name(name)))
-		       | NONE => ());
-		     trDecs(S.enter(venv, name,
-				    E.VarEntry({ty=initType})), tenv, ds))
-		 end
-	       (* Types *)
-	       | A.TypeDec(tyList) =>
-	       	 let
-		   val tenv' = addTypeHeads(tenv, tyList)
-		   fun cyclic(a, start) =
-		       (case S.look(tenv', a)
-			of NONE => true (* a undefined *)
-			 | SOME(Ty.NAME(sym, typref)) =>
-			   (case !typref
-			     of NONE => true (* a=NAME(_,NONE) *)
-			      | SOME(Ty.NAME(sym2, typref2))
-				=> (if (sym2=start)
-				   then (true)
-				   else cyclic(sym2, start))
-			      | _ => false)
-			 | _ => false)
+	            of A.VarDec({name, escape, typ, init, pos}) =>
+		        let
+                            (* Determine the type of the init expr *)
+		            val initType = #ty(transExp(venv, tenv) init)
+		        in
+		            ((case typ
+                                (* If the type of the variable was specified,
+                                   look it up in the tenv *)
+                                of SOME(ty, pos2) =>
+		    	            (case S.look(tenv, ty)
+                                        (* If it was found in the tenv, print an
+                                           error if it is not equal to the type of
+                                           the init expr *)
+                                        of SOME(t) =>
+			                    if (not(istype(initType, actualTy(t))))
+			                    then throwUp(pos2,
+		    			    "init expr doesn't match provided type")
+			                    else ()
+                                        (* If it was specified but not found,
+                                           print an error *)
+		    	                | NONE => throwUp(pos2,
+                                            "unknown type chosen for variable:" ^
+                                            S.name(name)))
+                                (* If the type wasn't specified then there is no
+                                   checking to do *)
+		                | NONE => ());
+                            (* Recur with the new variable added to the venv *)
+		            trDecs(S.enter(venv, name,
+				E.VarEntry({ty=initType})), tenv, decs))
+		        end
 
-		   fun cyclicList([]) = false
-		     | cyclicList({name=sym, pos=pos, ty=ty}::xs) =
-		       cyclic(sym, sym) orelse cyclicList(xs)
-		     (* | cyclicList(_::xs) = true andalso cyclicList(xs) *)
-		 in
-	       	   (foldr trTy tenv' tyList;
-		    if cyclicList(tyList)
-		    then (throwUp(0, "Cyclic type-def\n");
-			  trDecs(venv, tenv, ds))
-		    else trDecs(venv, tenv', ds)
-		  )
-		 end
-	       (* Catch all *)
-              | A.FunctionDec(funlist) =>
-                let
-                    fun transparam({name, escape, typ, pos}) =
-                        case S.look(tenv, typ)
-                            of SOME(t) => {name=name, ty=actualTy(t)}
-                            | NONE => (throwUp(pos, "type of param not found");
+	            (* Type declarations *)
+	            | A.TypeDec(tyList) =>
+	       	        let
+                            (* first pass through the type declarations.
+                               adds blank headers to the tenv for each tydec *)
+		            val tenv' = addTypeHeads(tenv, tyList)
+
+                            (* Determines whether there is a cycle when we
+                               follow the types through the given a, given
+                               that we started searching at start *)
+		            fun cyclic(a, start) =
+                                (* Look up a in the tenv *)
+		                (case S.look(tenv', a)
+                                    (* Shouldn't happen, this means a is undefined,
+                                       if so, return true to indicate a problem *)
+			            of NONE => true
+                                    (* If a is a NAME, examine the type ref inside *)
+			            | SOME(Ty.NAME(sym, typref)) =>
+                                        (* Note we need to do two layers here
+                                           to get to the new symbol of the
+                                           type referred to by the first NAME *)
+			                (case !typref
+                                            (* If it is NONE, then we have found
+                                               an unresolved type, return true
+                                               to indicate a problem *)
+			                    of NONE => true
+                                            (* If there is another name inside,
+                                               check to see if it is the start
+                                               symbol, if so, then we have found
+                                               a cycle. If not, keep searching *)
+			                    | SOME(Ty.NAME(sym2, typref2)) =>
+                                                if (sym2=start)
+				                then (true)
+				                else cyclic(sym2, start)
+                                            (* If it is anything else, we have
+                                               reached a concrete type, and know
+                                               that there is no cycle here *)
+			                    | _ => false)
+                                    (* If it wasn't a name to begin with, then
+                                       there is no cycle *)
+			            | _ => false)
+
+                            (* Determines whether there is a cycle starting
+                               from any of the symbols in the given list *)
+		            fun cyclicList([]) = false
+		              | cyclicList({name=sym, pos=pos, ty=ty}::xs) =
+		                    cyclic(sym, sym) orelse cyclicList(xs)
+		        in
+                            (* Apply trTy (the second pass) over all of the
+                               decs in the tyList, recursively mutating the
+                               environment, starting with the base of tenv' *)
+	       	            (foldr trTy tenv' tyList;
+                            (* Check for cycles in the list of tydecs we just
+                               processed. If there is a cycle, print an error
+                               and recur in the environment without these decs.
+                               If not, recur with the new environment with these
+                               decs added *)
+		            if cyclicList(tyList)
+		            then (throwUp(0, "Cyclic type-def\n");
+			        trDecs(venv, tenv, decs))
+		            else trDecs(venv, tenv', decs))
+		        end
+
+                    (* Function declarations *)
+                    | A.FunctionDec(funlist) =>
+                        let
+                            (* Translate a function param to the name paired
+                               with its type *)
+                            fun transparam({name, escape, typ, pos}) =
+                                case S.look(tenv, typ)
+                                    of SOME(t) => {name=name, ty=actualTy(t)}
+                                    | NONE =>
+                                        (throwUp(pos, "type of param not found");
                                         {name=name, ty=Ty.BOTTOM})
-	            fun addFunHeads(venv, []) = venv
-	              | addFunHeads(venv, {name:S.symbol, params, result, body, pos}::xs) =
-                        let
-                            val params' = map transparam params
-                            val resultTy =
-                                case result
-                            (* Not guaranteed to not be NONE for actualTy *)
-                                    of NONE => Ty.UNIT
-                                    | SOME(rt, pos2) =>
-                                        (case S.look(tenv, rt)
-                                            of NONE => (throwUp(pos2, "Return type not found"); Ty.BOTTOM)
-                                            | SOME(t) => actualTy(t))
-                         in
-	                    addFunHeads(S.enter(venv, name,
-	                        E.FunEntry({formals= map #ty params',
-                                result=resultTy})), xs)
-                         end
-                    val venv' = addFunHeads(venv, funlist)
-                    fun secondPass ([]) = venv'
-                      | secondPass ({name:S.symbol, params, result, body, pos}::funs) =
-                        let
-                            val params' = map transparam params
-                            fun enterparam({name,ty}, venv) =
-                                S.enter(venv, name, E.VarEntry({ty=ty}))
-                            val venv'' = foldr enterparam venv' params'
-                            val resultType = (case S.look(venv', name)
-                                of SOME(E.FunEntry({formals, result})) => result
-                                | _ => (throwUp(pos, "function header not there");
-                                    Ty.BOTTOM))
+
+                            (* First pass through the function decs, add
+                               the headers into the venv with the types of
+                               the params and the return type of the function *)
+	                    fun addFunHeads(venv, []) = venv
+	                      | addFunHeads(venv,
+                                {name:S.symbol, params, result, body, pos}::xs) =
+                                    let
+                                        (* Translate all params into a useful form *)
+                                        val params' = map transparam params
+                                        (* Determine the return type *)
+                                        val retTy =
+                                            case result
+                                                (* If no type is specified, then
+                                                   this function is assumed to be a
+                                                   procedure and returns type UNIT *)
+                                                of NONE => Ty.UNIT
+                                                (* If a return type was specified,
+                                                   look it up in the tenv *)
+                                                | SOME(rt, pos2) =>
+                                                    (case S.look(tenv, rt)
+                                                        of NONE =>
+                                                            (throwUp(pos2,
+                                                            "Return type not found");
+                                                            Ty.BOTTOM)
+                                                        | SOME(t) => actualTy(t))
+                                    in
+                                        (* Recur with the new venv in which the
+                                           headers have been entered *)
+	                                addFunHeads(S.enter(venv, name,
+	                                    E.FunEntry({formals= map #ty params',
+                                            result=retTy})), xs)
+                                    end
+
+                            (* Perform the first pass through the fun decs.
+                               venv' is then the venv augmented with blank headers *)
+                            val venv' = addFunHeads(venv, funlist)
+
+                            (* Second pass through the function decs, process
+                               the bodies, taking advantage of the headers that
+                               have been entered into venv' by the first pass *)
+                            fun secondPass ([]) = venv'
+                            | secondPass ({name:S.symbol, params, result,
+                                body, pos}::funs) =
+                                let
+                                    (* Translate the params into a useful format *)
+                                    val params' = map transparam params
+
+                                    (* Helper function to add a var entry for a
+                                       param into the given venv *)
+                                    fun enterparam({name,ty}, venv) =
+                                        S.enter(venv, name, E.VarEntry({ty=ty}))
+
+                                    (* Enter all of the params as var entries into
+                                       the new environment venv' *)
+                                    val venv'' = foldr enterparam venv' params'
+
+                                    (* Determine what the result type should be
+                                       by looking up the fun entry from the venv
+                                       which should have been entered in the first
+                                       pass *)
+                                    val resultType =
+                                        (case S.look(venv', name)
+                                            of SOME(E.FunEntry({formals, result})) =>
+                                                result
+                                            | _ => (throwUp(pos,
+                                                "function header not there");
+                                                Ty.BOTTOM))
+                                in
+                                    (* Process the body in the new env with the
+                                       function decs and the params added.
+                                       If the body does not have the correct
+                                       return type, print an error *)
+                                    (if ((#ty (transExp(venv'', tenv) body))
+                                        <>resultType)
+                                    then throwUp(pos,
+                                        "Function body does not match result type")
+                                    else ();
+                                    (* Process the rest of the fundecs for the i
+                                       second pass *)
+                                    secondPass(funs))
+                                end
                         in
-                            (if ((#ty (transExp(venv'', tenv) body))<>resultType)
-                            then throwUp(pos, "Function body does not match result type")
-                            else ();
-                            secondPass(funs))
-                        end
-                in
-                    trDecs(secondPass(funlist), tenv, ds)
-                end)
-
+                            (* Recursively parse the rest of the decs
+                               with the new environment after performing the
+                               second pass on the funlist *)
+                            trDecs(secondPass(funlist), tenv, decs)
+                        end)
 	(* trDecs ENDS *)
-
 
 	(* The actual workhorse *)
 	and trexp(A.OpExp{left, oper=oper, right, pos}) =
@@ -380,10 +480,7 @@ struct
 	    else (throwUp(pos, "Need Unit type for non-final SeqExp expressions."); {exp=(), ty=Ty.BOTTOM})
 	  (* Let expressions. Decs outsourced to trDecs *)
 	  | trexp(A.LetExp({decs, body, pos})) =
-	    let
-	      val {venv=venv', tenv=tenv'}=trDecs(venv, tenv, decs)
-	    in (transExp(venv', tenv') body)
-	    end
+	    transExp(trDecs(venv, tenv, decs)) body
 	  | trexp(A.IfExp({test=exp1,
 			   then'=exp2,
 			   else'=NONE, pos=pos})) =
