@@ -53,6 +53,16 @@ and findField([], id:S.symbol) = NONE
   | findField((x:S.symbol, ty:Ty.ty)::xs, id:S.symbol) =
     if (id=x) then SOME(actualTy(ty)) else findField(xs, id)
 
+and checkFieldAndRemove([], (id:S.symbol, typ:Ty.ty, pos)) =
+        (throwUp(pos, "Field " ^ S.name(id) ^ " doesn't exit in record");
+        [])
+  | checkFieldAndRemove((x:S.symbol, ty:Ty.ty)::xs, (id:S.symbol, typ:Ty.ty, pos)) =
+        if (id = x)
+        then if (istype(actualTy(typ), actualTy(ty)))
+        then xs
+        else (throwUp(pos, "Field " ^ S.name(x) ^ " has incorrect type"); xs)
+        else checkFieldAndRemove(xs, (id, typ, pos))
+
 (* Finds the actual/concrete type of a given type.
    If the given type is a NAME continue looking past all NAMES
    until a concrete type is found.
@@ -120,19 +130,14 @@ fun transExp(venv:venv, tenv:tenv) =
 	 match the types of the record fields looked up from the tenv
          TODO: Doesn't actually verify that all of them
 	 are there exactly once *)
-      and verifyFields([], recordFields) = ()
-        | verifyFields((sym, exp, pos)::fields, recordFields) =
-	  let
-	    (* fun delete(x, []) = [] *)
-	    (* 	| delete(x, first::rest) = *)
-	  in
-            (case findField(recordFields, sym)
-              of NONE => throwUp(pos, "Invalid field for record:"
-				      ^S.name(sym))
-               | SOME(ty) => check(exp, actualTy(ty), pos,
-				   "Type doesn't match for field:"
-				   ^S.name(sym)))
-	  end
+      and verifyFields([], [], pos) = () (* both empty then we're good *)
+        | verifyFields([], _, pos) = throwUp(pos,
+            "Given fields don't match fields for record type: too few fields")
+        | verifyFields(_, [], pos) = throwUp(pos,
+            "Given fields don't match fields for record type: too many fields")
+        | verifyFields((sym:S.symbol, exp:A.exp, pos)::fields, recordFields, pos2) =
+            verifyFields(fields, checkFieldAndRemove(recordFields,
+                (sym, #ty(trexp(exp)), pos)), pos2)
 
       (* trvar: Translate/type-check variables *)
       and trvar(A.SimpleVar(id, pos)) =
@@ -424,37 +429,25 @@ fun transExp(venv:venv, tenv:tenv) =
 	     | Compare => (* comparison ops: <, <=, >=, > *)
                (* Comparison allowed only between strings or ints *)
 	       let
-		 (* TODO: Clean up this comment. Not used anywhere else.*)
-		 (*Takes in a single type and a list of types. *)
-		 (*    If the given type is of one of the types in the list, return it. *)
-		 (*    Otherwise return NONE. *)
-		 (*    This helper is useful when operations can occur on one of several *)
-		 (*    types, and we need to know which it is acting on *)
-		 fun findType(typ:Ty.ty, []) = NONE
-		   | findType(typ:Ty.ty, ty::tyList) =
-		     if (istype(typ, ty))
+                 val ty = #ty(trexp(left))
+		 (* Check if left expression is string or int *)
+		 val leftType =
+		     if (istype(ty, Ty.INT) orelse istype(ty, Ty.STRING))
 		     then SOME(actualTy(ty))
-		     else findType(typ, tyList)
-
-		 (* Find if left expression is string or int *)
-		 val leftType = findType(#ty(trexp(left)),
-					 [Ty.STRING, Ty.INT])
+		     else NONE
 	       in
 		 (case leftType
-			 (* If not int or string print error *)
-		   of NONE => throwUp(pos, "Comparison needs int or string.")
+		    (* If not int or string print error *)
+		    of NONE => throwUp(pos, "Comparison needs int or string.")
                     (* Right expression must be of the same type *)
-		 | SOME(t) => check(right, t, pos,
+		    | SOME(t) => check(right, t, pos,
 				    "Type of both expressions should match.");
 		  {exp=(), ty=Ty.INT})
 	       end
 	      (* Handle equality checks: =, <> *)
 	     | Equality =>
 	       let
-		 (* Equality ops can used with strings, ints, records,
-                    or arrays *)
-		 (* TODO: Need to add records and arrays to equality *)
-
+		 (* Equality ops can used with strings, ints, records, or arrays *)
 		 fun findEqType(typ:Ty.ty) =
 		     case typ
 		      of Ty.INT => SOME(Ty.INT)
@@ -462,6 +455,9 @@ fun transExp(venv:venv, tenv:tenv) =
 		       | Ty.RECORD(t) => SOME(Ty.RECORD(t))
 		       | Ty.ARRAY(t) => SOME(Ty.ARRAY(t))
 		       | Ty.NIL => SOME(Ty.NIL)
+                       (* why is unit included here *)
+                       (* need bottom? really should be checking subtypes here
+                          maybe the join of the two? *)
 		       | Ty.UNIT => SOME(Ty.UNIT) 	(* TODO:Extension(?) *)
 		       | t => NONE
 		 val leftType = findEqType(#ty(trexp(left)))
@@ -606,7 +602,6 @@ fun transExp(venv:venv, tenv:tenv) =
           (if (!brNesting > 0)
            then ()
            else throwUp(pos, "Break occurs out of scope.");
-	   (* TODO: Why is this BOTTOM *)
            {exp=(), ty=Ty.BOTTOM})
 
 	(* Records *)
@@ -619,7 +614,7 @@ fun transExp(venv:venv, tenv:tenv) =
                      then we need to verify all of the field types
                      are correct *)
                   of Ty.RECORD((fieldList, uniq)) =>
-                     (verifyFields(fields, fieldList);
+                     (verifyFields(fields, fieldList, pos);
                       {exp=(), ty=Ty.RECORD((fieldList, uniq))})
                    (* if it is not a record, print an error
                       and use an empty record type to continue *)
