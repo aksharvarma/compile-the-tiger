@@ -34,6 +34,9 @@ struct
   (* Tracks whether at least one error has occurred *)
   val errorExists = ref false
 
+  (* Tracks whether we are currently in a scope in which a break is permitted *)
+  val brNesting = ref 0
+
   (* Helper methods *)
 
   (* Sets error flag and outputs error message *)
@@ -524,8 +527,10 @@ struct
 	  | trexp(A.WhileExp({test=exp1, body=exp2, pos=pos})) =
 	        (check(exp1, Ty.INT, pos,
 		    "Non-Int condition check in an while expression.");
-	        check(exp2, Ty.UNIT, pos,
+	        brNesting := !brNesting + 1;
+                check(exp2, Ty.UNIT, pos,
 		   "Body of while must be of type UNIT.");
+                brNesting := !brNesting - 1;
 	        {exp=(), ty=Ty.UNIT})
 	  | trexp(A.ForExp({var=sym, escape=esc, lo=exp1, hi=exp2,
 			    body=exp3, pos=pos})) =
@@ -540,13 +545,19 @@ struct
 	            check(exp2, Ty.INT, pos,
 		        "High value in `for` must be of type INT.");
                     (* Check that the body with the new environment is type unit *)
-	            if (#ty(transExp(venv', tenv) exp3)<> Ty.UNIT)
-	            then throwUp(pos, "Body of for must be of type UNIT.")
-	            else ();
+	            brNesting := !brNesting + 1;
+                    if (istype(#ty(transExp(venv', tenv) exp3), Ty.UNIT))
+	            then ()
+	            else throwUp(pos, "Body of for must be of type UNIT.");
+                    brNesting := !brNesting - 1;
 	            {exp=(), ty=Ty.UNIT})
 	        end
-          (* Break is of type BOTTOM to allow for the most flexibility *)
-	  | trexp(A.BreakExp(pos)) = {exp=(), ty=Ty.BOTTOM}
+          (* Break is of type BOTTOM for greatest flexibility *)
+	  | trexp(A.BreakExp(pos)) =
+                (if (!brNesting > 0)
+                then ()
+                else throwUp(pos, "Break occurs out of scope");
+                {exp=(), ty=Ty.BOTTOM})
           (* Records *)
           | trexp(A.RecordExp({fields=fields, typ=typ, pos=pos})) =
                 (* Look up the type of the record in the tenv *)
