@@ -1,0 +1,19 @@
+let
+  var x := 0
+  var x := "abc"
+
+  type a = string
+  type b = a
+  type a = { f: int }
+  type a = int
+
+  var y:b := 2
+  var z:a := 0
+
+  function foo(a: string, b: b):int = (print(a); 5 + b)
+  function foo(c: string):string = c
+in
+  (print(x);
+  foo("abc"))
+
+end

@@ -90,8 +90,8 @@ and accRecord([], tenv) = []
     (* Look up the typ of the field in the tenv *)
     case (S.look(tenv, typ))
            (* If not found, print an error and continue recurring *)
-     of NONE => (throwUp(pos, "Type of field:"^S.name(name)^
-			      "is not defined");
+     of NONE => (throwUp(pos, "Type of field: "^S.name(name)^
+			      " is not defined");
 		 accRecord(fields, tenv))
       (* If found, add (name, t) to the list and recur *)
       | SOME(t) => (name, t)::accRecord(fields, tenv)
@@ -441,7 +441,7 @@ fun transExp(venv:venv, tenv:tenv) =
 		    of NONE => throwUp(pos, "Comparison needs int or string.")
                     (* Right expression must be of the same type *)
 		    | SOME(t) => check(right, t, pos,
-				    "Type of both expressions should match.");
+				    "Type of both expressions should match for comparisons.");
 		  {exp=(), ty=Ty.INT})
 	       end
 	      (* Handle equality checks: =, <> *)
@@ -464,15 +464,14 @@ fun transExp(venv:venv, tenv:tenv) =
 		 val leftNONE = leftType=NONE
 		 val rightNONE = rightType=NONE
 	       in
-		 (* TODO: Check that this works. *)
 		 (if leftNONE orelse rightNONE
 		  then (* Type cannot be compared for equality *)
-		    throwUp(pos, "Equality tests only with INT, STRING, RECORD, or ARRAY.")
+		    throwUp(pos, "Equality tests only valid with types: INT, STRING, RECORD, or ARRAY.")
 		  else if (not(istype(valOf(leftType), valOf(rightType)) orelse istype(valOf(rightType), valOf(leftType))))
 		  (* Types don't match *)
 		  then throwUp(pos, "Types need to match for equality test.")
-		  else if (leftType=SOME(Ty.NIL)
-			   andalso rightType=SOME(Ty.NIL))
+                  else ();
+		  if (leftType=SOME(Ty.NIL) andalso rightType=SOME(Ty.NIL))
 		  (* Can't compare two NILs *)
 		  then throwUp(pos, "Cannot compare two NIL expressions.")
 		  else ();
@@ -524,7 +523,7 @@ fun transExp(venv:venv, tenv:tenv) =
 	(* 3 kinds of sequences. non-last exp is enforced as unit  *)
 	| trexp(A.SeqExp([])) = ({exp=(), ty=Ty.UNIT})
 	| trexp(A.SeqExp((x, pos)::[])) = (trexp(x))
-	| trexp(A.SeqExp((x, pos)::xs)) = trexp(A.SeqExp(xs))
+	| trexp(A.SeqExp((x, pos)::xs)) = (trexp(x); trexp(A.SeqExp(xs)))
 
 	(* Let expressions. Processing outsourced to trDecs *)
 	| trexp(A.LetExp({decs, body, pos})) =
@@ -651,7 +650,8 @@ fun transExp(venv:venv, tenv:tenv) =
 (* The main entry point for a tiger program.
    Translates/type-checks a given program (expression), beginning
    with the base environments *)
-fun transProg(e) = (transExp(E.base_venv, E.base_tenv) e;
+fun transProg(e) = (errorExists := false;
+                    transExp(E.base_venv, E.base_tenv) e;
 		    if !errorExists
 		    then (throwUp(0,"Type-checking failed.");
 			  raise ErrorMsg.Error)

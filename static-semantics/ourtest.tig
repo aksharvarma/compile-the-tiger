@@ -26,6 +26,15 @@ let
         function ab():int = 5 + ba()
         function ba():int = 6
 
+        type tree = { key : int, children: treelist }
+        type treelist = {hd: tree, tl: treelist }
+
+        function treeLeaves(t: tree) : int =
+            if t = nil then 1
+            else treelistLeaves(t.children)
+        function treelistLeaves(L: treelist) : int =
+            if L = nil then 0
+            else treeLeaves(L.hd) + treelistLeaves(L.tl)
 
         function foo(a: int, b: string):int = (print(b); 5 + a)
 	var s:string := "foo"
@@ -34,8 +43,9 @@ let
         function odd(num: int):int = if (num = 0) then 0 else even(num - 1)
 
 in
-(while break do (print(s); if break then break else break; break);
+(while i do (print(s); if break then break else break; break);
 if i then flush();
+let in end;
 for k := 5 to 7 do (while 2 < 4 do (break; print(s)); break);
 if s = "foo" then bar("yes") else print("no");
 (let var i := "bas" in print(i) end);(print(s);i < foo(i, s)))
