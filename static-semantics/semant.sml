@@ -225,6 +225,10 @@ fun transExp(venv:venv, tenv:tenv) =
 	       let
                  (* Determine the type of the init expr *)
 		 val initType = #ty(transExp(venv, tenv) init)
+		 (* If type explicitly specified, use that.
+		    Handles things like var b:rectype := nil
+		    where we want RECORD and not NIL as the type *)
+		 val typeToUse:Ty.ty ref = ref initType
 	       in
 		 ((case typ
                     (* If the type of the variable was specified,
@@ -235,9 +239,11 @@ fun transExp(venv:venv, tenv:tenv) =
                             error if it is not equal to the type of
                             the init expr *)
                          of SOME(t) =>
-			    if (not(istype(initType, actualTy(t))))
+			    (if (not(istype(initType, actualTy(t))))
 			    then throwUp(pos2, "Initial expression doesn't match provided type:"^S.name(ty))
-			    else ()
+			     else ();
+			     (* If type is provided, use that. *)
+			     typeToUse:=actualTy(t))
                           (* If it was specified but not found,
                              print an error *)
 		    	  | NONE => throwUp(pos2, "Unknown type chosen for variable:"^S.name(name)))
@@ -248,7 +254,8 @@ fun transExp(venv:venv, tenv:tenv) =
 				else ()));
                   (* Recur with the new variable added to the venv *)
 		  trDecs(S.enter(venv, name,
-				 E.VarEntry({ty=initType})), tenv, decs))
+				 E.VarEntry({ty= !typeToUse})),
+			 tenv, decs))
 	       end
 
 	     (* Type declarations *)
@@ -257,6 +264,14 @@ fun transExp(venv:venv, tenv:tenv) =
                  (* first pass through the type declarations.
                     adds blank headers to the tenv for each tydec *)
 		 val tenv' = addTypeHeads(tenv, tyList)
+
+		 (* Returns true if names repeated. *)
+		 fun duplication([]) = false
+		   | duplication({name:S.symbol, ty, pos}::xs) =
+		     (List.exists (fn y => name = (#name(y)))
+				  xs)
+		     orelse (duplication xs)
+
                  (* Determines whether there is a cycle when we
                     follow the types through the given a, given
                     that we started searching at start *)
@@ -297,6 +312,10 @@ fun transExp(venv:venv, tenv:tenv) =
 		   | cyclicList({name=sym, pos=pos, ty=ty}::xs) =
 		     cyclic(sym, sym) orelse cyclicList(xs)
 	       in
+		 (* Error is there are duplicates in the tyList *)
+		 if duplication(tyList)
+		 then throwUp((#pos(hd(tyList))), "Duplicate names in a mutually recursive type declaration.")
+		 else ();
                  (* Apply trTy (the second pass) over all of the
                     decs in the tyList, recursively mutating the
                     environment, starting with the base of tenv' *)
@@ -315,6 +334,14 @@ fun transExp(venv:venv, tenv:tenv) =
              (* Function declarations *)
              | A.FunctionDec(funlist) =>
                let
+		 (* Returns true if names repeated. *)
+		 fun duplication([]) = false
+		   | duplication({name:S.symbol, params, body,
+				  result, pos}::xs) =
+		     (List.exists (fn y => name = (#name(y)))
+				  xs)
+		     orelse (duplication xs)
+
                  (* Translate a function param to the name paired
                     with its type *)
                  fun transparam({name, escape, typ, pos}) =
@@ -350,6 +377,10 @@ fun transExp(venv:venv, tenv:tenv) =
                                      Ty.BOTTOM)
                                   | SOME(t) => actualTy(t))
                      in
+		       (* Error is there are duplicates in the tyList *)
+		       if duplication(funlist)
+		       then throwUp((#pos(hd(funlist))), "Duplicate names in a mutually recursive function declaration.")
+		       else ();
                        (* Recur with the new venv in which the
                           headers have been entered *)
 	               addFunHeads(S.enter(venv, name,
@@ -368,16 +399,16 @@ fun transExp(venv:venv, tenv:tenv) =
                        (* Translate the params into a useful format *)
                        val params' = map transparam params
                        (* Helper function to add a var entry for a
-                                       param into the given venv *)
+                          param into the given venv *)
                        fun enterparam({name,ty}, venv) =
                            S.enter(venv, name, E.VarEntry({ty=ty}))
                        (* Enter all of the params as var entries into
-                                       the new environment venv' *)
+                          the new environment venv' *)
                        val venv'' = foldr enterparam venv' params'
                        (* Determine what the result type should be
-                                       by looking up the fun entry from the venv
-                                       which should have been entered in the first
-                                       pass *)
+                          by looking up the fun entry from the venv
+                          which should have been entered in the first
+                          pass *)
                        val resultType =
                            (case S.look(venv', name)
                              of SOME(E.FunEntry({formals, result})) =>
@@ -387,22 +418,22 @@ fun transExp(venv:venv, tenv:tenv) =
                                       Ty.BOTTOM))
                      in
                        (* Process the body in the new env with the
-                                       function decs and the params added.
-                                       If the body does not have the correct
-                                       return type, print an error *)
-                       (if ((#ty (transExp(venv'', tenv) body))
+                          function decs and the params added.
+                          If the body does not have the correct
+                          return type, print an error *)
+                       (if ((#ty(transExp(venv'', tenv) body))
                             <>resultType)
                         then throwUp(pos,
                                      "Function body does not match result type.")
                         else ();
                         (* Process the rest of the fundecs for the i
-                                       second pass *)
+                           second pass *)
                         secondPass(funs))
                      end
                in
                  (* Recursively parse the rest of the decs
-                               with the new environment after performing the
-                               second pass on the funlist *)
+                    with the new environment after performing the
+                    second pass on the funlist *)
                  trDecs(secondPass(funlist), tenv, decs)
                end)
       (* trDecs ENDS *)

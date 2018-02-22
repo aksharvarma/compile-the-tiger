@@ -42,6 +42,12 @@ let
         function even(num: int):int = if (num = 0) then 1 else odd(num - 1)
         function odd(num: int):int = if (num = 0) then 0 else even(num - 1)
 
+	type vbn = int
+	type vbn1 = int
+
+	function zxc(a: int) : int = 4
+	function zxc1() = print("I'm foo")
+
 in
 (while i do (print(s); if break then break else break; break);
 if i then flush();
