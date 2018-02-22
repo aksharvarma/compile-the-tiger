@@ -46,16 +46,16 @@ val brNesting = ref 0
 fun throwUp(pos, msg) = (errorExists := true;
 			 ErrorMsg.error(pos, pos, msg))
 
-		     
+
 (* Takes in a list of record fields (from Ty.RECORD) and finds the
    field with the given name if it exists *)
 and findField([], id:S.symbol) = NONE
   | findField((x:S.symbol, ty:Ty.ty)::xs, id:S.symbol) =
     if (id=x) then SOME(actualTy(ty)) else findField(xs, id)
 
-(* Finds the actual/concrete type of a given type. 
+(* Finds the actual/concrete type of a given type.
    If the given type is a NAME continue looking past all NAMES
-   until a concrete type is found.	
+   until a concrete type is found.
 
    Note: Due to the way NAME types are constructed,
          there should be no NAME types remaining with NONE in them. *)
@@ -67,7 +67,7 @@ and actualTy(Ty.NAME(sym, ty)) =
        | NONE => (throwUp(0,"Undefined type:"^S.name(sym)^".\n");
 		  Ty.BOTTOM))
   | actualTy(a) = a
-		    
+
 (* Helper for adding headers to the tenv for tydecs.
    Essentially accomplishes the first pass over the tydecs. *)
 and addTypeHeads(tenv, []) = tenv
@@ -90,7 +90,7 @@ and accRecord([], tenv) = []
    transExp translates/type checks an expression given venv and tenv.
    transExp is curried to take in the venv and tenv first and return
    a function taking in the expression to analyze since many recursive
-   calls should happen in the same environments as were given initially *)	
+   calls should happen in the same environments as were given initially *)
 fun transExp(venv:venv, tenv:tenv) =
     let
       (* More helper methods *)
@@ -103,17 +103,17 @@ fun transExp(venv:venv, tenv:tenv) =
           else ()
 
       (* Takes a list of expressions and a list of types and
-         checks whether the expressions in the first list 
-	 have the same types as the actual types of the 
+         checks whether the expressions in the first list
+	 have the same types as the actual types of the
 	 types in the second list (order matters).
-         This helper is useful for checking whether the 
+         This helper is useful for checking whether the
 	 arguments used to call a function have the correct types *)
       and checkTypeList([], []) = true (* we're good if both empty *)
 	(* if exactly one is empty, something's wrong *)
-	| checkTypeList([], _) = false 
+	| checkTypeList([], _) = false
 	| checkTypeList(_, []) = false
 	(* check 1st entry and then recur *)
-	| checkTypeList(e::es, t::ts) = 
+	| checkTypeList(e::es, t::ts) =
           #ty(trexp(e)) = actualTy(t) andalso checkTypeList(es, ts)
 
       (* Verifies whether the given list of record field declarations
@@ -138,10 +138,10 @@ fun transExp(venv:venv, tenv:tenv) =
       and trvar(A.SimpleVar(id, pos)) =
           (* look for the id in the venv *)
 	  (case S.look(venv, id)
-            (* if a var entry is found, 
+            (* if a var entry is found,
 	       return the actual type of that entry *)
 	    of SOME(E.VarEntry({ty})) => {exp=(), ty=actualTy(ty)}
-             (* if not, print an error 
+             (* if not, print an error
 		and return BOTTOM to keep going *)
 	     | _ => (throwUp(pos, "Undefined variable:" ^ S.name(id));
 		     {exp=(), ty=Types.BOTTOM}))
@@ -154,14 +154,14 @@ fun transExp(venv:venv, tenv:tenv) =
                (* if it's a record, then search for the field with
                   the given name *)
 	       (case findField(sym, id)
-                 (* if we didn't find it, 
+                 (* if we didn't find it,
 		    print an error and return BOTTOM to continue *)
                  of NONE => (throwUp(pos, "Invalid field id:" ^ S.name(id));
 			     {exp=(), ty=Ty.BOTTOM})
-                  (* if we did find it, 
+                  (* if we did find it,
 		     then return the type of that field *)
 		  | SOME(t) => {exp=(), ty=t})
-             (* if the LHS wasn't a record, then print error 
+             (* if the LHS wasn't a record, then print error
 		and return BOTTOM to continue *)
 	     | _ => (throwUp(pos, "accessing field of non-record:" ^ S.name(id));
                      {exp=(), ty=Ty.BOTTOM}))
@@ -295,7 +295,7 @@ fun transExp(venv:venv, tenv:tenv) =
                  (* Apply trTy (the second pass) over all of the
                     decs in the tyList, recursively mutating the
                     environment, starting with the base of tenv' *)
-	       	 (foldr trTy tenv' tyList;
+	       	 (foldl trTy tenv' tyList;
                   (* Check for cycles in the list of tydecs we just
                      processed. If there is a cycle, print an error
                      and recur in the environment without these decs.
@@ -435,7 +435,7 @@ fun transExp(venv:venv, tenv:tenv) =
 		     if (istype(typ, ty))
 		     then SOME(actualTy(ty))
 		     else findType(typ, tyList)
-				  
+
 		 (* Find if left expression is string or int *)
 		 val leftType = findType(#ty(trexp(left)),
 					 [Ty.STRING, Ty.INT])
@@ -455,7 +455,7 @@ fun transExp(venv:venv, tenv:tenv) =
                     or arrays *)
 		 (* TODO: Need to add records and arrays to equality *)
 
-		 fun findEqType(typ:Ty.ty) = 
+		 fun findEqType(typ:Ty.ty) =
 		     case typ
 		      of Ty.INT => SOME(Ty.INT)
 		       | Ty.STRING => SOME(Ty.STRING)
@@ -474,11 +474,11 @@ fun transExp(venv:venv, tenv:tenv) =
 		  then (* Type cannot be compared for equality *)
 		    throwUp(pos, "Equality tests only with INT, STRING, RECORD, or ARRAY.")
 		  else if leftType<>rightType
-				      (* Types don't match *)
+		  (* Types don't match *)
 		  then throwUp(pos, "Types need to match for equality test.")
 		  else if (leftType=SOME(Ty.NIL)
 			   andalso rightType=SOME(Ty.NIL))
-			    (* Can't compare two NILs *)
+		  (* Can't compare two NILs *)
 		  then throwUp(pos, "Cannot compare two NIL expressions.")
 		  else ();
 		  {exp=(), ty=Ty.INT})
@@ -512,8 +512,7 @@ fun transExp(venv:venv, tenv:tenv) =
 	    val expType= #ty(trexp(exp))
 	  in
             (* Print an error if LHS variable is UNASSIGNABLE
-	       (handles implicitly declared loop variable in for)
-             *)
+	       (handles implicitly declared loop variable in for) *)
 	    (if (varType=Ty.UNASSIGNABLE)
              then throwUp(pos, "Cannot assign to the local variable of for")
              (* Else, check that RHS is a subtype of the LHS type.
@@ -560,7 +559,7 @@ fun transExp(venv:venv, tenv:tenv) =
             (* Find out what type the then expression has *)
 	    val bodyType= (#ty(trexp(exp2)))
 	  in
-            (* Condition must be an int, and the type of 
+            (* Condition must be an int, and the type of
 	       the then and else expression must match *)
 	    (check(exp1,Ty.INT, pos,
 		   "Condition in an if expression must be of type INT.");
@@ -592,7 +591,7 @@ fun transExp(venv:venv, tenv:tenv) =
 		   "Low value in `for` must be of type INT.");
 	     check(exp2, Ty.INT, pos,
 		   "High value in `for` must be of type INT.");
-             (* Check that the body is of type UNIT 
+             (* Check that the body is of type UNIT
 		using with the new environment *)
 	     brNesting := !brNesting + 1;
              if (istype(#ty(transExp(venv', tenv) exp3), Ty.UNIT))
@@ -668,7 +667,7 @@ fun transProg(e) = (transExp(E.base_venv, E.base_tenv) e;
 		    if !errorExists
 		    then (throwUp(0,"Type-checking failed.");
 			  raise ErrorMsg.Error)
-			       
+
 		    else ())
 
 end
