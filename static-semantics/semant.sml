@@ -1,14 +1,14 @@
 structure A = Absyn
 structure Ty = Types
 structure S = Symbol
-structure E = ErrorMsg
-(* val error = ErrorMsg.error *)
+structure E = Env
 
+		
 structure Translate = struct type exp = unit end
 
 signature SEMANT =
 sig
-  type venv = Env.enventry S.table
+  type venv = E.enventry S.table
   type tenv = Ty.ty S.table
 
   type expty = {exp: Translate.exp, ty: Ty.ty}
@@ -28,29 +28,11 @@ end
 
 structure Semant :> SEMANT =
 struct
-  type venv = Env.enventry S.table
+  type venv = E.enventry S.table
   type tenv = Ty.ty S.table
 
   type expty = {exp: Translate.exp, ty: Ty.ty}
 
-  (* fun isInt({exp,ty}) = *)
-  (*     case ty of Ty.INT => true *)
-  (* 	       | _ => false *)
-
-  (* fun isString({exp,ty}) = *)
-  (*     case ty of Ty.STRING => true *)
-  (* 	       | _ => false *)
-
-  (* fun check(b, pos, msg) = *)
-  (*     if(not(b)) then E.error(pos, pos, msg) else () *)
-
-  (* fun transVar(A.VarExp(var)) = *)
-  (*     let *)
-  (* 	val asdf = trexp(var) *)
-  (*     in *)
-  (* 	transExp(S.enter(venv, Symbol.symbolize(var), VarEntry(#ty(asdf))), tenv) *)
-  (*     end *)
-  (*   |  *)
   fun transVar(_)  = {exp=(), ty=Ty.UNIT}
 
   (* Convenience *)
@@ -61,6 +43,12 @@ struct
   val EqualityOp = [A.EqOp, A.NeqOp]
   datatype binOpType = Arith | Compare | Equality
 
+  val errorExists = ref false
+  (* Sets a flag and outputs error messages *)
+  fun throwUp(pos, msg) = (errorExists := true;
+			   ErrorMsg.error(pos, pos, msg))
+					   
+					   
   fun inList(elem, []) = false
     | inList(elem, x::xs) = if elem=x then true else inList(elem, xs)
 
@@ -69,17 +57,11 @@ struct
       else if inList(oper, CompareOp) then Compare
       else Equality
 
-  (* Check what happens with NONE (can we assume it won't happen?) *)
-  (* fun actualTy(tenv:tenv, Ty.NAME(a,ref NONE)) = Ty.TOP *)
-  (*   | actualTy(tenv:tenv, Ty.NAME(a,b)) = actualTy(tenv, valOf(!b)) *)
-  (*   | actualTy(tenv, a) = a *)
-
-
   fun transExp(venv:venv, tenv:tenv) =
       let
 	fun check(expr:A.exp, targetType, pos, msg) =
 	    if(not(istype(#ty(trexp(expr)), actualTy(targetType))))
-	    then E.error(pos, pos, msg) else ()
+	    then throwUp(pos, msg) else ()
 
 	and findType(expr:A.exp, []) = NONE
 	  | findType(expr:A.exp, ty::tyList) =
@@ -106,37 +88,14 @@ struct
         and verifyFields([], recordFields) = ()
           | verifyFields((sym, exp, pos)::fields, recordFields) = 
                 (case findField(recordFields, sym)
-                    of NONE => E.error(pos, pos, "Invalid field for record")
+                    of NONE => throwUp(pos, "Invalid field for record")
                     | SOME(ty) => 
                         check(exp, actualTy(ty), pos, "Type doesn't match for field"))
 
-	(* and actualTy(Ty.NAME(a,b)) = *)
-	(*     (case b of NONE => (E.error(0,0,"WHAAAA????\n"); *)
-	(* 			Ty.BOTTOM) *)
-	(* 	     | SOME(t) => (case valOf(!t) *)
-	(* 			    of Ty.NAME(c, d) => *)
-	(* 			       (let *)
-	(* 				 val foo = S.look(tenv, c) *)
-	(* 			       in *)
-	(* 				 (case foo *)
-	(* 				  of NONE => (E.error(0,0,"WHAAAA????\n"); *)
-	(* 					      Ty.BOTTOM) *)
-	(* 				   | SOME(bar) => actualTy(bar)) *)
-	(* 			       end) *)
-	(* 			    | _ => valOf(!t))) *)
-	(*   | actualTy(a) = a *)
-	(*     (* let *) *)
-	(*     (*   val bTy = valOf(!b) *) *)
-	(*     (*   val bbTy = (case bTy of Ty.NAME(c, d) => S.look(tenv, c) *) *)
-	(*     (* 			   | _ => SOME(bTy)) *) *)
-	(*     (* in *) *)
-	(*     (*   (case bbTy of SOME(t) => actualTy(t) *) *)
-	(*     (* 		  | NONE => ) *) *)
-	(*     (* end *) *)
 
 	and actualTy(Ty.NAME(a,b)) =
 	    (case !b of SOME(t) => actualTy(t)
-		     | NONE => (E.error(0,0,"Undefined type.\n");
+		     | NONE => (throwUp(0,"Undefined type.\n");
 				Ty.BOTTOM))
 	  | actualTy(a) = a
 
@@ -144,10 +103,10 @@ struct
 	(* trvar: Type-check the Variables *)
 	and trvar(A.SimpleVar(id, pos)) =
 	    (case S.look(venv, id)
-	      of SOME(Env.VarEntry(ty)) =>
+	      of SOME(E.VarEntry(ty)) =>
 		 {exp=(), ty=actualTy((#ty(ty)))}
 
-	       | _ => (E.error(pos, pos,
+	       | _ => (throwUp(pos,
 				  "undefined variable:"^S.name(id));
 			 {exp=(), ty=Types.BOTTOM}))
 	  (* fields and records *)
@@ -159,20 +118,20 @@ struct
 		   val fieldType=findField(a, id)
 		 in
 		   (case fieldType of
-			NONE => (E.error(pos, pos,
+			NONE => (throwUp(pos,
 					 "invalid field id:"^S.name(id));
 				 {exp=(), ty=Ty.BOTTOM})
 		     | SOME(t) =>
 		       {exp=(), ty=t})
 		 end)
-	       | _ => (E.error(pos, pos, "accessing field of non-record variable:"^S.name(id));{exp=(), ty=Ty.BOTTOM}))
+	       | _ => (throwUp(pos, "accessing field of non-record variable:"^S.name(id));{exp=(), ty=Ty.BOTTOM}))
 	  (* Array type variables *)
 	  | trvar(A.SubscriptVar(var, e, pos)) =
 	    (print("array-var\n");case (#ty(trvar(var)))
 	      of Ty.ARRAY(a,b) =>
 		 (check(e, Ty.INT, pos, "non-int subscript");
 		  {exp=(), ty=actualTy(a)})
-	      | _ => (E.error(pos, pos, "subscripting non-array variable");{exp=(), ty=Ty.BOTTOM}))
+	      | _ => (throwUp(pos, "subscripting non-array variable");{exp=(), ty=Ty.BOTTOM}))
 	(* trvar ENDS *)
 
 
@@ -207,14 +166,14 @@ struct
                         of SOME(Ty.NAME(a, b)) =>
                             ((case S.look(tenv, sym)
                                 of SOME(ty) => (b := SOME(Ty.ARRAY(ty, ref ())))
-                                | NONE => E.error(pos, pos, "Type for array not found\n"));
+                                | NONE => throwUp(pos, "Type for array not found\n"));
                             tenv)
                         | _ => tenv))
 
         and accRecord([], tenv) = []
           | accRecord(field::fields, tenv) =
             case (S.look(tenv, (#typ(field))))
-                of NONE => (E.error(#pos(field), #pos(field), "Type of field is not defined"); accRecord(fields, tenv))
+                of NONE => (throwUp(#pos(field), "Type of field is not defined"); accRecord(fields, tenv))
                 | SOME(t) => (#name(field), t)::accRecord(fields, tenv)
 
 	(* trDecs: type check declarations *)
@@ -235,14 +194,14 @@ struct
 				     ", actualTy: "^Ty.toString(actualTy(t))
 				     ^"\n");
 			       if (not(istype(initType, actualTy(t))))
-			       then E.error(pos2, pos2,
+			       then throwUp(pos2,
 		    			    "init value doesn't match provided type")
 			       else ())
 		    	    | NONE =>
-		    	      E.error(pos2, pos2, "unknown type chosen for variable:"^S.name(name)))
+		    	      throwUp(pos2, "unknown type chosen for variable:"^S.name(name)))
 		       | NONE => ());
 		     trDecs(S.enter(venv, name,
-				    Env.VarEntry({ty=initType})), tenv, ds))
+				    E.VarEntry({ty=initType})), tenv, ds))
 		 end
 	       (* Types *)
 	       | A.TypeDec(tyList) =>
@@ -268,7 +227,7 @@ struct
 		 in
 	       	   (foldr trTy tenv' tyList;
 		    if cyclicList(tyList)
-		    then (E.error(0,0, "Cyclic type-def\n");
+		    then (throwUp(0, "Cyclic type-def\n");
 			  trDecs(venv, tenv, ds))
 		    else trDecs(venv, tenv', ds)
 		  )
@@ -279,7 +238,7 @@ struct
                     fun transparam({name, escape, typ, pos}) =
                         case S.look(tenv, typ)
                             of SOME(t) => {name=name, ty=actualTy(t)}
-                            | NONE => (E.error(pos, pos, "type of param not found");
+                            | NONE => (throwUp(pos, "type of param not found");
                                         {name=name, ty=Ty.BOTTOM})
 	            fun addFunHeads(venv, []) = venv
 	              | addFunHeads(venv, {name:S.symbol, params, result, body, pos}::xs) =
@@ -291,11 +250,11 @@ struct
                                     of NONE => Ty.UNIT
                                     | SOME(rt, pos2) => 
                                         (case S.look(tenv, rt)
-                                            of NONE => (E.error(pos2, pos2, "Return type not found"); Ty.BOTTOM)
+                                            of NONE => (throwUp(pos2, "Return type not found"); Ty.BOTTOM)
                                             | SOME(t) => actualTy(t))
                          in
 	                    addFunHeads(S.enter(venv, name,
-	                        Env.FunEntry({formals= map #ty params', 
+	                        E.FunEntry({formals= map #ty params', 
                                 result=resultTy})), xs)
                          end
                     val venv' = addFunHeads(venv, funlist)
@@ -304,15 +263,15 @@ struct
                         let 
                             val params' = map transparam params
                             fun enterparam({name,ty}, venv) =
-                                S.enter(venv, name, Env.VarEntry({ty=ty}))
+                                S.enter(venv, name, E.VarEntry({ty=ty}))
                             val venv'' = foldr enterparam venv' params'
                             val resultType = (case S.look(venv', name)
-                                of SOME(Env.FunEntry({formals, result})) => result
-                                | _ => (E.error(pos, pos, "function header not there");
+                                of SOME(E.FunEntry({formals, result})) => result
+                                | _ => (throwUp(pos, "function header not there");
                                     Ty.BOTTOM))
                         in 
                             (if ((#ty (transExp(venv'', tenv) body))<>resultType) 
-                            then E.error(pos, pos, "Function body does not match result type")
+                            then throwUp(pos, "Function body does not match result type")
                             else ();
                             secondPass(funs))
                         end
@@ -336,7 +295,7 @@ struct
 		 let val leftType = findType(left, [Ty.STRING, Ty.INT])
 		 in
 		   ((case leftType of
-			NONE => E.error(pos, pos,
+			NONE => throwUp(pos,
 					"int or string required")
 		      | SOME(t) => check(right, t, pos,
 					 "both expressions should be int or string"));
@@ -349,7 +308,7 @@ struct
 						  Ty.STRING])
 		 in
 		   ((case leftType of
-			NONE => E.error(pos, pos,
+			NONE => throwUp(pos,
 					"can't check equality with this type")
 		     | SOME(t) => check(right, t, pos,
 					"both expressions should have same type"));
@@ -366,13 +325,13 @@ struct
 	  | trexp(A.CallExp({func, args, pos})) =
 	    (print("calling:"^S.name(func)^"\n");
 	     case S.look(venv, func)
-	      of SOME(Env.FunEntry({formals, result})) =>
+	      of SOME(E.FunEntry({formals, result})) =>
 		 (if(not(checkTypeList(args, formals)))
-		  then E.error(pos, pos,
+		  then throwUp(pos,
 			       "function args don't match type")
 		  else ();
 		   {exp=(), ty=actualTy(result)})
-	       | _ => (E.error(pos, pos,
+	       | _ => (throwUp(pos,
 			      "undefined function:"^S.name(func));
 		       {exp=(), ty=Types.BOTTOM}))
 	  (* Assignments, not too difficult *)
@@ -382,10 +341,10 @@ struct
 	      val expType= #ty(trexp(exp))
 	    in
 	      ((if (varType=Ty.UNASSIGNABLE)
-              then E.error(pos, pos, "Cannot assign to the local variable of for")
+              then throwUp(pos, "Cannot assign to the local variable of for")
               else
               (if(varType=expType) then ()
-	       else E.error(pos,pos,"Assigning expression of type "
+	       else throwUp(pos,"Assigning expression of type "
 				    ^Ty.toString(expType)^
 				    " to variable of type "^
 				    Ty.toString(varType))));
@@ -397,7 +356,7 @@ struct
 	  | trexp(A.SeqExp((x, pos)::xs)) =
 	    if(#ty(trexp(x))=Ty.UNIT)
 	    then (trexp(A.SeqExp(xs)))
-	    else (E.error(pos, pos, "Need Unit type for non-final SeqExp expressions."); {exp=(), ty=Ty.BOTTOM})
+	    else (throwUp(pos, "Need Unit type for non-final SeqExp expressions."); {exp=(), ty=Ty.BOTTOM})
 	  (* Let expressions. Decs outsourced to trDecs *)
 	  | trexp(A.LetExp({decs, body, pos})) =
 	    let
@@ -434,7 +393,7 @@ struct
 	    )
 	  | trexp(A.ForExp({var=sym, escape=esc, lo=exp1, hi=exp2,
 			    body=exp3, pos=pos})) =
-	    let val venv'=S.enter(venv, sym, Env.VarEntry({ty=Ty.UNASSIGNABLE}))
+	    let val venv'=S.enter(venv, sym, E.VarEntry({ty=Ty.UNASSIGNABLE}))
 	    in
 	      (check(exp1, Ty.INT, pos,
 		     "Low value in `for` must be of type INT.");
@@ -444,7 +403,7 @@ struct
 	       (* This is essentially check which takes in extra
 		venv param. Consider writing another func for this. *)
 	       if (#ty(transExp(venv', tenv) exp3)<> Ty.UNIT)
-	       then E.error(pos, pos,
+	       then throwUp(pos,
 			    "Body of for must be of type UNIT.")
 	       else ();
 	       {exp=(), ty=Ty.UNIT})
@@ -459,16 +418,16 @@ struct
                         of Ty.RECORD((fieldList, uniq)) => 
                             (verifyFields(fields, fieldList);                           
                             {exp=(), ty=Ty.RECORD((fieldList, uniq))})
-                        | _ => (E. error(pos, pos, "type given is not a record");
+                        | _ => (throwUp(pos, "type given is not a record");
                             {exp=(), ty=Ty.RECORD([], ref ())}))
-                    |  NONE => (E.error(pos, pos, "record type not found");
+                    |  NONE => (throwUp(pos, "record type not found");
                         {exp=(), ty=Ty.RECORD([], ref ())})))
 
           | trexp(A.ArrayExp({typ=typ, size=size, init=init, pos=pos})) =
                 (print("array: "^S.name(typ)^"\n");
                 check(size, Ty.INT, pos, "Size of array must be of type INT.");
                 (case S.look(tenv, typ)
-                    of NONE => (E. error(pos, pos, "array type not found");
+                    of NONE => (throwUp(pos, "array type not found");
                         {exp=(), ty=Ty.ARRAY(Ty.BOTTOM, ref ())})
                     | SOME(t) =>
                         (print("TYPE: "^Ty.toString(actualTy(t)) ^ "\n");
@@ -476,17 +435,19 @@ struct
                         of Ty.ARRAY(ty, uniq) => (check(init, ty, pos,
                             "initial value does not match array type");
                             {exp=(), ty=actualTy(t)})
-                        | _ => (E. error(pos, pos, "type given is not an array");
+                        | _ => (throwUp(pos, "type given is not an array");
                             {exp=(), ty=Ty.ARRAY(Ty.BOTTOM, ref ())})))))
-(*	  | trexp(_) = (E.error(0,0,"fell-off");{exp=(), ty=Ty.UNIT}) *)
+(*	  | trexp(_) = (throwUp(0,"fell-off");{exp=(), ty=Ty.UNIT}) *)
 			 (* trexp ENDS *)
 
       in
 	trexp
       end
 
-  fun transProg(e) = (transExp(Env.base_venv, Env.base_tenv) e;
-		      print("Done\n"))
+  fun transProg(e) = (transExp(E.base_venv, E.base_tenv) e;
+		      if !errorExists
+		      then throwUp(0,"Type-checking failed.")
+		      else print("Done\n"))
 
 end
 
