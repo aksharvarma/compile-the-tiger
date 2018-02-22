@@ -451,14 +451,13 @@ fun transExp(venv:venv, tenv:tenv) =
 		 fun findEqType(typ:Ty.ty) =
 		     case typ
 		      of Ty.INT => SOME(Ty.INT)
+                       | Ty.UNASSIGNABLE => SOME(Ty.INT) (* when comparing unassignables are ints *)
 		       | Ty.STRING => SOME(Ty.STRING)
 		       | Ty.RECORD(t) => SOME(Ty.RECORD(t))
 		       | Ty.ARRAY(t) => SOME(Ty.ARRAY(t))
 		       | Ty.NIL => SOME(Ty.NIL)
-                       (* why is unit included here *)
-                       (* need bottom? really should be checking subtypes here
-                          maybe the join of the two? *)
-		       | Ty.UNIT => SOME(Ty.UNIT) 	(* TODO:Extension(?) *)
+                       | Ty.BOTTOM => SOME(Ty.BOTTOM)
+		       | Ty.UNIT => SOME(Ty.UNIT) 	(* Extension *)
 		       | t => NONE
 		 val leftType = findEqType(#ty(trexp(left)))
 		 val rightType = findEqType(#ty(trexp(right)))
@@ -469,7 +468,7 @@ fun transExp(venv:venv, tenv:tenv) =
 		 (if leftNONE orelse rightNONE
 		  then (* Type cannot be compared for equality *)
 		    throwUp(pos, "Equality tests only with INT, STRING, RECORD, or ARRAY.")
-		  else if leftType<>rightType
+		  else if (not(istype(valOf(leftType), valOf(rightType)) orelse istype(valOf(rightType), valOf(leftType))))
 		  (* Types don't match *)
 		  then throwUp(pos, "Types need to match for equality test.")
 		  else if (leftType=SOME(Ty.NIL)
@@ -525,13 +524,7 @@ fun transExp(venv:venv, tenv:tenv) =
 	(* 3 kinds of sequences. non-last exp is enforced as unit  *)
 	| trexp(A.SeqExp([])) = ({exp=(), ty=Ty.UNIT})
 	| trexp(A.SeqExp((x, pos)::[])) = (trexp(x))
-	| trexp(A.SeqExp((x, pos)::xs)) =
-          (* TODO: A non-last expression must be of type unit *)
-	  if(istype(#ty(trexp(x)), Ty.UNIT))
-	  then (trexp(A.SeqExp(xs)))
-	  else (throwUp(pos,
-			"Need Unit type for non-final SeqExp expressions.");
-                {exp=(), ty=Ty.BOTTOM})
+	| trexp(A.SeqExp((x, pos)::xs)) = trexp(A.SeqExp(xs))
 
 	(* Let expressions. Processing outsourced to trDecs *)
 	| trexp(A.LetExp({decs, body, pos})) =
