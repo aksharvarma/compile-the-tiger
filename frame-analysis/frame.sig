@@ -1,4 +1,4 @@
-signature FRAME = 
+signature FRAME =
 sig
   type frame
   type access

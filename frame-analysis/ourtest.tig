@@ -25,7 +25,7 @@ let
         var arr := arr[5] of 6
         function ab():int = 5 + ba()
         function ba():int = 6
-
+/*
         type tree = { key : int, children: treelist }
         type treelist = {hd: tree, tl: treelist }
 
@@ -36,8 +36,8 @@ let
             if L = nil then 0
             else treeLeaves(L.hd) + treelistLeaves(L.tl)
 
+	*/var s:string := "foo"
         function foo(a: int, b: string):int = (print(b); 5 + a)
-	var s:string := "foo"
         function bar(a: string) = print(a)
         function even(num: int):int = if (num = 0) then 1 else odd(num - 1)
         function odd(num: int):int = if (num = 0) then 0 else even(num - 1)

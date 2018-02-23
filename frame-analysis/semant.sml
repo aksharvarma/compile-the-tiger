@@ -144,7 +144,7 @@ fun transExp(venv:venv, tenv:tenv, level:int) =
 	  (case S.look(venv, id)
             (* if a var entry is found,
 	       return the actual type of that entry *)
-	    of SOME(E.VarEntry({ty})) => {exp=(), ty=actualTy(ty)}
+	    of SOME(E.VarEntry({access, ty})) => {exp=(), ty=actualTy(ty)}
              (* if not, print an error
 		and return BOTTOM to keep going *)
 	     | _ => (throwUp(pos, "Undefined variable:" ^ S.name(id));
@@ -254,7 +254,8 @@ fun transExp(venv:venv, tenv:tenv, level:int) =
                   (* Recur with the new variable added to the venv *)
 		  print("vardec:"^Int.toString(level)^"\n");
 		  trDecs(S.enter(venv, name,
-				 E.VarEntry({ty= !typeToUse})),
+				 E.VarEntry({access=(Translate.allocLocal(level)(!escape)),
+                                             ty= !typeToUse})),
 			 tenv, decs, level))
 	       end
 
@@ -347,10 +348,10 @@ fun transExp(venv:venv, tenv:tenv, level:int) =
                     with its type *)
                  fun transparam({name, escape, typ, pos}) =
                      case S.look(tenv, typ)
-                      of SOME(t) => {name=name, ty=actualTy(t)}
+                      of SOME(t) => {name=name, ty=actualTy(t), esc=escape}
                        | NONE =>
                          (throwUp(pos, "Type of function parameter not found.");
-                          {name=name, ty=Ty.BOTTOM})
+                          {name=name, ty=Ty.BOTTOM, esc=escape})
                  (* First pass through the function decs, add
                     the headers into the venv with the types of
                     the params and the return type of the function *)
@@ -385,7 +386,9 @@ fun transExp(venv:venv, tenv:tenv, level:int) =
                        (* Recur with the new venv in which the
                           headers have been entered *)
 	               addFunHeads(S.enter(venv, name,
-	                                   E.FunEntry({formals= map #ty params', result=retTy})), xs)
+	                                   E.FunEntry({level=level, label=Temp.newLabel(),
+                                                       formals= map #ty params',
+                                                       result=retTy})), xs)
                      end
                  (* Perform the first pass through the fun decs.
                     venv' is then the venv augmented with blank headers *)
@@ -394,40 +397,47 @@ fun transExp(venv:venv, tenv:tenv, level:int) =
                     the bodies, taking advantage of the headers that
                     have been entered into venv' by the first pass *)
                  fun secondPass ([]) = venv'
-                   | secondPass ({name:S.symbol, params, result,
+                   | secondPass ({name:S.symbol, params: A.field list, result,
                                   body, pos}::funs) =
                      let
+                        (* Extracts the escape field from a param *)
+                        fun getEscape({name, escape, typ, pos}) = !escape
+                        val newLevel = Translate.newLevel({parent=level,
+                                                           name=Temp.newLabel(),
+                                                           formals=(map getEscape params)})
                        (* Translate the params into a useful format *)
                        val params' = map transparam params
                        (* Helper function to add a var entry for a
                           param into the given venv *)
-                       fun enterparam({name,ty}, venv) =
-                           S.enter(venv, name, E.VarEntry({ty=ty}))
+                       fun enterparam(({name,ty,esc}, access), venv) =
+                           S.enter(venv, name,
+                                   E.VarEntry({access=access,
+                                               ty=ty}))
                        (* Enter all of the params as var entries into
                           the new environment venv' *)
-                       val venv'' = foldr enterparam venv' params'
+                       val venv'' = foldr enterparam venv' (ListPair.zip(params', Translate.formals(newLevel)))
                        (* Determine what the result type should be
                           by looking up the fun entry from the venv
                           which should have been entered in the first
                           pass *)
                        val resultType =
                            (case S.look(venv', name)
-                             of SOME(E.FunEntry({formals, result})) =>
+                             of SOME(E.FunEntry({level, label, formals, result})) =>
                                 result
                               | _ => (throwUp(pos,
                                               "Function header not found!!");
                                       Ty.BOTTOM))
+
                      in
                        (* Process the body in the new env with the
                           function decs and the params added.
                           If the body does not have the correct
                           return type, print an error *)
-                       (if ((#ty(transExp(venv'', tenv, level+1) body))
-                            <>resultType)
+                       (if ((#ty(transExp(venv'', tenv, newLevel) body) <> resultType))
                         then throwUp(pos,
                                      "Function body does not match result type.")
                         else ();
-                        (* Process the rest of the fundecs for the i
+                        (* Process the rest of the fundecs for the
                            second pass *)
                         secondPass(funs))
                      end
@@ -522,7 +532,7 @@ fun transExp(venv:venv, tenv:tenv, level:int) =
 	(* Function calls *)
 	| trexp(A.CallExp({func, args, pos})) =
 	  (case S.look(venv, func)
-	    of SOME(E.FunEntry({formals, result})) =>
+	    of SOME(E.FunEntry({level, label, formals, result})) =>
 	       (if(not(checkTypeList(args, formals)))
 		then throwUp(pos, "Function args don't match type")
 		else ();
@@ -560,7 +570,7 @@ fun transExp(venv:venv, tenv:tenv, level:int) =
 
 	(* Let expressions. Processing outsourced to trDecs *)
 	| trexp(A.LetExp({decs, body, pos})) =
-	  transExp(trDecs(venv, tenv, decs, level+1)) body
+	  transExp(trDecs(venv, tenv, decs, level)) body
 
         (* If-then expression *)
 	| trexp(A.IfExp({test=exp1,
@@ -606,7 +616,9 @@ fun transExp(venv:venv, tenv:tenv, level:int) =
             (* Add loop variable to the venv with type UNASSIGNABLE.
                UNASSIGNABLE is a subtype of int and indicates that this
                variable should not be assigned to in the for loop *)
-            val venv' = S.enter(venv, sym, E.VarEntry({ty=Ty.UNASSIGNABLE}))
+            val venv' = S.enter(venv, sym,
+                                E.VarEntry({access=Translate.allocLocal(level)(false),
+                                ty=Ty.UNASSIGNABLE}))
 	  in
 	    (check(exp1, Ty.INT, pos,
 		   "Low value in `for` must be of type INT.");
@@ -685,7 +697,10 @@ fun transExp(venv:venv, tenv:tenv, level:int) =
    Translates/type-checks a given program (expression), beginning
    with the base environments *)
 fun transProg(e) = (errorExists := false;
-                    transExp(E.base_venv, E.base_tenv, Translate.outermost) e;
+                    transExp(E.base_venv, E.base_tenv,
+                             Translate.newLevel {parent=Translate.outermost,
+                                                 name=Temp.newLabel(),
+                                                 formals=[]}) e;
 		    if !errorExists
 		    then (throwUp(0,"Type-checking failed.");
 			  raise ErrorMsg.Error)
