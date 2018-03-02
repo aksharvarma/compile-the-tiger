@@ -3,6 +3,7 @@ Group is
 absyn.sml
 errormsg.sml
 env.sml
+findescape.sml
 frame.sig
 mipsframe.sml
 parse.sml

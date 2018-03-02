@@ -22,8 +22,8 @@ let
 	var c:c := 1
         var t:rec := rec{ f=1, g="abc" }
         var l := list { first=0, rest= nil }
-        var arr := arr[5] of 6
-        function ab():int = 5 + ba()
+        var arr := arr[i] of 6
+        function ab():int = i + ba()
         function ba():int = 6
 /*
         type tree = { key : int, children: treelist }

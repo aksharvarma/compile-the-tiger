@@ -881,7 +881,7 @@ FOR1left), _)) :: rest671)) => let val  result = MlyValue.expr (fn _
  val  expr2 = expr2 ()
  val  expr3 = expr3 ()
  in (
-A.ForExp({var=sym(ID), escape=ref true, lo=expr1,
+A.ForExp({var=sym(ID), escape=ref false, lo=expr1,
                   hi=expr2, body=expr3, pos=FORleft})
 )
 end)
@@ -1133,7 +1133,7 @@ MlyValue.ID ID1, ID1left, _)) :: rest671)) => let val  result =
 MlyValue.tyfields (fn _ => let val  ID1 = ID1 ()
  val  ID2 = ID2 ()
  in (
-[{name=sym(ID1), escape=ref true,
+[{name=sym(ID1), escape=ref false,
 		                   typ=sym(ID2), pos=ID1left}]
 )
 end)
@@ -1147,7 +1147,7 @@ tyfields1) = tyfields1 ()
  val  ID1 = ID1 ()
  val  ID2 = ID2 ()
  in (
-tyfields@[{name=sym(ID1), escape=ref true,
+tyfields@[{name=sym(ID1), escape=ref false,
 					    typ=sym(ID2), pos=COMMAleft}]
 )
 end)
@@ -1207,7 +1207,7 @@ rest671)) => let val  result = MlyValue.vardec (fn _ => let val  (ID
  as ID1) = ID1 ()
  val  (expr as expr1) = expr1 ()
  in (
-A.VarDec({name=sym(ID), escape=ref true,
+A.VarDec({name=sym(ID), escape=ref false,
 				               typ=NONE, init=expr, pos=VARleft})
 )
 end)
@@ -1221,7 +1221,7 @@ rest671)) => let val  result = MlyValue.vardec (fn _ => let val  ID1 =
  val  ID2 = ID2 ()
  val  (expr as expr1) = expr1 ()
  in (
-A.VarDec({name=sym(ID1), escape=ref true,
+A.VarDec({name=sym(ID1), escape=ref false,
 						typ=SOME((sym(ID2), COLONleft)),
 						init=expr, pos=VARleft})
 )

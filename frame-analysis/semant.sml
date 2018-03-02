@@ -100,7 +100,7 @@ and accRecord([], tenv) = []
    transExp is curried to take in the venv and tenv first and return
    a function taking in the expression to analyze since many recursive
    calls should happen in the same environments as were given initially *)
-fun transExp(venv:venv, tenv:tenv, level:int) =
+fun transExp(venv:venv, tenv:tenv, level:Translate.level) =
     let
       (* More helper methods *)
 
@@ -216,7 +216,7 @@ fun transExp(venv:venv, tenv:tenv, level:int) =
 
       (* trDecs: Translate/type-check all declarations.
          Returns an updated venv and tenv *)
-      and trDecs(venv:venv, tenv:tenv, [], level) = (print("trdecs-end:"^Int.toString(level)^"\n");(venv, tenv, level))
+      and trDecs(venv:venv, tenv:tenv, [], level:Translate.level) = (venv, tenv, level)
 	| trDecs(venv:venv, tenv:tenv, dec::decs, level) =
 	  (case dec of
 	       (* normal variables *)
@@ -252,7 +252,6 @@ fun transExp(venv:venv, tenv:tenv, level:int) =
 				then throwUp(pos, "NIL cannot be RHS unless RECORD type explicitly specified.")
 				else ()));
                   (* Recur with the new variable added to the venv *)
-		  print("vardec:"^Int.toString(level)^"\n");
 		  trDecs(S.enter(venv, name,
 				 E.VarEntry({access=(Translate.allocLocal(level)(!escape)),
                                              ty= !typeToUse})),
@@ -313,9 +312,8 @@ fun transExp(venv:venv, tenv:tenv, level:int) =
 		   | cyclicList({name=sym, pos=pos, ty=ty}::xs) =
 		     cyclic(sym, sym) orelse cyclicList(xs)
 	       in
-		 (print("tydecs:"^Int.toString(level)^"\n");
 		 (* Error is there are duplicates in the tyList *)
-		 if duplication(tyList)
+		 (if duplication(tyList)
 		 then throwUp((#pos(hd(tyList))), "Duplicate names in a mutually recursive type declaration.")
 		 else ();
                  (* Apply trTy (the second pass) over all of the
@@ -442,11 +440,10 @@ fun transExp(venv:venv, tenv:tenv, level:int) =
                         secondPass(funs))
                      end
                in
-		 (print("fundecs:"^Int.toString(level)^"\n");
                  (* Recursively parse the rest of the decs
                     with the new environment after performing the
                     second pass on the funlist *)
-                 trDecs(secondPass(funlist), tenv, decs, level))
+                 trDecs(secondPass(funlist), tenv, decs, level)
                end)
       (* trDecs ENDS *)
 
@@ -570,7 +567,7 @@ fun transExp(venv:venv, tenv:tenv, level:int) =
 
 	(* Let expressions. Processing outsourced to trDecs *)
 	| trexp(A.LetExp({decs, body, pos})) =
-	  transExp(trDecs(venv, tenv, decs, level)) body
+	  (transExp(trDecs(venv, tenv, decs, level)) body)
 
         (* If-then expression *)
 	| trexp(A.IfExp({test=exp1,
@@ -688,15 +685,15 @@ fun transExp(venv:venv, tenv:tenv, level:int) =
 	    (* trexp ENDS *)
 
     in
-      (print("transExp:"^Int.toString(level)^"\n");
       (* the body of the curried transExp function is just trexp *)
-      trexp)
+      trexp
     end
 
 (* The main entry point for a tiger program.
    Translates/type-checks a given program (expression), beginning
    with the base environments *)
-fun transProg(e) = (errorExists := false;
+fun transProg(e) = (FindEscape.findEscape(e);
+                    errorExists := false;
                     transExp(E.base_venv, E.base_tenv,
                              Translate.newLevel {parent=Translate.outermost,
                                                  name=Temp.newLabel(),

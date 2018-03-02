@@ -136,7 +136,7 @@ expr : lvalue (A.VarExp(lvalue))
      | WHILE expr DO expr                 %prec LOWERTHANOP
         (A.WhileExp({test=expr1, body=expr2, pos=WHILEleft}))
      | FOR ID ASSIGN expr TO expr DO expr %prec LOWERTHANOP
-        (A.ForExp({var=sym(ID), escape=ref true, lo=expr1,
+        (A.ForExp({var=sym(ID), escape=ref false, lo=expr1,
                   hi=expr2, body=expr3, pos=FORleft}))
      | BREAK (A.BreakExp(BREAKleft))
      (* Let expressions *)
@@ -205,9 +205,9 @@ ty : ID                     (A.NameTy(sym(ID), IDleft))
 
 (* Helper for Ty: builds up a comma separated list of type fields *)
 tyfields : (* epsilon *)         ([])
-   | ID COLON ID                 ([{name=sym(ID1), escape=ref true,
+   | ID COLON ID                 ([{name=sym(ID1), escape=ref false,
 		                   typ=sym(ID2), pos=ID1left}])
-   | tyfields COMMA ID COLON ID  (tyfields@[{name=sym(ID1), escape=ref true,
+   | tyfields COMMA ID COLON ID  (tyfields@[{name=sym(ID1), escape=ref false,
 					    typ=sym(ID2), pos=COMMAleft}])
 
 (* Helper for decs: builds up a list of function declarations
@@ -223,8 +223,8 @@ fundec : FUNCTION ID LPAREN tyfields RPAREN EQ expr
 	      body=expr, pos=FUNCTIONleft})
 
 (* VarDec, a helper for decs: a single variable declaration *)
-vardec : VAR ID ASSIGN expr          (A.VarDec({name=sym(ID), escape=ref true,
+vardec : VAR ID ASSIGN expr          (A.VarDec({name=sym(ID), escape=ref false,
 				               typ=NONE, init=expr, pos=VARleft}))
-       | VAR ID COLON ID ASSIGN expr (A.VarDec({name=sym(ID1), escape=ref true,
+       | VAR ID COLON ID ASSIGN expr (A.VarDec({name=sym(ID1), escape=ref false,
 						typ=SOME((sym(ID2), COLONleft)),
 						init=expr, pos=VARleft}))
