@@ -126,9 +126,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) =
           #ty(trexp(e)) = actualTy(t) andalso checkTypeList(es, ts)
 
       (* Verifies whether the given list of record field declarations
-	 match the types of the record fields looked up from the tenv
-         TODO: Doesn't actually verify that all of them
-	 are there exactly once *)
+	 match the types of the record fields looked up from the tenv *)
       and verifyFields([], [], pos) = () (* both empty then we're good *)
         | verifyFields([], _, pos) = throwUp(pos,
             "Given fields don't match fields for record type: too few fields")
@@ -614,7 +612,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) =
                UNASSIGNABLE is a subtype of int and indicates that this
                variable should not be assigned to in the for loop *)
             val venv' = S.enter(venv, sym,
-                                E.VarEntry({access=Translate.allocLocal(level)(false),
+                                E.VarEntry({access=Translate.allocLocal(level)(!esc),
                                 ty=Ty.UNASSIGNABLE}))
 	  in
 	    (check(exp1, Ty.INT, pos,
