@@ -1,35 +1,27 @@
-# Assignment 2
+# Assignments 4/5
 ## Team members
 1. Caitlin Matuszak
 2. Akshar Varma
 
-## Resolution of unspecified details
-The reference for Tiger leaves some aspects of the language unspecified. We choose to resolve them in the following manner.
+## Representation of frames and levels
+* Frames are represented as a record containing a name (label), a list of accesses associated with each of the formal parameters, and the number of local variables that have been allocated in the frame so far. Storing the number of local variables in the frame itself allows us to calculate the correct offset for the stack pointer (and the bottom of the frame) at any point in time.
+* Levels are represented as either OUTERMOST, which represents the outermost level which is the parent of tiger programs and the level at which the library functions are defined, or Lev(frame, parent), containing the frame for that level and the parent level. In this way, there is exactly one frame associated with each level, and each level always knows its parent. This parent-child relationship stored in the levels is what will enable us to easily handle static links.
 
-### Valueless expressions
-The type of a if-then, while and for expressions are enforced to be UNIT because the reference says that they return no value. No value is taken to mean a UNIT type.
+## Handling static links
+* In order to handle static links, each frame needs to have access to the frame of it's immediately enclosing level (i.e. it's parent). By storing the parent level in each level,we will be able to access the level of its parent, and it's parent and so on until we reach the desired level, at which point we can access the frame we need.
 
-### SeqExp
-In a sequence expression, we **do not** chose to enforce that types of all expressions except the last one be UNIT. The type of the whole sequence is the type of the last expression. This is based on `test20.tig` in the testcases folder which has an expression `i+1` which would return an int (the error in the file is because `i` is not defined, not because non-last expression in a SeqExp has a non-UNIT type). 
+## Finding escaping variables
+* the FindEscape module traverses the AST and determines which variables are referenced at a depth greater than the one they were declared at. This is done using an escape environment which stores the depth at which variables were declared, along with the escape ref for that variable. This is done using the algorithm describing in the textbook.
+* This traversal is done before semantic analysis, immediately when transProg is called in Semant.
 
-### Assigning to loop variable inside FOR
-The language reference specifies that the loop variable over which the FOR loop runs cannot be assigned to inside the loop. We implement this by extending the `types` module to include a UNASSIGNABLE type which is a subtype of INT. This new type is used only for the loop variable of a for expression. 
+## Augmenting the Semant and Env modules
+* The Env module has been augmented to store Translate.accesses and labels in the enventries for the type and variable environments as described in the chapter.
+* The Semant module has be augmented to call the translate module in appropriate places, including calling Translate.newLevel when a function declaration is found and by calling Translate.allocLocal when a new local variable declaration is found
 
-### Use of `break` as a valid type
-We allow the break statement to be used instead of any type. This is done by using the BOTTOM type to be the type of the break statement. 
+## Handling more than four procedure parameters
+* Space is reserved in the frame for all formal parameters. This is ensured by always incrementing the index used to make the offset calculations in either case where the formal parameter will be stored in the frame or a register.
+* TODO: REVISIT WHEN IMPLEMENTED: We assume that if there are less or equal to four formal parameters then they will be passed to the function in registers r4-r7. When writing the instructions for the view shift, we move the first four arguments from r4-r7 to their correct places (either a new temp or a place on the frame). If one of the first four arguments escapes then it will be placed on the frame in the appropriate offset above the new frame's frame pointer (there should be room for it because space in the frame is reserved for all formal parameters). If they don't escape then they're simply moved to a new temp.
+* For the excess arguments after the fourth one, they should already be located in a known offset from the frame pointer, and we can assign them appropriate accesses as normal.
 
-### Scoping of `break`
-We keep track of the level of nesting of loops in a variable and allow breaks only if the nesting level is positive (we are in a loop). We allow an arbitrary number of breaks in a scope where breaks can occur (these pass in terms of type-checking, and then while evaluating, they'll simply break out of the loop on the first occurence of break).
-
-### "Procedures" do not exist
-The reference allows for the existence of procedures which do not return any result value. We take this to mean that such a function necessarily returns UNIT. Thus, if a function does not explicitly mention a result type, then it has to return unit. Thus we do not really make a distinction between functions and procedures. Procedures are simply functions that return UNIT.
-
-### Duplicate names inside mutually recursive declarations
-We do not allow duplicate type/function names within a mutually recursive set of declarations. A tydec/fundec list can contain names that were already defined earlier and the new ones will shadow the older definitions but there can be no duplicates within a single tydec or fundec list.
-
-### Use of Ty.BOTTOM as the default type.
-We use the Ty.BOTTOM type (originally meant for break) as the default "error" type. Whenever we see an error, we assume that the type returned was BOTTOM and continue type checking (unless it should have returned a known value, for example arithmetic will always return INT). This helps to type-check more of the file meaningfully before it starts to generate garbage error messages.
-
-### The type lattice
-The types.sml file has a function called isSubtype which is used to enforce the lattice structure of the types. The only real difference from the version mentioned in class is to add the UNASSIGNABLE type, a subtype of INT for the loop variable.
-
+## The view shift
+* TO BE IMPLEMENTED
