@@ -8,6 +8,7 @@ frame.sig
 mipsframe.sml
 parse.sml
 prabsyn.sml
+printtree.sml
 semant.sml
 symbol.sml
 table.sig
@@ -19,6 +20,7 @@ tiger.grm.sml
 tiger.lex.sml
 translate.sig
 translate.sml
+tree.sml
 types.sml
 $/basis.cm
 $/ml-yacc-lib.cm

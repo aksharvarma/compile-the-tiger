@@ -4,6 +4,19 @@ struct
 (* TODO: this is going to be changed? *)
 type exp = unit
 
+(* Basic changes to Translate based on IR chapter *)
+(* datatype exp = Ex of Tree.exp *)
+(* 	     | Nx of Tree.stm *)
+(* 	     | Cx of Temp.label * Temp.label -> Tree.stm *)
+(* Signatures for un_x funcstions, and empty definitions *)
+(* val unEx: Translate.exp -> exp *)
+(* val unNx: Translate.exp -> stm *)
+(* val unCx: Translate.exp -> (label * label -> stm) *)	    
+(* fun unEx(e) = CONST(0) *)
+(* fun unNx(e) = EXP(CONST(0)) *)
+(* fun unCx(e) = (fn (l1, l2) => EXP(CONST(0))) *)
+	     
+	     
 (* a level contains a frame and a parent level.
    the outermost level is a special level (OUTERMOST) with no frame or parent *)
 datatype level = OUTERMOST | Lev of Frame.frame * level
