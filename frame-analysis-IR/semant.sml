@@ -17,7 +17,7 @@ sig
   type expty = {exp: Translate.exp, ty: Ty.ty}
 
   (* main semantic analysis entry point for a tiger program *)
-  val transProg : A.exp -> unit
+  val transProg : A.exp -> expty
 end
 
 structure Semant :> SEMANT =
@@ -100,14 +100,14 @@ and accRecord([], tenv) = []
    transExp is curried to take in the venv and tenv first and return
    a function taking in the expression to analyze since many recursive
    calls should happen in the same environments as were given initially *)
-fun transExp(venv:venv, tenv:tenv, level:Translate.level) =
+fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
     let
       (* More helper methods *)
 
       (* Checks whether the given expression is of the target type.
            If not, print the given error message. *)
-      fun check(expr:A.exp, targetType:Ty.ty, pos, msg) =
-	  if (not (istype(#ty(trexp(expr)), actualTy(targetType))))
+      fun check(ty:Ty.ty, targetType:Ty.ty, pos, msg) =
+	  if (not (istype(ty, actualTy(targetType))))
 	  then throwUp(pos, msg)
           else ()
 
@@ -142,11 +142,11 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) =
 	  (case S.look(venv, id)
             (* if a var entry is found,
 	       return the actual type of that entry *)
-	    of SOME(E.VarEntry({access, ty})) => {exp=(), ty=actualTy(ty)}
+	    of SOME(E.VarEntry({access, ty})) => {exp=Translate.simpleVar(access, level), ty=actualTy(ty)}
              (* if not, print an error
 		and return BOTTOM to keep going *)
 	     | _ => (throwUp(pos, "Undefined variable:" ^ S.name(id));
-		     {exp=(), ty=Types.BOTTOM}))
+		     {exp=Translate.error, ty=Types.BOTTOM}))
 
         (* Field vars for accessing records *)
 	| trvar(A.FieldVar(var, id, pos)) =
@@ -159,14 +159,14 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) =
                  (* if we didn't find it,
 		    print an error and return BOTTOM to continue *)
                  of NONE => (throwUp(pos, "Invalid field id:" ^ S.name(id));
-			     {exp=(), ty=Ty.BOTTOM})
+			     {exp=Translate.dummy, ty=Ty.BOTTOM})
                   (* if we did find it,
 		     then return the type of that field *)
-		  | SOME(t) => {exp=(), ty=t})
+		  | SOME(t) => {exp=Translate.dummy, ty=t})
              (* if the LHS wasn't a record, then print error
 		and return BOTTOM to continue *)
 	     | _ => (throwUp(pos, "accessing field of non-record:" ^ S.name(id));
-                     {exp=(), ty=Ty.BOTTOM}))
+                     {exp=Translate.dummy, ty=Ty.BOTTOM}))
 
         (* Subscript vars for accessing arrays *)
 	| trvar(A.SubscriptVar(var, e, pos)) =
@@ -175,11 +175,15 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) =
             (* if it's an array, check that the expression is an int
                and return the type of that array *)
 	    of Ty.ARRAY(typ, _) =>
-               (check(e, Ty.INT, pos, "Non integer subscript.");
-		{exp=(), ty=actualTy(typ)})
+               let
+                    val res = trexp(e)
+                in
+                    (check(#ty res, Ty.INT, pos, "Non integer subscript.");
+		    {exp=Translate.dummy, ty=actualTy(typ)})
+                end
              (* if it's not an array, print an error and return BOTTOM *)
 	     | _ => (throwUp(pos, "Subscripting non-array variable.");
-                     {exp=(), ty=Ty.BOTTOM}))
+                     {exp=Translate.error, ty=Ty.BOTTOM}))
       (* trvar ENDS *)
 
       (* trTy: Translate/type-check type declarations *)
@@ -461,13 +465,22 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) =
 	  in
 	    case typeOf(oper) of
 		Arith => (* Handle Arithmetic ops: +,-,*,/ *)
-		(check(left, Ty.INT, pos, "Integer required for arithmetic operations.");
-	         check(right, Ty.INT, pos, "Integer required for arithmetic operations.");
-		 {exp=(), ty=Ty.INT})
+		let
+                    val leftRes = trexp(left)
+                    val rightRes = trexp(right)
+                in
+                    (check(#ty leftRes, Ty.INT, pos,
+                          "Integer required for arithmetic operations.");
+	            check(#ty rightRes, Ty.INT, pos,
+                          "Integer required for arithmetic operations.");
+		    {exp=Translate.dummy, ty=Ty.INT})
+                end
 	     | Compare => (* comparison ops: <, <=, >=, > *)
                (* Comparison allowed only between strings or ints *)
 	       let
-                 val ty = #ty(trexp(left))
+                 val leftRes = trexp(left)
+                 val rightRes = trexp(right)
+                 val ty = #ty(leftRes)
 		 (* Check if left expression is string or int *)
 		 val leftType =
 		     if (istype(ty, Ty.INT) orelse istype(ty, Ty.STRING))
@@ -478,9 +491,9 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) =
 		    (* If not int or string print error *)
 		    of NONE => throwUp(pos, "Comparison needs int or string.")
                     (* Right expression must be of the same type *)
-		    | SOME(t) => check(right, t, pos,
+		    | SOME(t) => check(#ty rightRes, t, pos,
 				    "Type of both expressions should match for comparisons.");
-		  {exp=(), ty=Ty.INT})
+		  {exp=Translate.dummy, ty=Ty.INT})
 	       end
 	      (* Handle equality checks: =, <> *)
 	     | Equality =>
@@ -513,14 +526,14 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) =
 		  (* Can't compare two NILs *)
 		  then throwUp(pos, "Cannot compare two NIL expressions.")
 		  else ();
-		  {exp=(), ty=Ty.INT})
+		  {exp=Translate.dummy, ty=Ty.INT})
 	       end
 	  end
 
         (* Primitives: ints and strings, and nil *)
-	| trexp(A.IntExp(number)) = {exp=(), ty=Ty.INT}
-	| trexp(A.StringExp(str)) = {exp=(), ty=Ty.STRING}
-	| trexp(A.NilExp) = {exp=(), ty=Ty.NIL}
+	| trexp(A.IntExp(number)) = {exp=Translate.dummy, ty=Ty.INT}
+	| trexp(A.StringExp(str)) = {exp=Translate.dummy, ty=Ty.STRING}
+	| trexp(A.NilExp) = {exp=Translate.dummy, ty=Ty.NIL}
 	(* Variables, outsourced to trvar *)
 	| trexp(A.VarExp(var)) = (trvar(var))
 
@@ -531,9 +544,9 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) =
 	       (if(not(checkTypeList(args, formals)))
 		then throwUp(pos, "Function args don't match type")
 		else ();
-		{exp=(), ty=actualTy(result)})
+		{exp=Translate.dummy, ty=actualTy(result)})
 	     | _ => (throwUp(pos, "Undefined function:" ^ S.name(func));
-		     {exp=(), ty=Types.BOTTOM}))
+		     {exp=Translate.dummy, ty=Types.BOTTOM}))
 
 	(* Assignments *)
 	| trexp(A.AssignExp({var, exp, pos})) =
@@ -555,11 +568,11 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) =
 			      Ty.toString(expType)
 			      ^" to variable of type "^
 			      Ty.toString(varType));
-	     {exp=(), ty=Ty.UNIT})
+	     {exp=Translate.dummy, ty=Ty.UNIT})
 	  end
 
 	(* 3 kinds of sequences. non-last exp is enforced as unit  *)
-	| trexp(A.SeqExp([])) = ({exp=(), ty=Ty.UNIT})
+	| trexp(A.SeqExp([])) = ({exp=Translate.dummy, ty=Ty.UNIT})
 	| trexp(A.SeqExp((x, pos)::[])) = (trexp(x))
 	| trexp(A.SeqExp((x, pos)::xs)) = (trexp(x); trexp(A.SeqExp(xs)))
 
@@ -572,38 +585,49 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) =
 			 then'=exp2, else'=NONE, pos=pos})) =
           (* Condition must be of type int and result of type UNIT
              Check these and return UNIT. *)
-	  (check(exp1, Ty.INT, pos,
-		 "Condition in an if expression must be of type INT.");
-	   check(exp2, Ty.UNIT, pos,
-		 "Body if if-then expression must be of type UNIT.");
-	   {exp=(), ty=Ty.UNIT}) (* if-then is a valueless expr *)
-
+	  let
+            val testRes = trexp(exp1)
+            val thenRes = trexp(exp2)
+          in
+            (check(#ty testRes, Ty.INT, pos,
+		   "Condition in an if expression must be of type INT.");
+	     check(#ty thenRes, Ty.UNIT, pos,
+		   "Body if if-then expression must be of type UNIT.");
+	     {exp=Translate.dummy, ty=Ty.UNIT}) (* if-then is a valueless expr *)
+          end
 	(* If-then-else expression *)
 	| trexp(A.IfExp({test=exp1, then'=exp2,
 			 else'=SOME(exp3), pos=pos})) =
 	  let
+            val testRes = trexp(exp1)
+            val thenRes = trexp(exp2)
+            val elseRes = trexp(exp3)
             (* Find out what type the then expression has *)
-	    val bodyType= (#ty(trexp(exp2)))
+	    val bodyType= (#ty thenRes)
 	  in
             (* Condition must be an int, and the type of
 	       the then and else expression must match *)
-	    (check(exp1,Ty.INT, pos,
+	    (check(#ty testRes,Ty.INT, pos,
 		   "Condition in an if expression must be of type INT.");
-	     check(exp3, bodyType, pos,
+	     check(#ty elseRes, bodyType, pos,
 		   "Branches of if-then-else need to have same type.");
-	     {exp=(), ty=bodyType})
+	     {exp=Translate.dummy, ty=bodyType})
 	  end
 
         (* Loops. Body of while and for loops must be of type unit *)
 	| trexp(A.WhileExp({test=exp1, body=exp2, pos=pos})) =
-	  (check(exp1, Ty.INT, pos,
-		 "Non-Int condition check in an while expression.");
-	   brNesting := !brNesting + 1;
-           check(exp2, Ty.UNIT, pos,
-		 "Body of while must be of type UNIT.");
-           brNesting := !brNesting - 1;
-	   {exp=(), ty=Ty.UNIT}) (* while is a valueless expression *)
-
+	  let
+            val testRes = trexp(exp1)
+            val bodyRes = trexp(exp2)
+	  in
+	    (check(#ty testRes, Ty.INT, pos,
+	  	   "Non-Int condition check in an while expression.");
+	     brNesting := !brNesting + 1;
+             check(#ty bodyRes, Ty.UNIT, pos,
+		   "Body of while must be of type UNIT.");
+             brNesting := !brNesting - 1;
+	     {exp=Translate.dummy, ty=Ty.UNIT}) (* while is a valueless expression *)
+          end
 	(* For loops *)
 	| trexp(A.ForExp({var=sym, escape=esc, lo=exp1, hi=exp2,
 			  body=exp3, pos=pos})) =
@@ -614,19 +638,22 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) =
             val venv' = S.enter(venv, sym,
                                 E.VarEntry({access=Translate.allocLocal(level)(!esc),
                                 ty=Ty.UNASSIGNABLE}))
+            val loRes = trexp(exp1)
+            val hiRes = trexp(exp2)
+            val bodyRes = transExp(venv', tenv, level) exp3
 	  in
-	    (check(exp1, Ty.INT, pos,
+	    (check(#ty loRes, Ty.INT, pos,
 		   "Low value in `for` must be of type INT.");
-	     check(exp2, Ty.INT, pos,
+	     check(#ty hiRes, Ty.INT, pos,
 		   "High value in `for` must be of type INT.");
              (* Check that the body is of type UNIT
 		using with the new environment *)
 	     brNesting := !brNesting + 1;
-             if (istype(#ty(transExp(venv', tenv, level) exp3), Ty.UNIT))
+             if (istype(#ty bodyRes, Ty.UNIT))
 	     then ()
 	     else throwUp(pos, "Body of for must be of type UNIT.");
              brNesting := !brNesting - 1;
-	     {exp=(), ty=Ty.UNIT}) (* For is a valueless expression *)
+	     {exp=Translate.dummy, ty=Ty.UNIT}) (* For is a valueless expression *)
 	  end
 
         (* Break is of type BOTTOM for greatest flexibility *)
@@ -634,7 +661,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) =
           (if (!brNesting > 0)
            then ()
            else throwUp(pos, "Break occurs out of scope.");
-           {exp=(), ty=Ty.BOTTOM})
+           {exp=Translate.dummy, ty=Ty.BOTTOM})
 
 	(* Records *)
         | trexp(A.RecordExp({fields=fields, typ=typ, pos=pos})) =
@@ -647,41 +674,46 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) =
                      are correct *)
                   of Ty.RECORD((fieldList, uniq)) =>
                      (verifyFields(fields, fieldList, pos);
-                      {exp=(), ty=Ty.RECORD((fieldList, uniq))})
+                      {exp=Translate.dummy, ty=Ty.RECORD((fieldList, uniq))})
                    (* if it is not a record, print an error
                       and use an empty record type to continue *)
                    | _ => (throwUp(pos, "Type given is not a record:"^S.name(typ));
-                           {exp=(), ty=Ty.RECORD([], ref ())}))
+                           {exp=Translate.dummy, ty=Ty.RECORD([], ref ())}))
              (* if it is not in the tenv, print an error
                 and use an empty record type to continue *)
              |  NONE => (throwUp(pos, "Record type not found:"^S.name(typ));
-                         {exp=(), ty=Ty.RECORD([], ref ())})))
+                         {exp=Translate.dummy, ty=Ty.RECORD([], ref ())})))
 
         (* Arrays *)
         | trexp(A.ArrayExp({typ=typ, size=size, init=init, pos=pos})) =
+          let
+            val sizeRes = trexp(size)
+            val initRes = trexp(init)
+          in
           (* Check that the size of the array is an int *)
-          (check(size, Ty.INT, pos, "Size of array must be of type INT.");
-           (* Look up the type of the array in the tenv *)
-           (case S.look(tenv, typ)
-             (* If not found, print error and use array of BOTTOM to
-                continue *)
-             of NONE => (throwUp(pos, "Array type not found:"^S.name(typ));
-                         {exp=(), ty=Ty.ARRAY(Ty.BOTTOM, ref ())})
-              (* If found, check if it is an array type *)
-              | SOME(t) =>
-                (case actualTy(t)
-                  (* If it is an array type, check if the type of the
-                     init expression is of that array's type *)
-                  of Ty.ARRAY(ty, uniq) =>
-                     (check(init, ty, pos,
-                            "Type of initial value does not match array type.");
-                      {exp=(), ty=actualTy(t)})
-                   (* If not array, print error and use array of BOTTOM
-                      to continue *)
-                   | _ => (throwUp(pos, "Type given is not an array.");
-                           {exp=(), ty=Ty.ARRAY(Ty.BOTTOM, ref ())}))))
-	    (* trexp ENDS *)
+            (check(#ty sizeRes, Ty.INT, pos, "Size of array must be of type INT.");
+             (* Look up the type of the array in the tenv *)
+             (case S.look(tenv, typ)
+               (* If not found, print error and use array of BOTTOM to
+                  continue *)
+               of NONE => (throwUp(pos, "Array type not found:"^S.name(typ));
+                           {exp=Translate.dummy, ty=Ty.ARRAY(Ty.BOTTOM, ref ())})
+                (* If found, check if it is an array type *)
+                | SOME(t) =>
+                  (case actualTy(t)
+                    (* If it is an array type, check if the type of the
+                       init expression is of that array's type *)
+                    of Ty.ARRAY(ty, uniq) =>
+                       (check(#ty initRes, ty, pos,
+                              "Type of initial value does not match array type.");
+                        {exp=Translate.dummy, ty=actualTy(t)})
 
+                     (* If not array, print error and use array of BOTTOM
+                        to continue *)
+                     | _ => (throwUp(pos, "Type given is not an array.");
+                             {exp=Translate.dummy, ty=Ty.ARRAY(Ty.BOTTOM, ref ())}))))
+            end
+	    (* trexp ENDS *)
     in
       (* the body of the curried transExp function is just trexp *)
       trexp
@@ -692,21 +724,25 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) =
    with the base environments *)
 fun transProg(e) = (FindEscape.findEscape(e);
                     errorExists := false;
-                    transExp(E.base_venv, E.base_tenv,
+                    let
+                        val result = transExp(E.base_venv, E.base_tenv,
                              Translate.newLevel {parent=Translate.outermost,
                                                  name=Temp.newLabel(),
-                                                 formals=[]}) e;
-		    if !errorExists
+                                                 formals=[]}) e
+                    in
+		    (if !errorExists
 		    then (throwUp(0,"Type-checking failed.");
 			  raise ErrorMsg.Error)
 
-		    else ())
+		    else ();
+                    result)
+                    end)
 
 end
 
 signature MAIN =
 sig
-  val run: string -> unit
+  val run: string -> Semant.expty
   val printAST: string -> unit
 end
 

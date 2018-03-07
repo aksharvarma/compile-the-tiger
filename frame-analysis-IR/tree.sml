@@ -1,5 +1,5 @@
-signature TREE = 
-sig 
+signature TREE =
+sig
   type label = Temp.label
   type size
 
@@ -18,10 +18,10 @@ datatype stm = SEQ of stm * stm
              | CONST of int
 	     | CALL of exp * exp list
 
-      and binop = PLUS | MINUS | MUL | DIV 
+      and binop = PLUS | MINUS | MUL | DIV
                 | AND | OR | LSHIFT | RSHIFT | ARSHIFT | XOR
 
-      and relop = EQ | NE | LT | GT | LE | GE 
+      and relop = EQ | NE | LT | GT | LE | GE
 	        | ULT | ULE | UGT | UGE
 
   (* These are absent from the structure, commented out for now *)
@@ -29,7 +29,7 @@ datatype stm = SEQ of stm * stm
   (* val commute: relop -> relop *)
 end
 
-structure Tree : TREE = 
+structure Tree : TREE =
 struct
   type label=Temp.label
   type size = int
@@ -49,10 +49,10 @@ datatype stm = SEQ of stm * stm
              | CONST of int
 	     | CALL of exp * exp list
 
-      and binop = PLUS | MINUS | MUL | DIV 
+      and binop = PLUS | MINUS | MUL | DIV
                 | AND | OR | LSHIFT | RSHIFT | ARSHIFT | XOR
 
-      and relop = EQ | NE | LT | GT | LE | GE 
+      and relop = EQ | NE | LT | GT | LE | GE
 	        | ULT | ULE | UGT | UGE
 
 end

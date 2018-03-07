@@ -1,9 +1,12 @@
+(* Should mipsframe know about the internals of Tree? *)
+structure T = Tree
+
 structure MipsFrame :> FRAME =
 struct
-
-val wordSize = 4
-
 datatype access = InReg of Temp.temp | InFrame of int
+
+val FP = Temp.newTemp()
+val wordSize = 4
 
 (* a frame contains a name, a list of the accesses associated
    with each formal parameter, and the number of local variables
@@ -11,6 +14,9 @@ datatype access = InReg of Temp.temp | InFrame of int
 type frame = {name:Temp.label,
 	      formals: access list,
               locals: int ref}
+
+fun exp(InFrame(k)) = (fn(ex) => T.MEM(T.BINOP(T.PLUS, ex, T.CONST(k))))
+  | exp(InReg(t)) = (fn (ex) => T.TEMP t)
 
 (* TODO:  write view shift instructions *)
 fun newFrame({name: Temp.label, formals: bool list}) =
