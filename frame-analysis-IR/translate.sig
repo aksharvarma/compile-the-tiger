@@ -13,5 +13,7 @@ sig
 
   (* Helpers for translating to IR tree *)
   val simpleVar : access * level -> exp
-  val arrayVar : access * level * exp -> exp
+  val subscriptVar : exp  * exp -> exp
+  val fieldVar : exp * int -> exp
+  val arithOp : Absyn.oper * exp * exp -> exp
 end

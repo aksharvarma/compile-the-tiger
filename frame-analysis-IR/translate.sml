@@ -2,6 +2,7 @@ structure Translate =
 struct
 
 structure T = Tree
+structure A = Absyn
 
 (* TODO: this is going to be changed? *)
 (* type exp = unit  *)
@@ -56,6 +57,7 @@ fun unCx(Ex e) = (fn (t, f) => T.EXP(e))
 (* thrown if allocLocal is called on the outermost level *)
 exception OutermostException
 
+
 (* a level contains a frame and a parent level.
    the outermost level is a special level (OUTERMOST) with no frame or parent *)
 datatype level = OUTERMOST
@@ -103,7 +105,7 @@ fun allocLocal(Lev({frame, parent, unique})) =
      are the library functions *)
   | allocLocal(OUTERMOST) = raise OutermostException
 
-(* TODO: do static links *)
+(* TODO: test static links *)
 fun followSL(curLev: level, targetLev: level) =
         if (levelEq(curLev, targetLev))
         then (T.TEMP Frame.FP)
@@ -111,10 +113,30 @@ fun followSL(curLev: level, targetLev: level) =
 
 fun simpleVar((l, access), level) = Ex(Frame.exp(access)(followSL(level, l)))
 
-fun arrayVar((l, access), level, ex) =
-    T.MEM(T.BINOP(T.PLUS,
+(* TODO: check array out of bounds *)
+fun subscriptVar(a, i) =
+    Ex(T.MEM(T.BINOP(T.PLUS,
                   (* This gives us the base address for the array var *)
-                  Frame.exp(access)(followSL(level, l)),
-                  T.BINOP(T.MUL, T.CONST Frame.wordSize, ex)))
+                  unEx(a),
+                  (* Frame.exp(access)(followSL(level, l)), *)
+                  T.BINOP(T.MUL, T.CONST Frame.wordSize, unEx(i)))))
+
+(* TODO fix naming in these functions
+   i is a number here but an exp above *)
+fun fieldVar(a, i) = subscriptVar(a, Ex(T.CONST i))
+
+fun arithOp(oper, left, right) =
+    let
+        exception ArithOpException
+        val binop =
+                (case oper
+                    of A.PlusOp => T.PLUS
+                     | A.MinusOp => T.MINUS
+                     | A.TimesOp => T.MUL
+                     | A.DivideOp => T.DIV
+                     | _ => raise ArithOpException)
+    in
+        Ex(T.BINOP(binop, unEx(left), unEx(right)))
+    end
 
 end

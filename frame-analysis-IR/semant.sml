@@ -52,6 +52,10 @@ and findField([], id:S.symbol) = NONE
   | findField((x:S.symbol, ty:Ty.ty)::xs, id:S.symbol) =
     if (id=x) then SOME(actualTy(ty)) else findField(xs, id)
 
+and getIndex([], id:S.symbol, counter) = ~1
+  | getIndex((x:S.symbol, ty:Ty.ty)::xs, id:S.symbol, counter) =
+    if (id=x) then counter else getIndex(xs, id, counter + 1)
+
 and checkFieldAndRemove([], (id:S.symbol, typ:Ty.ty, pos)) =
         (throwUp(pos, "Field " ^ S.name(id) ^ " doesn't exit in record");
         [])
@@ -150,40 +154,53 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
 
         (* Field vars for accessing records *)
 	| trvar(A.FieldVar(var, id, pos)) =
+          let
+            val varRes = trvar(var)
+          in
           (* determine the type of the LHS variable *)
-	  (case (#ty(trvar(var)))
-	    of Ty.RECORD(sym, ty) =>
-               (* if it's a record, then search for the field with
-                  the given name *)
-	       (case findField(sym, id)
-                 (* if we didn't find it,
-		    print an error and return BOTTOM to continue *)
-                 of NONE => (throwUp(pos, "Invalid field id:" ^ S.name(id));
-			     {exp=Translate.dummy, ty=Ty.BOTTOM})
-                  (* if we did find it,
-		     then return the type of that field *)
-		  | SOME(t) => {exp=Translate.dummy, ty=t})
-             (* if the LHS wasn't a record, then print error
-		and return BOTTOM to continue *)
-	     | _ => (throwUp(pos, "accessing field of non-record:" ^ S.name(id));
-                     {exp=Translate.dummy, ty=Ty.BOTTOM}))
-
+	    (case (#ty varRes)
+	      of Ty.RECORD(sym, ty) =>
+                 (* if it's a record, then search for the field with
+                    the given name *)
+	         (case findField(sym, id)
+                   (* if we didn't find it,
+	              print an error and return BOTTOM to continue *)
+                   of NONE => (throwUp(pos, "Invalid field id:" ^ S.name(id));
+	          	     {exp=Translate.error, ty=Ty.BOTTOM})
+                    (* if we did find it,
+	               then return the type of that field *)
+	            | SOME(t) =>
+                        (if t = Ty.NIL
+                        then throwUp(pos, "Attempted to access field of nil")
+                        else ();
+                        {exp=Translate.fieldVar(#exp varRes,
+                                                getIndex(sym, id, 0)), ty=t}))
+               (* if the LHS wasn't a record, then print error
+	          and return BOTTOM to continue *)
+	       | _ => (throwUp(pos, "accessing field of non-record:" ^ S.name(id));
+                       {exp=Translate.error, ty=Ty.BOTTOM}))
+            end
         (* Subscript vars for accessing arrays *)
 	| trvar(A.SubscriptVar(var, e, pos)) =
           (* determine the type of the LHS variable *)
-	  (case (#ty(trvar(var)))
-            (* if it's an array, check that the expression is an int
-               and return the type of that array *)
-	    of Ty.ARRAY(typ, _) =>
-               let
-                    val res = trexp(e)
-                in
-                    (check(#ty res, Ty.INT, pos, "Non integer subscript.");
-		    {exp=Translate.dummy, ty=actualTy(typ)})
-                end
-             (* if it's not an array, print an error and return BOTTOM *)
-	     | _ => (throwUp(pos, "Subscripting non-array variable.");
-                     {exp=Translate.error, ty=Ty.BOTTOM}))
+	  (let
+              val varRes = trvar(var)
+           in
+              case (#ty varRes)
+                (* if it's an array, check that the expression is an int
+                   and return the type of that array *)
+	        of Ty.ARRAY(typ, _) =>
+                   let
+                        val subRes = trexp(e)
+                    in
+                        (check(#ty subRes, Ty.INT, pos, "Non integer subscript.");
+	                {exp=Translate.subscriptVar(#exp varRes, #exp subRes),
+                         ty=actualTy(typ)})
+                    end
+                 (* if it's not an array, print an error and return BOTTOM *)
+	         | _ => (throwUp(pos, "Subscripting non-array variable.");
+                         {exp=Translate.error, ty=Ty.BOTTOM})
+          end)
       (* trvar ENDS *)
 
       (* trTy: Translate/type-check type declarations *)
@@ -473,7 +490,8 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
                           "Integer required for arithmetic operations.");
 	            check(#ty rightRes, Ty.INT, pos,
                           "Integer required for arithmetic operations.");
-		    {exp=Translate.dummy, ty=Ty.INT})
+		    {exp=Translate.arithOp(oper, #exp leftRes, #exp rightRes),
+                     ty=Ty.INT})
                 end
 	     | Compare => (* comparison ops: <, <=, >=, > *)
                (* Comparison allowed only between strings or ints *)
