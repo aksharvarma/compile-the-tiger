@@ -139,4 +139,138 @@ fun arithOp(oper, left, right) =
         Ex(T.BINOP(binop, unEx(left), unEx(right)))
     end
 
+fun relOp(oper, left, right) =
+    let
+        exception RelOpException
+        val relop =
+                (case oper
+                    of A.EqOp => T.EQ
+                     | A.NeqOp => T.NE
+                     | A.LtOp => T.LT
+                     | A.LeOp => T.LE
+                     | A.GtOp => T.GT
+                     | A.GeOp => T.GE
+                     | _ => raise RelOpException)
+    in
+        Cx(fn(t,f) => T.CJUMP(relop, unEx(left), unEx(right), t, f))
+    end
+
+fun ifThenElse(test, Nx(thenStm), Nx(elseStm)) =
+        let
+            val z = Temp.newLabel()
+            val t = Temp.newLabel() and f = Temp.newLabel()
+        in
+            Nx(T.SEQ(unCx(test)(t,f),
+                     T.SEQ(T.LABEL t,
+                     T.SEQ(thenStm,
+                     T.SEQ(T.JUMP(T.NAME z, [z]),
+                     T.SEQ(T.LABEL f,
+                    T.SEQ(elseStm, T.LABEL z)))))))
+        end
+  | ifThenElse(test, Cx(thenFun), Cx(elseFun)) =
+        let
+            val r = Temp.newTemp()
+            val z = Temp.newLabel() and join = Temp.newLabel()
+            val t = Temp.newLabel() and f = Temp.newLabel()
+        in
+            Ex(T.ESEQ(T.SEQ(T.MOVE(T.TEMP r, T.CONST 0),
+                            T.SEQ(unCx(test)(t,f),
+                            T.SEQ(T.LABEL t,
+                            T.SEQ(thenFun(z, join),
+                            T.SEQ(T.LABEL z,
+                            T.SEQ(T.MOVE(T.TEMP r, T.CONST 1),
+                            T.SEQ(T.JUMP(T.NAME join, [join]),
+                            T.SEQ(T.LABEL f,
+                            T.SEQ(elseFun(z, join),
+                            T.LABEL join))))))))), T.TEMP r))
+        end
+  | ifThenElse(test, Cx(thenFun), Ex(elseExp)) =
+        let
+            val r = Temp.newTemp()
+            val z = Temp.newLabel() and join = Temp.newLabel()
+            val t = Temp.newLabel() and f = Temp.newLabel()
+        in
+            Ex(T.ESEQ(T.SEQ(T.MOVE(T.TEMP r, T.CONST 0),
+                            T.SEQ(unCx(test)(t,f),
+                            T.SEQ(T.LABEL t,
+                            T.SEQ(thenFun(z, join),
+                            T.SEQ(T.LABEL z,
+                            T.SEQ(T.MOVE(T.TEMP r, T.CONST 1),
+                            T.SEQ(T.JUMP(T.NAME join, [join]),
+                            T.SEQ(T.LABEL f,
+                            T.SEQ(T.MOVE(T.TEMP r, elseExp),
+                            T.LABEL join))))))))), T.TEMP r))
+
+        end
+  | ifThenElse(test, Ex(thenExp), Cx(elseFun)) =
+        let
+            val r = Temp.newTemp()
+            val z = Temp.newLabel() and join = Temp.newLabel()
+            val t = Temp.newLabel() and f = Temp.newLabel()
+        in
+            Ex(T.ESEQ(T.SEQ(T.MOVE(T.TEMP r, T.CONST 0),
+                            T.SEQ(unCx(test)(t,f),
+                            T.SEQ(T.LABEL t,
+                            T.SEQ(T.MOVE(T.TEMP r, thenExp),
+                            T.SEQ(T.JUMP(T.NAME join, [join]),
+                            T.SEQ(T.LABEL f,
+                            T.SEQ(elseFun(z, join),
+                            T.SEQ(T.LABEL z,
+                            T.SEQ(T.MOVE(T.TEMP r, T.CONST 1),
+                            T.LABEL join))))))))), T.TEMP r))
+        end
+  | ifThenElse(test, Ex(thenExp), Ex(elseExp)) =
+        let
+            val r = Temp.newTemp()
+            val z = Temp.newLabel()
+            val t = Temp.newLabel() and f = Temp.newLabel()
+        in
+            Ex(T.ESEQ(T.SEQ(unCx(test)(t,f),
+                                      T.SEQ(T.LABEL t,
+                                      T.SEQ(T.MOVE(T.TEMP r, thenExp),
+                                      T.SEQ(T.JUMP(T.NAME z, [z]),
+                                      T.SEQ(T.LABEL f,
+                                      T.SEQ(T.MOVE(T.TEMP r, elseExp),
+                                            T.LABEL z)))))), T.TEMP r))
+        end
+  | ifThenElse(_) =
+        let exception IfThenElseNxMismatch in raise IfThenElseNxMismatch end
+
+fun ifThen(test, Nx(thenStm)) =
+        let
+            val t = Temp.newLabel() and f = Temp.newLabel()
+        in
+            Nx(T.SEQ(unCx(test)(t,f),
+                     T.SEQ(T.LABEL t,
+                     T.SEQ(thenStm,
+                     T.LABEL f))))
+        end
+  | ifThen(test, Cx(thenFun)) =
+        let exception CxInIfThenException in raise CxInIfThenException end
+  | ifThen(test, Ex(thenExp)) =
+        let exception ExInIfThenException in raise ExInIfThenException end
+
+fun funCall(label, argExps, curLev, targetLev, isProcedure) =
+    let
+        val sl = followSL(curLev, targetLev)
+        val argList = map unEx argExps
+        val result = T.CALL(T.NAME label, sl::argList)
+    in
+        if(isProcedure)
+        then Nx(T.EXP result)
+        else Ex(result)
+    end
+
+fun whileExp(test, body) =
+    let
+        val testLabel = Temp.newLabel() and done = Temp.newLabel()
+        and fallThrough = Temp.newLabel()
+    in
+        Nx(T.SEQ(T.LABEL testLabel,
+                 T.SEQ(unCx(test)(fallThrough, done),
+                 T.SEQ(T.LABEL fallThrough,
+                 T.SEQ(T.EXP(unEx(body)),
+                 T.SEQ(T.JUMP(T.NAME testLabel, [testLabel]),
+                 T.LABEL done))))))
+    end
 end

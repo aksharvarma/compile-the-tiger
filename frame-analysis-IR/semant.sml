@@ -127,7 +127,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
 	| checkTypeList(_, []) = false
 	(* check 1st entry and then recur *)
 	| checkTypeList(e::es, t::ts) =
-          #ty(trexp(e)) = actualTy(t) andalso checkTypeList(es, ts)
+          #ty(e) = actualTy(t) andalso checkTypeList(es, ts)
 
       (* Verifies whether the given list of record field declarations
 	 match the types of the record fields looked up from the tenv *)
@@ -511,7 +511,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
                     (* Right expression must be of the same type *)
 		    | SOME(t) => check(#ty rightRes, t, pos,
 				    "Type of both expressions should match for comparisons.");
-		  {exp=Translate.dummy, ty=Ty.INT})
+		  {exp=Translate.relOp(oper, #exp leftRes, #exp rightRes), ty=Ty.INT})
 	       end
 	      (* Handle equality checks: =, <> *)
 	     | Equality =>
@@ -558,13 +558,18 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
 	(* Function calls *)
 	| trexp(A.CallExp({func, args, pos})) =
 	  (case S.look(venv, func)
-	    of SOME(E.FunEntry({level, label, formals, result})) =>
-	       (if(not(checkTypeList(args, formals)))
-		then throwUp(pos, "Function args don't match type")
-		else ();
-		{exp=Translate.dummy, ty=actualTy(result)})
+	    of SOME(E.FunEntry({level=lev, label, formals, result})) =>
+	       let
+                 val argList = map trexp args
+               in
+                 (if(not(checkTypeList(argList, formals)))
+		  then throwUp(pos, "Function args don't match type")
+		  else ();
+		  {exp=Translate.funCall(label, map #exp argList, level, lev, actualTy(result)=Ty.UNIT),
+                   ty=actualTy(result)})
+               end
 	     | _ => (throwUp(pos, "Undefined function:" ^ S.name(func));
-		     {exp=Translate.dummy, ty=Types.BOTTOM}))
+		     {exp=Translate.error, ty=Types.BOTTOM}))
 
 	(* Assignments *)
 	| trexp(A.AssignExp({var, exp, pos})) =
@@ -611,7 +616,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
 		   "Condition in an if expression must be of type INT.");
 	     check(#ty thenRes, Ty.UNIT, pos,
 		   "Body if if-then expression must be of type UNIT.");
-	     {exp=Translate.dummy, ty=Ty.UNIT}) (* if-then is a valueless expr *)
+	     {exp=Translate.ifThen(#exp testRes, #exp thenRes), ty=Ty.UNIT}) (* if-then is a valueless expr *)
           end
 	(* If-then-else expression *)
 	| trexp(A.IfExp({test=exp1, then'=exp2,
@@ -629,7 +634,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
 		   "Condition in an if expression must be of type INT.");
 	     check(#ty elseRes, bodyType, pos,
 		   "Branches of if-then-else need to have same type.");
-	     {exp=Translate.dummy, ty=bodyType})
+	     {exp=Translate.ifThenElse(#exp testRes, #exp thenRes, #exp elseRes), ty=bodyType})
 	  end
 
         (* Loops. Body of while and for loops must be of type unit *)

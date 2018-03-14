@@ -16,4 +16,9 @@ sig
   val subscriptVar : exp  * exp -> exp
   val fieldVar : exp * int -> exp
   val arithOp : Absyn.oper * exp * exp -> exp
+  val relOp: Absyn.oper * exp * exp -> exp
+  val ifThenElse: exp * exp * exp option -> exp
+  val ifThen: exp * exp -> exp
+  val funCall: Temp.label * exp list * level * level -> exp
+  val whileExp: exp * exp -> exp
 end
