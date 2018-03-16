@@ -7,14 +7,15 @@ structure A = Absyn
 (* TODO: this is going to be changed? *)
 (* type exp = unit  *)
 
-
 (* Basic changes to Translate based on IR chapter *)
 datatype exp = Ex of Tree.exp
              | Nx of Tree.stm
              | Cx of Temp.label * Temp.label -> Tree.stm
 
-val dummy = Ex(T.CONST(0))
-val error = Ex(T.CONST(0))
+val dummy = Ex(T.CONST(~2))
+val error = Ex(T.CONST(~1))
+
+val fragList: Frame.frag list ref = ref []
 (* Signatures for un_x funcstions, and empty definitions *)
 (*val unEx: Translate.exp -> Tree.exp
 val unNx: Translate.exp -> Tree.stm
@@ -138,8 +139,8 @@ fun arithOp(oper, left, right) =
     in
         Ex(T.BINOP(binop, unEx(left), unEx(right)))
     end
-
-fun relOp(oper, left, right) =
+(* final parameter is a boolean that is true if comparing strings *)
+fun relOp(oper, left, right, false) =
     let
         exception RelOpException
         val relop =
@@ -153,6 +154,20 @@ fun relOp(oper, left, right) =
                      | _ => raise RelOpException)
     in
         Cx(fn(t,f) => T.CJUMP(relop, unEx(left), unEx(right), t, f))
+    end
+  | relOp(oper, left, right, true) =
+    let
+        exception RelOpException
+        val fc =
+                (case oper
+                     of A.LtOp => {func="stringLt", res=1}
+                     | A.LeOp => {func="stringLte", res=1}
+                     | A.GtOp => {func="stringLte", res=0}
+                     | A.GeOp => {func="stringLt", res=0}
+                     | _ => raise RelOpException)
+    in
+        Cx(fn(t,f) => T.CJUMP(T.EQ, Frame.externalCall(#func fc,
+                                 [unEx(left), unEx(right)]), T.CONST (#res fc), t, f))
     end
 
 fun ifThenElse(test, Nx(thenStm), Nx(elseStm)) =
@@ -261,16 +276,66 @@ fun funCall(label, argExps, curLev, targetLev, isProcedure) =
         else Ex(result)
     end
 
-fun whileExp(test, body) =
+fun whileExp(test, body, done) =
     let
-        val testLabel = Temp.newLabel() and done = Temp.newLabel()
-        and fallThrough = Temp.newLabel()
+        val testLabel = Temp.newLabel() and bodyLabel = Temp.newLabel()
     in
-        Nx(T.SEQ(T.LABEL testLabel,
-                 T.SEQ(unCx(test)(fallThrough, done),
-                 T.SEQ(T.LABEL fallThrough,
+        Nx(T.SEQ(T.JUMP(T.NAME testLabel, [testLabel]),
+                 T.SEQ(T.LABEL bodyLabel,
                  T.SEQ(T.EXP(unEx(body)),
-                 T.SEQ(T.JUMP(T.NAME testLabel, [testLabel]),
-                 T.LABEL done))))))
+                 T.SEQ(T.LABEL testLabel,
+                 T.SEQ(unCx(test)(bodyLabel, done), T.LABEL done))))))
     end
+
+(* also used for nil exp *)
+fun intExp(i) = Ex(T.CONST i)
+
+fun assignExp(left, right) = Nx(T.MOVE(unEx(left), unEx(right)))
+
+fun singleSeq(fst) = Ex(unEx(fst))
+
+fun seqExp(fst, rest) = Ex(T.ESEQ(unNx(fst), unEx(rest)))
+
+fun brkExp(brkLabel) = Nx(T.JUMP(T.NAME brkLabel, [brkLabel]))
+
+fun stringExp(s, pos) =
+    let
+      val lab = Temp.newLabel()
+    in
+      (fragList := Frame.STRING(lab, s) :: !fragList;
+       Ex(T.NAME lab))
+    end
+
+fun stringEquality(oper, left, right) =
+        let
+            exception StringEquality
+            val tOp = (case oper
+                          of A.EqOp => T.EQ
+                           | A.NeqOp => T.NE
+                           | _ => raise StringEquality)
+        in
+            Cx(fn(t,f) => T.CJUMP(tOp, Frame.externalCall("stringEqual",
+                                     [unEx(left), unEx(right)]), T.CONST 1, t, f))
+        end
+
+fun createArray(size, init) = Ex(Frame.externalCall("initArray",
+                                 [unEx(size), unEx(init)]))
+
+fun recordExp(fieldList:exp list) =
+        let
+            val r = Temp.newTemp()
+            fun initFields([], r, i) = T.EXP (T.CONST 0)
+              | initFields(ex::[], r, i) =
+                    T.MOVE(T.MEM(T.BINOP(T.PLUS, T.TEMP r,
+                                         T.CONST(i * Frame.wordSize))), unEx(ex))
+              | initFields(ex::exs, r, i) =
+                    T.SEQ(T.MOVE(T.MEM(T.BINOP(T.PLUS, T.TEMP r,
+                                         T.CONST(i * Frame.wordSize))), unEx(ex)),
+                          initFields(exs, r, i + 1))
+        in
+            Ex(T.ESEQ(T.SEQ(T.MOVE(T.TEMP r, Frame.externalCall("malloc",
+                                 [T.CONST (List.length(fieldList) * Frame.wordSize)])),
+                            initFields(fieldList, r, 0)),
+                      T.TEMP r))
+        end
 end

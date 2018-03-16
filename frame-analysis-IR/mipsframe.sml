@@ -15,6 +15,9 @@ type frame = {name:Temp.label,
               formals: access list,
               locals: int ref}
 
+datatype frag = PROC of {body: Tree.stm, frame: frame}
+              | STRING of Temp.label * string
+
 fun exp(InFrame(k)) = (fn(ex) => T.MEM(T.BINOP(T.PLUS, ex, T.CONST(k))))
   | exp(InReg(t)) = (fn (ex) => T.TEMP t)
 
@@ -61,7 +64,11 @@ fun allocLocal({name, formals, locals}) =
        variable depending on what the boolean is? *)
     fn (b) => if b then InFrame(~(!locals) * wordSize) else InReg(Temp.newTemp()))
 
+fun externalCall(s, args) = T.CALL(T.NAME(Temp.namedLabel(s)), args)
+
 end
+
+
 
 (* We are only supporting an implementation for the MIPS architecture at this time *)
 structure Frame :> FRAME = MipsFrame

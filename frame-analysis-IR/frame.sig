@@ -9,5 +9,8 @@ sig
   val FP: Temp.temp
   val wordSize: int
   val exp: access -> Tree.exp -> Tree.exp
+  datatype frag = PROC of {body: Tree.stm, frame: frame}
+                | STRING of Temp.label * string
+  val externalCall: string * Tree.exp list -> Tree.exp
 end
 

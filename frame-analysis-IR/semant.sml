@@ -104,7 +104,7 @@ and accRecord([], tenv) = []
    transExp is curried to take in the venv and tenv first and return
    a function taking in the expression to analyze since many recursive
    calls should happen in the same environments as were given initially *)
-fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
+fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> expty) =
     let
       (* More helper methods *)
 
@@ -136,9 +136,9 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
             "Given fields don't match fields for record type: too few fields")
         | verifyFields(_, [], pos) = throwUp(pos,
             "Given fields don't match fields for record type: too many fields")
-        | verifyFields((sym:S.symbol, exp:A.exp, pos)::fields, recordFields, pos2) =
+        | verifyFields((sym:S.symbol, typ:Ty.ty, pos)::fields, recordFields, pos2) =
             verifyFields(fields, checkFieldAndRemove(recordFields,
-                (sym, #ty(trexp(exp)), pos)), pos2)
+                (sym, typ, pos)), pos2)
 
       (* trvar: Translate/type-check variables *)
       and trvar(A.SimpleVar(id, pos)) =
@@ -235,14 +235,16 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
 
       (* trDecs: Translate/type-check all declarations.
          Returns an updated venv and tenv *)
-      and trDecs(venv:venv, tenv:tenv, [], level:Translate.level) = (venv, tenv, level)
-        | trDecs(venv:venv, tenv:tenv, dec::decs, level) =
+      and trDecs(venv:venv, tenv:tenv, [], level:Translate.level, brkLabel, varDecList) =
+            (venv, tenv, level, brkLabel, varDecList)
+        | trDecs(venv:venv, tenv:tenv, dec::decs, level, brkLabel, varDecList) =
           (case dec of
                (* normal variables *)
                A.VarDec({name, escape, typ, init, pos}) =>
                let
+                 val initRes = transExp(venv, tenv, level, brkLabel) init
                  (* Determine the type of the init expr *)
-                 val initType = #ty(transExp(venv, tenv, level) init)
+                 val initType = #ty(initRes)
                  (* If type explicitly specified, use that.
                     Handles things like var b:rectype := nil
                     where we want RECORD and not NIL as the type *)
@@ -274,7 +276,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
                   trDecs(S.enter(venv, name,
                                  E.VarEntry({access=(Translate.allocLocal(level)(!escape)),
                                              ty= !typeToUse})),
-                         tenv, decs, level))
+                         tenv, decs, level, brkLabel, Translate.dummy::varDecList))
                end
 
              (* Type declarations *)
@@ -346,8 +348,8 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
                      decs added *)
                   if cyclicList(tyList)
                   then (throwUp(0, "Cyclic type definition!");
-                        trDecs(venv, tenv, decs, level))
-                  else trDecs(venv, tenv', decs, level)))
+                        trDecs(venv, tenv, decs, level, brkLabel, varDecList))
+                  else trDecs(venv, tenv', decs, level, brkLabel, varDecList)))
                end
 
              (* Function declarations *)
@@ -450,7 +452,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
                           function decs and the params added.
                           If the body does not have the correct
                           return type, print an error *)
-                       (if ((#ty(transExp(venv'', tenv, newLevel) body) <> resultType))
+                       (if ((#ty(transExp(venv'', tenv, newLevel, brkLabel) body) <> resultType))
                         then throwUp(pos,
                                      "Function body does not match result type.")
                         else ();
@@ -462,7 +464,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
                  (* Recursively parse the rest of the decs
                     with the new environment after performing the
                     second pass on the funlist *)
-                 trDecs(secondPass(funlist), tenv, decs, level)
+                 trDecs(secondPass(funlist), tenv, decs, level, brkLabel, varDecList)
                end)
       (* trDecs ENDS *)
 
@@ -511,7 +513,8 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
                     (* Right expression must be of the same type *)
                     | SOME(t) => check(#ty rightRes, t, pos,
                                     "Type of both expressions should match for comparisons.");
-                  {exp=Translate.relOp(oper, #exp leftRes, #exp rightRes), ty=Ty.INT})
+                  {exp=Translate.relOp(oper, #exp leftRes, #exp rightRes, leftType=SOME(Ty.STRING)),
+                   ty=Ty.INT})
                end
               (* Handle equality checks: =, <> *)
              | Equality =>
@@ -528,8 +531,10 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
                        | Ty.BOTTOM => SOME(Ty.BOTTOM)
                        | Ty.UNIT => SOME(Ty.UNIT)       (* Extension *)
                        | t => NONE
-                 val leftType = findEqType(#ty(trexp(left)))
-                 val rightType = findEqType(#ty(trexp(right)))
+                 val leftRes = trexp(left)
+                 val rightRes = trexp(right)
+                 val leftType = findEqType(#ty leftRes)
+                 val rightType = findEqType(#ty rightRes)
                  val leftNONE = leftType=NONE
                  val rightNONE = rightType=NONE
                in
@@ -544,14 +549,18 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
                   (* Can't compare two NILs *)
                   then throwUp(pos, "Cannot compare two NIL expressions.")
                   else ();
-                  {exp=Translate.dummy, ty=Ty.INT})
+                  (* TODO haven't done string equality *)
+                  {exp=(if(leftType=SOME(Ty.STRING))
+                        then Translate.stringEquality(oper, #exp leftRes, #exp rightRes)
+                        else Translate.relOp(oper, #exp leftRes, #exp rightRes, false)),
+                   ty=Ty.INT})
                end
           end
 
         (* Primitives: ints and strings, and nil *)
-        | trexp(A.IntExp(number)) = {exp=Translate.dummy, ty=Ty.INT}
-        | trexp(A.StringExp(str)) = {exp=Translate.dummy, ty=Ty.STRING}
-        | trexp(A.NilExp) = {exp=Translate.dummy, ty=Ty.NIL}
+        | trexp(A.IntExp(number)) = {exp=Translate.intExp(number), ty=Ty.INT}
+        | trexp(A.StringExp(str)) = {exp=Translate.stringExp(str), ty=Ty.STRING}
+        | trexp(A.NilExp) = {exp=Translate.intExp(0), ty=Ty.NIL}
         (* Variables, outsourced to trvar *)
         | trexp(A.VarExp(var)) = (trvar(var))
 
@@ -574,10 +583,12 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
         (* Assignments *)
         | trexp(A.AssignExp({var, exp, pos})) =
           let
+            val varRes = trvar(var)
+            val expRes = trexp(exp)
             (* Determine the type of the variable on the LHS *)
-            val varType= #ty(trvar(var))
+            val varType= #ty(varRes)
             (* Determine the type of the expression on the RHS *)
-            val expType= #ty(trexp(exp))
+            val expType= #ty(expRes)
           in
             (* Print an error if LHS variable is UNASSIGNABLE
                (handles implicitly declared loop variable in for) *)
@@ -591,17 +602,34 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
                               Ty.toString(expType)
                               ^" to variable of type "^
                               Ty.toString(varType));
-             {exp=Translate.dummy, ty=Ty.UNIT})
+             {exp=Translate.assignExp(#exp varRes, #exp expRes), ty=Ty.UNIT})
           end
 
-        (* 3 kinds of sequences. non-last exp is enforced as unit  *)
-        | trexp(A.SeqExp([])) = ({exp=Translate.dummy, ty=Ty.UNIT})
-        | trexp(A.SeqExp((x, pos)::[])) = (trexp(x))
-        | trexp(A.SeqExp((x, pos)::xs)) = (trexp(x); trexp(A.SeqExp(xs)))
+        (* 2 kinds of sequences. *)
+        | trexp(A.SeqExp([])) = ({exp=Translate.intExp(0), ty=Ty.UNIT})
+        | trexp(A.SeqExp((x,pos)::[])) =
+            let
+                val res = trexp(x)
+            in
+                {exp=Translate.singleSeq(#exp res), ty=(#ty res)}
+            end
+        | trexp(A.SeqExp((x, pos)::xs)) =
+            let
+                val fstRes = trexp(x)
+                val restRes = trexp(A.SeqExp(xs))
+            in
+                {exp=Translate.seqExp(#exp fstRes, #exp restRes), ty=(#ty restRes)}
+            end
 
         (* Let expressions. Processing outsourced to trDecs *)
         | trexp(A.LetExp({decs, body, pos})) =
-          (transExp(trDecs(venv, tenv, decs, level)) body)
+            let
+               (* TODO use vardeclist *)
+                val (venv, tenv,level, brkLabel, varDecList) = trDecs(venv, tenv, decs, level, brkLabel, [])
+                val transExpArg = (venv, tenv, level, brkLabel)
+            in
+                (transExp(transExpArg) body)
+            end
 
         (* If-then expression *)
         | trexp(A.IfExp({test=exp1,
@@ -641,15 +669,17 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
         | trexp(A.WhileExp({test=exp1, body=exp2, pos=pos})) =
           let
             val testRes = trexp(exp1)
-            val bodyRes = trexp(exp2)
+            (*TODO:  check break nesting *)
+            val bodyRes = (brNesting := !brNesting + 1;
+                           trexp(exp2))
+            val decrement = (brNesting := !brNesting - 1)
           in
             (check(#ty testRes, Ty.INT, pos,
                    "Non-Int condition check in an while expression.");
-             brNesting := !brNesting + 1;
              check(#ty bodyRes, Ty.UNIT, pos,
                    "Body of while must be of type UNIT.");
-             brNesting := !brNesting - 1;
-             {exp=Translate.dummy, ty=Ty.UNIT}) (* while is a valueless expression *)
+             {exp=Translate.whileExp(#exp testRes, #exp bodyRes, Temp.newLabel()),
+              ty=Ty.UNIT}) (* while is a valueless expression *)
           end
         (* For loops *)
         | trexp(A.ForExp({var=sym, escape=esc, lo=exp1, hi=exp2,
@@ -663,7 +693,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
                                 ty=Ty.UNASSIGNABLE}))
             val loRes = trexp(exp1)
             val hiRes = trexp(exp2)
-            val bodyRes = transExp(venv', tenv, level) exp3
+            val bodyRes = transExp(venv', tenv, level, brkLabel) exp3
           in
             (check(#ty loRes, Ty.INT, pos,
                    "Low value in `for` must be of type INT.");
@@ -684,7 +714,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
           (if (!brNesting > 0)
            then ()
            else throwUp(pos, "Break occurs out of scope.");
-           {exp=Translate.dummy, ty=Ty.BOTTOM})
+           {exp=Translate.brkExp(brkLabel), ty=Ty.BOTTOM})
 
         (* Records *)
         | trexp(A.RecordExp({fields=fields, typ=typ, pos=pos})) =
@@ -696,16 +726,26 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level) : (A.exp -> expty) =
                      then we need to verify all of the field types
                      are correct *)
                   of Ty.RECORD((fieldList, uniq)) =>
-                     (verifyFields(fields, fieldList, pos);
-                      {exp=Translate.dummy, ty=Ty.RECORD((fieldList, uniq))})
+                     let
+                        val expList = map trexp (map #2 fields)
+                        val tyList = map #ty expList
+                        val verifyList = ListPair.map
+                            (fn ((sym, exp, pos), ty) =>
+                                (sym, ty, pos))
+                            (fields, tyList)
+                     in
+                     (verifyFields(verifyList, fieldList, pos);
+                      {exp=Translate.recordExp(map #exp expList),
+                       ty=Ty.RECORD((fieldList, uniq))})
+                     end
                    (* if it is not a record, print an error
                       and use an empty record type to continue *)
                    | _ => (throwUp(pos, "Type given is not a record:"^S.name(typ));
-                           {exp=Translate.dummy, ty=Ty.RECORD([], ref ())}))
+                           {exp=Translate.error, ty=Ty.RECORD([], ref ())}))
              (* if it is not in the tenv, print an error
                 and use an empty record type to continue *)
              |  NONE => (throwUp(pos, "Record type not found:"^S.name(typ));
-                         {exp=Translate.dummy, ty=Ty.RECORD([], ref ())})))
+                         {exp=Translate.error, ty=Ty.RECORD([], ref ())})))
 
         (* Arrays *)
         | trexp(A.ArrayExp({typ=typ, size=size, init=init, pos=pos})) =
@@ -751,7 +791,9 @@ fun transProg(e) = (FindEscape.findEscape(e);
                         val result = transExp(E.base_venv, E.base_tenv,
                              Translate.newLevel {parent=Translate.outermost,
                                                  name=Temp.newLabel(),
-                                                 formals=[]}) e
+                                                 formals=[]},
+                                                 (* TODO: change to error label *)
+                                                 Temp.newLabel()) e
                     in
                     (if !errorExists
                     then (throwUp(0,"Type-checking failed.");
