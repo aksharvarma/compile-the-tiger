@@ -12,14 +12,14 @@ let
 /*        type bad = { f: none, g: int } */
         type list = { first: int, rest: list }
         type rec2 = { f: int, g: string }
-	type a = b
-	type c = int
+        type a = b
+        type c = int
         type h = list
-	type b = c
-	var i := 0
-	var j:a := 1
-	var s9:b := 0
-	var c:c := 1
+        type b = c
+        var i := 0
+        var j:a := 1
+        var s9:b := 0
+        var c:c := 1
         var t:rec := rec{ f=1, g="abc" }
         var l := list { first=0, rest= nil }
         var arr := arr[i] of 6
@@ -36,18 +36,18 @@ let
             if L = nil then 0
             else treeLeaves(L.hd) + treelistLeaves(L.tl)
 
-	*/var s:string := "foo"
+        */var s:string := "foo"
         function foo(a: int, b: string):int = (print(b); 5 + a)
         function bar(a: string) = print(a)
         function even(num: int):int = if (num = 0) then 1 else odd(num - 1)
         function odd(num: int):int = if (num = 0) then 0 else even(num - 1)
 
-	type vbn = int
-	type vbn1 = int
+        type vbn = int
+        type vbn1 = int
 
-	function zxc(a: int) : int =
-	let function yuh() = print("sd") in 4 end
-	function zxc1() = print("I'm foo")
+        function zxc(a: int) : int =
+        let function yuh() = print("sd") in 4 end
+        function zxc1() = print("I'm foo")
 
 in
 (while i do (print(s); if break then break else break; break);

@@ -2,11 +2,11 @@ functor TigerLrValsFun(structure Token : TOKEN)
  : sig structure ParserData : PARSER_DATA
        structure Tokens : Tiger_TOKENS
    end
- = 
+ =
 struct
 structure ParserData=
 struct
-structure Header = 
+structure Header =
 struct
 structure A = Absyn
 val sym = Symbol.symbolize
@@ -17,7 +17,7 @@ type recordFieldsT = ((symbol * A.exp * A.pos) list)
 end
 structure LrTable = Token.LrTable
 structure Token = Token
-local open LrTable in 
+local open LrTable in
 val table=let val actionRows =
 "\
 \\001\000\001\000\000\000\000\000\
@@ -422,7 +422,7 @@ val gotoT =
 val numstates = 145
 val numrules = 65
 val s = ref "" and index = ref 0
-val string_to_int = fn () => 
+val string_to_int = fn () =>
 let val i = !index
 in index := i+2; Char.ord(String.sub(!s,i)) + Char.ord(String.sub(!s,i+1)) * 256
 end
@@ -480,7 +480,7 @@ end
 local open Header in
 type pos = Absyn.pos
 type arg = unit
-structure MlyValue = 
+structure MlyValue =
 struct
 datatype svalue = VOID | ntVOID of unit ->  unit
  | STRING of unit ->  (string) | INT of unit ->  (int)
@@ -510,7 +510,7 @@ fn (T 31) => true | (T 32) => true | (T 33) => true | (T 39) => true
  | (T 42) => true | (T 43) => true | (T 27) => true | (T 28) => true
  | (T 29) => true | (T 30) => true | (T 34) => true | (T 38) => true
  | (T 40) => true | _ => false
-val preferred_change : (term list * term list) list = 
+val preferred_change : (term list * term list) list =
 (nil
 ,nil
  $$ (T 29))::
@@ -545,7 +545,7 @@ val preferred_change : (term list * term list) list =
 ,nil
  $$ (T 37) $$ (T 2) $$ (T 36))::
 nil
-val noShift = 
+val noShift =
 fn (T 0) => true | _ => false
 val showTerminal =
 fn (T 0) => "EOF"
@@ -597,9 +597,9 @@ fn (T 0) => "EOF"
   | _ => "bogus-term"
 local open Header in
 val errtermvalue=
-fn (T 1) => MlyValue.ID(fn () => ("bogus")) | 
-(T 2) => MlyValue.INT(fn () => (1)) | 
-(T 3) => MlyValue.STRING(fn () => ("arbit-string")) | 
+fn (T 1) => MlyValue.ID(fn () => ("bogus")) |
+(T 2) => MlyValue.INT(fn () => (1)) |
+(T 3) => MlyValue.STRING(fn () => ("arbit-string")) |
 _ => MlyValue.VOID
 end
 val terms : term list = nil
@@ -608,17 +608,17 @@ val terms : term list = nil
  $$ (T 31) $$ (T 30) $$ (T 29) $$ (T 28) $$ (T 27) $$ (T 26) $$ (T 25)
  $$ (T 24) $$ (T 23) $$ (T 22) $$ (T 21) $$ (T 20) $$ (T 19) $$ (T 18)
  $$ (T 17) $$ (T 16) $$ (T 15) $$ (T 14) $$ (T 13) $$ (T 12) $$ (T 11)
- $$ (T 10) $$ (T 9) $$ (T 8) $$ (T 7) $$ (T 6) $$ (T 5) $$ (T 4) $$ 
+ $$ (T 10) $$ (T 9) $$ (T 8) $$ (T 7) $$ (T 6) $$ (T 5) $$ (T 4) $$
 (T 0)end
 structure Actions =
-struct 
+struct
 exception mlyAction of int
 local open Header in
-val actions = 
+val actions =
 fn (i392,defaultPos,stack,
     (()):arg) =>
 case (i392,stack)
-of  ( 0, ( ( _, ( MlyValue.expr expr1, expr1left, expr1right)) :: 
+of  ( 0, ( ( _, ( MlyValue.expr expr1, expr1left, expr1right)) ::
 rest671)) => let val  result = MlyValue.program (fn _ => let val  (
 expr as expr1) = expr1 ()
  in (expr)
@@ -632,12 +632,12 @@ lvalue as lvalue1) = lvalue1 ()
 end)
  in ( LrTable.NT 1, ( result, lvalue1left, lvalue1right), rest671)
 end
-|  ( 2, ( ( _, ( _, NIL1left, NIL1right)) :: rest671)) => let val  
+|  ( 2, ( ( _, ( _, NIL1left, NIL1right)) :: rest671)) => let val
 result = MlyValue.expr (fn _ => (A.NilExp))
  in ( LrTable.NT 1, ( result, NIL1left, NIL1right), rest671)
 end
 |  ( 3, ( ( _, ( MlyValue.INT INT1, INT1left, INT1right)) :: rest671))
- => let val  result = MlyValue.expr (fn _ => let val  (INT as INT1) = 
+ => let val  result = MlyValue.expr (fn _ => let val  (INT as INT1) =
 INT1 ()
  in (A.IntExp(INT))
 end)
@@ -650,141 +650,141 @@ end
 end)
  in ( LrTable.NT 1, ( result, STRING1left, STRING1right), rest671)
 end
-|  ( 5, ( ( _, ( _, _, RPAREN1right)) :: ( _, ( MlyValue.funparam 
+|  ( 5, ( ( _, ( _, _, RPAREN1right)) :: ( _, ( MlyValue.funparam
 funparam1, _, _)) :: _ :: ( _, ( MlyValue.ID ID1, (IDleft as ID1left),
- _)) :: rest671)) => let val  result = MlyValue.expr (fn _ => let val 
+ _)) :: rest671)) => let val  result = MlyValue.expr (fn _ => let val
  (ID as ID1) = ID1 ()
  val  (funparam as funparam1) = funparam1 ()
  in (
 A.CallExp({func=sym(ID),
-					    args=funparam,
-					    pos=IDleft})
+                                            args=funparam,
+                                            pos=IDleft})
 )
 end)
  in ( LrTable.NT 1, ( result, ID1left, RPAREN1right), rest671)
 end
 |  ( 6, ( ( _, ( MlyValue.expr expr1, _, expr1right)) :: ( _, ( _, (
-MINUSleft as MINUS1left), _)) :: rest671)) => let val  result = 
+MINUSleft as MINUS1left), _)) :: rest671)) => let val  result =
 MlyValue.expr (fn _ => let val  (expr as expr1) = expr1 ()
  in (
 A.OpExp({left=A.IntExp(0), oper=A.MinusOp,
-				          right=expr, pos=MINUSleft})
+                                          right=expr, pos=MINUSleft})
 )
 end)
  in ( LrTable.NT 1, ( result, MINUS1left, expr1right), rest671)
 end
-|  ( 7, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _, 
-TIMESleft, _)) :: ( _, ( MlyValue.expr expr1, expr1left, _)) :: 
+|  ( 7, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _,
+TIMESleft, _)) :: ( _, ( MlyValue.expr expr1, expr1left, _)) ::
 rest671)) => let val  result = MlyValue.expr (fn _ => let val  expr1 =
  expr1 ()
  val  expr2 = expr2 ()
  in (
 A.OpExp({left=expr1, oper=A.TimesOp,
-			          right=expr2, pos=TIMESleft})
+                                  right=expr2, pos=TIMESleft})
 )
 end)
  in ( LrTable.NT 1, ( result, expr1left, expr2right), rest671)
 end
-|  ( 8, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _, 
+|  ( 8, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _,
 PLUSleft, _)) :: ( _, ( MlyValue.expr expr1, expr1left, _)) :: rest671
 )) => let val  result = MlyValue.expr (fn _ => let val  expr1 = expr1
  ()
  val  expr2 = expr2 ()
  in (
 A.OpExp({left=expr1, oper=A.PlusOp,
-			          right=expr2, pos=PLUSleft})
+                                  right=expr2, pos=PLUSleft})
 )
 end)
  in ( LrTable.NT 1, ( result, expr1left, expr2right), rest671)
 end
-|  ( 9, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _, 
-MINUSleft, _)) :: ( _, ( MlyValue.expr expr1, expr1left, _)) :: 
+|  ( 9, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _,
+MINUSleft, _)) :: ( _, ( MlyValue.expr expr1, expr1left, _)) ::
 rest671)) => let val  result = MlyValue.expr (fn _ => let val  expr1 =
  expr1 ()
  val  expr2 = expr2 ()
  in (
 A.OpExp({left=expr1, oper=A.MinusOp,
-				  right=expr2, pos=MINUSleft})
+                                  right=expr2, pos=MINUSleft})
 )
 end)
  in ( LrTable.NT 1, ( result, expr1left, expr2right), rest671)
 end
-|  ( 10, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _, 
-DIVIDEleft, _)) :: ( _, ( MlyValue.expr expr1, expr1left, _)) :: 
+|  ( 10, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _,
+DIVIDEleft, _)) :: ( _, ( MlyValue.expr expr1, expr1left, _)) ::
 rest671)) => let val  result = MlyValue.expr (fn _ => let val  expr1 =
  expr1 ()
  val  expr2 = expr2 ()
  in (
 A.OpExp({left=expr1, oper=A.DivideOp,
-				  right=expr2, pos=DIVIDEleft})
+                                  right=expr2, pos=DIVIDEleft})
 )
 end)
  in ( LrTable.NT 1, ( result, expr1left, expr2right), rest671)
 end
-|  ( 11, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _, 
+|  ( 11, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _,
 EQleft, _)) :: ( _, ( MlyValue.expr expr1, expr1left, _)) :: rest671))
  => let val  result = MlyValue.expr (fn _ => let val  expr1 = expr1 ()
  val  expr2 = expr2 ()
  in (A.OpExp({left=expr1, oper=A.EqOp,
-				  right=expr2, pos=EQleft})
+                                  right=expr2, pos=EQleft})
 )
 end)
  in ( LrTable.NT 1, ( result, expr1left, expr2right), rest671)
 end
-|  ( 12, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _, 
+|  ( 12, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _,
 NEQleft, _)) :: ( _, ( MlyValue.expr expr1, expr1left, _)) :: rest671)
 ) => let val  result = MlyValue.expr (fn _ => let val  expr1 = expr1
  ()
  val  expr2 = expr2 ()
  in (
 A.OpExp({left=expr1, oper=A.NeqOp,
-			          right=expr2, pos=NEQleft})
+                                  right=expr2, pos=NEQleft})
 )
 end)
  in ( LrTable.NT 1, ( result, expr1left, expr2right), rest671)
 end
-|  ( 13, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _, 
+|  ( 13, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _,
 LTleft, _)) :: ( _, ( MlyValue.expr expr1, expr1left, _)) :: rest671))
  => let val  result = MlyValue.expr (fn _ => let val  expr1 = expr1 ()
  val  expr2 = expr2 ()
  in (A.OpExp({left=expr1, oper=A.LtOp,
-				  right=expr2, pos=LTleft})
+                                  right=expr2, pos=LTleft})
 )
 end)
  in ( LrTable.NT 1, ( result, expr1left, expr2right), rest671)
 end
-|  ( 14, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _, 
+|  ( 14, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _,
 LEleft, _)) :: ( _, ( MlyValue.expr expr1, expr1left, _)) :: rest671))
  => let val  result = MlyValue.expr (fn _ => let val  expr1 = expr1 ()
  val  expr2 = expr2 ()
  in (A.OpExp({left=expr1, oper=A.LeOp,
-				  right=expr2, pos=LEleft})
+                                  right=expr2, pos=LEleft})
 )
 end)
  in ( LrTable.NT 1, ( result, expr1left, expr2right), rest671)
 end
-|  ( 15, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _, 
+|  ( 15, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _,
 GTleft, _)) :: ( _, ( MlyValue.expr expr1, expr1left, _)) :: rest671))
  => let val  result = MlyValue.expr (fn _ => let val  expr1 = expr1 ()
  val  expr2 = expr2 ()
  in (A.OpExp({left=expr1, oper=A.GtOp,
-				  right=expr2, pos=GTleft})
+                                  right=expr2, pos=GTleft})
 )
 end)
  in ( LrTable.NT 1, ( result, expr1left, expr2right), rest671)
 end
-|  ( 16, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _, 
+|  ( 16, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _,
 GEleft, _)) :: ( _, ( MlyValue.expr expr1, expr1left, _)) :: rest671))
  => let val  result = MlyValue.expr (fn _ => let val  expr1 = expr1 ()
  val  expr2 = expr2 ()
  in (
 A.OpExp({left=expr1, oper=A.GeOp,
-			          right=expr2, pos=GEleft})
+                                  right=expr2, pos=GEleft})
 )
 end)
  in ( LrTable.NT 1, ( result, expr1left, expr2right), rest671)
 end
-|  ( 17, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _, 
+|  ( 17, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _,
 ANDleft, _)) :: ( _, ( MlyValue.expr expr1, expr1left, _)) :: rest671)
 ) => let val  result = MlyValue.expr (fn _ => let val  expr1 = expr1
  ()
@@ -796,7 +796,7 @@ A.IfExp({test=expr1, then'=expr2,
 end)
  in ( LrTable.NT 1, ( result, expr1left, expr2right), rest671)
 end
-|  ( 18, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _, 
+|  ( 18, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: ( _, ( _,
 ORleft, _)) :: ( _, ( MlyValue.expr expr1, expr1left, _)) :: rest671))
  => let val  result = MlyValue.expr (fn _ => let val  expr1 = expr1 ()
  val  expr2 = expr2 ()
@@ -819,14 +819,14 @@ end
 A.SeqExp([])))
  in ( LrTable.NT 1, ( result, LPAREN1left, RPAREN1right), rest671)
 end
-|  ( 21, ( ( _, ( _, _, RPAREN1right)) :: ( _, ( MlyValue.expr expr1, 
-exprleft, _)) :: ( _, ( _, LPAREN1left, _)) :: rest671)) => let val  
+|  ( 21, ( ( _, ( _, _, RPAREN1right)) :: ( _, ( MlyValue.expr expr1,
+exprleft, _)) :: ( _, ( _, LPAREN1left, _)) :: rest671)) => let val
 result = MlyValue.expr (fn _ => let val  (expr as expr1) = expr1 ()
  in (A.SeqExp([(expr, exprleft)]))
 end)
  in ( LrTable.NT 1, ( result, LPAREN1left, RPAREN1right), rest671)
 end
-|  ( 22, ( ( _, ( _, _, RPAREN1right)) :: ( _, ( MlyValue.exprSeq 
+|  ( 22, ( ( _, ( _, _, RPAREN1right)) :: ( _, ( MlyValue.exprSeq
 exprSeq1, _, _)) :: ( _, ( _, LPAREN1left, _)) :: rest671)) => let
  val  result = MlyValue.expr (fn _ => let val  (exprSeq as exprSeq1) =
  exprSeq1 ()
@@ -834,7 +834,7 @@ exprSeq1, _, _)) :: ( _, ( _, LPAREN1left, _)) :: rest671)) => let
 end)
  in ( LrTable.NT 1, ( result, LPAREN1left, RPAREN1right), rest671)
 end
-|  ( 23, ( ( _, ( MlyValue.expr expr1, _, expr1right)) :: ( _, ( _, 
+|  ( 23, ( ( _, ( MlyValue.expr expr1, _, expr1right)) :: ( _, ( _,
 ASSIGNleft, _)) :: ( _, ( MlyValue.lvalue lvalue1, lvalue1left, _)) ::
  rest671)) => let val  result = MlyValue.expr (fn _ => let val  (
 lvalue as lvalue1) = lvalue1 ()
@@ -843,8 +843,8 @@ lvalue as lvalue1) = lvalue1 ()
 end)
  in ( LrTable.NT 1, ( result, lvalue1left, expr1right), rest671)
 end
-|  ( 24, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: _ :: ( _, ( 
-MlyValue.expr expr1, _, _)) :: ( _, ( _, (IFleft as IF1left), _)) :: 
+|  ( 24, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: _ :: ( _, (
+MlyValue.expr expr1, _, _)) :: ( _, ( _, (IFleft as IF1left), _)) ::
 rest671)) => let val  result = MlyValue.expr (fn _ => let val  expr1 =
  expr1 ()
  val  expr2 = expr2 ()
@@ -852,7 +852,7 @@ rest671)) => let val  result = MlyValue.expr (fn _ => let val  expr1 =
 end)
  in ( LrTable.NT 1, ( result, IF1left, expr2right), rest671)
 end
-|  ( 25, ( ( _, ( MlyValue.expr expr3, _, expr3right)) :: _ :: ( _, ( 
+|  ( 25, ( ( _, ( MlyValue.expr expr3, _, expr3right)) :: _ :: ( _, (
 MlyValue.expr expr2, _, _)) :: _ :: ( _, ( MlyValue.expr expr1, _, _))
  :: ( _, ( _, (IFleft as IF1left), _)) :: rest671)) => let val  result
  = MlyValue.expr (fn _ => let val  expr1 = expr1 ()
@@ -863,18 +863,18 @@ MlyValue.expr expr2, _, _)) :: _ :: ( _, ( MlyValue.expr expr1, _, _))
 end)
  in ( LrTable.NT 1, ( result, IF1left, expr3right), rest671)
 end
-|  ( 26, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: _ :: ( _, ( 
+|  ( 26, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: _ :: ( _, (
 MlyValue.expr expr1, _, _)) :: ( _, ( _, (WHILEleft as WHILE1left), _)
-) :: rest671)) => let val  result = MlyValue.expr (fn _ => let val  
+) :: rest671)) => let val  result = MlyValue.expr (fn _ => let val
 expr1 = expr1 ()
  val  expr2 = expr2 ()
  in (A.WhileExp({test=expr1, body=expr2, pos=WHILEleft}))
 end)
  in ( LrTable.NT 1, ( result, WHILE1left, expr2right), rest671)
 end
-|  ( 27, ( ( _, ( MlyValue.expr expr3, _, expr3right)) :: _ :: ( _, ( 
+|  ( 27, ( ( _, ( MlyValue.expr expr3, _, expr3right)) :: _ :: ( _, (
 MlyValue.expr expr2, _, _)) :: _ :: ( _, ( MlyValue.expr expr1, _, _))
- :: _ :: ( _, ( MlyValue.ID ID1, _, _)) :: ( _, ( _, (FORleft as 
+ :: _ :: ( _, ( MlyValue.ID ID1, _, _)) :: ( _, ( _, (FORleft as
 FOR1left), _)) :: rest671)) => let val  result = MlyValue.expr (fn _
  => let val  (ID as ID1) = ID1 ()
  val  expr1 = expr1 ()
@@ -887,7 +887,7 @@ A.ForExp({var=sym(ID), escape=ref false, lo=expr1,
 end)
  in ( LrTable.NT 1, ( result, FOR1left, expr3right), rest671)
 end
-|  ( 28, ( ( _, ( _, (BREAKleft as BREAK1left), BREAK1right)) :: 
+|  ( 28, ( ( _, ( _, (BREAKleft as BREAK1left), BREAK1right)) ::
 rest671)) => let val  result = MlyValue.expr (fn _ => (
 A.BreakExp(BREAKleft)))
  in ( LrTable.NT 1, ( result, BREAK1left, BREAK1right), rest671)
@@ -909,31 +909,31 @@ end
 end)
  in ( LrTable.NT 1, ( result, LET1left, END1right), rest671)
 end
-|  ( 31, ( ( _, ( _, _, END1right)) :: ( _, ( MlyValue.exprSeq 
+|  ( 31, ( ( _, ( _, _, END1right)) :: ( _, ( MlyValue.exprSeq
 exprSeq1, _, _)) :: _ :: ( _, ( MlyValue.decs decs1, _, _)) :: ( _, (
- _, (LETleft as LET1left), _)) :: rest671)) => let val  result = 
+ _, (LETleft as LET1left), _)) :: rest671)) => let val  result =
 MlyValue.expr (fn _ => let val  (decs as decs1) = decs1 ()
  val  (exprSeq as exprSeq1) = exprSeq1 ()
  in (A.LetExp({decs=decs, body=A.SeqExp(exprSeq),
-					 pos=LETleft}))
+                                         pos=LETleft}))
 
 end)
  in ( LrTable.NT 1, ( result, LET1left, END1right), rest671)
 end
 |  ( 32, ( ( _, ( MlyValue.expr expr2, _, expr2right)) :: _ :: _ :: (
  _, ( MlyValue.expr expr1, _, _)) :: _ :: ( _, ( MlyValue.ID ID1, (
-IDleft as ID1left), _)) :: rest671)) => let val  result = 
+IDleft as ID1left), _)) :: rest671)) => let val  result =
 MlyValue.expr (fn _ => let val  (ID as ID1) = ID1 ()
  val  expr1 = expr1 ()
  val  expr2 = expr2 ()
  in (
 
-	   A.ArrayExp({typ=sym(ID), size=expr1, init=expr2, pos=IDleft}))
+           A.ArrayExp({typ=sym(ID), size=expr1, init=expr2, pos=IDleft}))
 
 end)
  in ( LrTable.NT 1, ( result, ID1left, expr2right), rest671)
 end
-|  ( 33, ( ( _, ( MlyValue.ID ID1, (IDleft as ID1left), ID1right)) :: 
+|  ( 33, ( ( _, ( MlyValue.ID ID1, (IDleft as ID1left), ID1right)) ::
 rest671)) => let val  result = MlyValue.lvalue (fn _ => let val  (ID
  as ID1) = ID1 ()
  in (A.SimpleVar(sym(ID), IDleft))
@@ -942,7 +942,7 @@ end)
 end
 |  ( 34, ( ( _, ( MlyValue.ID ID1, _, ID1right)) :: ( _, ( _, DOTleft,
  _)) :: ( _, ( MlyValue.lvalue lvalue1, lvalue1left, _)) :: rest671))
- => let val  result = MlyValue.lvalue (fn _ => let val  (lvalue as 
+ => let val  result = MlyValue.lvalue (fn _ => let val  (lvalue as
 lvalue1) = lvalue1 ()
  val  (ID as ID1) = ID1 ()
  in (A.FieldVar(lvalue, sym(ID), DOTleft))
@@ -951,7 +951,7 @@ end)
 end
 |  ( 35, ( ( _, ( _, _, RBRACK1right)) :: ( _, ( MlyValue.expr expr1,
  _, _)) :: ( _, ( _, LBRACKleft, _)) :: ( _, ( MlyValue.ID ID1, (
-IDleft as ID1left), _)) :: rest671)) => let val  result = 
+IDleft as ID1left), _)) :: rest671)) => let val  result =
 MlyValue.lvalue (fn _ => let val  (ID as ID1) = ID1 ()
  val  (expr as expr1) = expr1 ()
  in (
@@ -971,16 +971,16 @@ end)
  in ( LrTable.NT 2, ( result, lvalue1left, RBRACK1right), rest671)
 end
 |  ( 37, ( ( _, ( MlyValue.expr expr2, expr2left, expr2right)) :: _ ::
- ( _, ( MlyValue.expr expr1, expr1left, _)) :: rest671)) => let val  
+ ( _, ( MlyValue.expr expr1, expr1left, _)) :: rest671)) => let val
 result = MlyValue.exprSeq (fn _ => let val  expr1 = expr1 ()
  val  expr2 = expr2 ()
  in ([(expr1, expr1left), (expr2, expr2left)])
 end)
  in ( LrTable.NT 3, ( result, expr1left, expr2right), rest671)
 end
-|  ( 38, ( ( _, ( MlyValue.expr expr1, exprleft, expr1right)) :: _ :: 
+|  ( 38, ( ( _, ( MlyValue.expr expr1, exprleft, expr1right)) :: _ ::
 ( _, ( MlyValue.exprSeq exprSeq1, exprSeq1left, _)) :: rest671)) =>
- let val  result = MlyValue.exprSeq (fn _ => let val  (exprSeq as 
+ let val  result = MlyValue.exprSeq (fn _ => let val  (exprSeq as
 exprSeq1) = exprSeq1 ()
  val  (expr as expr1) = expr1 ()
  in (exprSeq@[(expr, exprleft)])
@@ -991,16 +991,16 @@ end
 []))
  in ( LrTable.NT 4, ( result, defaultPos, defaultPos), rest671)
 end
-|  ( 40, ( ( _, ( MlyValue.expr expr1, expr1left, expr1right)) :: 
+|  ( 40, ( ( _, ( MlyValue.expr expr1, expr1left, expr1right)) ::
 rest671)) => let val  result = MlyValue.funparam (fn _ => let val  (
 expr as expr1) = expr1 ()
  in ([expr])
 end)
  in ( LrTable.NT 4, ( result, expr1left, expr1right), rest671)
 end
-|  ( 41, ( ( _, ( MlyValue.expr expr1, _, expr1right)) :: _ :: ( _, ( 
+|  ( 41, ( ( _, ( MlyValue.expr expr1, _, expr1right)) :: _ :: ( _, (
 MlyValue.funparam funparam1, funparam1left, _)) :: rest671)) => let
- val  result = MlyValue.funparam (fn _ => let val  (funparam as 
+ val  result = MlyValue.funparam (fn _ => let val  (funparam as
 funparam1) = funparam1 ()
  val  (expr as expr1) = expr1 ()
  in (funparam@[expr])
@@ -1008,7 +1008,7 @@ end)
  in ( LrTable.NT 4, ( result, funparam1left, expr1right), rest671)
 end
 |  ( 42, ( ( _, ( _, _, RBRACE1right)) :: _ :: ( _, ( MlyValue.ID ID1,
- (IDleft as ID1left), _)) :: rest671)) => let val  result = 
+ (IDleft as ID1left), _)) :: rest671)) => let val  result =
 MlyValue.record (fn _ => let val  (ID as ID1) = ID1 ()
  in (
 A.RecordExp({fields=[], typ=sym(ID),
@@ -1018,27 +1018,27 @@ end)
  in ( LrTable.NT 5, ( result, ID1left, RBRACE1right), rest671)
 end
 |  ( 43, ( ( _, ( _, _, RBRACE1right)) :: ( _, ( MlyValue.recordFields
- recordFields1, _, _)) :: _ :: ( _, ( MlyValue.ID ID1, (IDleft as 
+ recordFields1, _, _)) :: _ :: ( _, ( MlyValue.ID ID1, (IDleft as
 ID1left), _)) :: rest671)) => let val  result = MlyValue.record (fn _
  => let val  (ID as ID1) = ID1 ()
  val  (recordFields as recordFields1) = recordFields1 ()
  in (
 A.RecordExp({fields=recordFields, typ=sym(ID),
-						    pos=IDleft}))
+                                                    pos=IDleft}))
 
 end)
  in ( LrTable.NT 5, ( result, ID1left, RBRACE1right), rest671)
 end
-|  ( 44, ( ( _, ( MlyValue.expr expr1, _, expr1right)) :: _ :: ( _, ( 
-MlyValue.ID ID1, (IDleft as ID1left), _)) :: rest671)) => let val  
+|  ( 44, ( ( _, ( MlyValue.expr expr1, _, expr1right)) :: _ :: ( _, (
+MlyValue.ID ID1, (IDleft as ID1left), _)) :: rest671)) => let val
 result = MlyValue.recordFields (fn _ => let val  (ID as ID1) = ID1 ()
  val  (expr as expr1) = expr1 ()
  in ([(sym(ID), expr, IDleft)])
 end)
  in ( LrTable.NT 6, ( result, ID1left, expr1right), rest671)
 end
-|  ( 45, ( ( _, ( MlyValue.expr expr1, _, expr1right)) :: _ :: ( _, ( 
-MlyValue.ID ID1, _, _)) :: ( _, ( _, COMMAleft, _)) :: ( _, ( 
+|  ( 45, ( ( _, ( MlyValue.expr expr1, _, expr1right)) :: _ :: ( _, (
+MlyValue.ID ID1, _, _)) :: ( _, ( _, COMMAleft, _)) :: ( _, (
 MlyValue.recordFields recordFields1, recordFields1left, _)) :: rest671
 )) => let val  result = MlyValue.recordFields (fn _ => let val  (
 recordFields as recordFields1) = recordFields1 ()
@@ -1069,31 +1069,31 @@ end)
  in ( LrTable.NT 7, ( result, decs1left, vardec1right), rest671)
 end
 |  ( 49, ( ( _, ( MlyValue.fundecs fundecs1, _, fundecs1right)) :: ( _
-, ( MlyValue.decs decs1, decs1left, _)) :: rest671)) => let val  
+, ( MlyValue.decs decs1, decs1left, _)) :: rest671)) => let val
 result = MlyValue.decs (fn _ => let val  (decs as decs1) = decs1 ()
  val  (fundecs as fundecs1) = fundecs1 ()
  in (decs@[A.FunctionDec(fundecs)])
 end)
  in ( LrTable.NT 7, ( result, decs1left, fundecs1right), rest671)
 end
-|  ( 50, ( ( _, ( MlyValue.tydec tydec1, tydec1left, tydec1right)) :: 
+|  ( 50, ( ( _, ( MlyValue.tydec tydec1, tydec1left, tydec1right)) ::
 rest671)) => let val  result = MlyValue.tydecs (fn _ => let val  (
 tydec as tydec1) = tydec1 ()
  in ([tydec])
 end)
  in ( LrTable.NT 9, ( result, tydec1left, tydec1right), rest671)
 end
-|  ( 51, ( ( _, ( MlyValue.tydec tydec1, _, tydec1right)) :: ( _, ( 
-MlyValue.tydecs tydecs1, tydecs1left, _)) :: rest671)) => let val  
-result = MlyValue.tydecs (fn _ => let val  (tydecs as tydecs1) = 
+|  ( 51, ( ( _, ( MlyValue.tydec tydec1, _, tydec1right)) :: ( _, (
+MlyValue.tydecs tydecs1, tydecs1left, _)) :: rest671)) => let val
+result = MlyValue.tydecs (fn _ => let val  (tydecs as tydecs1) =
 tydecs1 ()
  val  (tydec as tydec1) = tydec1 ()
  in (tydecs@[tydec])
 end)
  in ( LrTable.NT 9, ( result, tydecs1left, tydec1right), rest671)
 end
-|  ( 52, ( ( _, ( MlyValue.ty ty1, _, ty1right)) :: _ :: ( _, ( 
-MlyValue.ID ID1, _, _)) :: ( _, ( _, (TYPEleft as TYPE1left), _)) :: 
+|  ( 52, ( ( _, ( MlyValue.ty ty1, _, ty1right)) :: _ :: ( _, (
+MlyValue.ID ID1, _, _)) :: ( _, ( _, (TYPEleft as TYPE1left), _)) ::
 rest671)) => let val  result = MlyValue.tydec (fn _ => let val  (ID
  as ID1) = ID1 ()
  val  (ty as ty1) = ty1 ()
@@ -1101,14 +1101,14 @@ rest671)) => let val  result = MlyValue.tydec (fn _ => let val  (ID
 end)
  in ( LrTable.NT 8, ( result, TYPE1left, ty1right), rest671)
 end
-|  ( 53, ( ( _, ( MlyValue.ID ID1, (IDleft as ID1left), ID1right)) :: 
-rest671)) => let val  result = MlyValue.ty (fn _ => let val  (ID as 
+|  ( 53, ( ( _, ( MlyValue.ID ID1, (IDleft as ID1left), ID1right)) ::
+rest671)) => let val  result = MlyValue.ty (fn _ => let val  (ID as
 ID1) = ID1 ()
  in (A.NameTy(sym(ID), IDleft))
 end)
  in ( LrTable.NT 10, ( result, ID1left, ID1right), rest671)
 end
-|  ( 54, ( ( _, ( _, _, RBRACE1right)) :: ( _, ( MlyValue.tyfields 
+|  ( 54, ( ( _, ( _, _, RBRACE1right)) :: ( _, ( MlyValue.tyfields
 tyfields1, _, _)) :: ( _, ( _, LBRACE1left, _)) :: rest671)) => let
  val  result = MlyValue.ty (fn _ => let val  (tyfields as tyfields1) =
  tyfields1 ()
@@ -1118,7 +1118,7 @@ end)
 
 end
 |  ( 55, ( ( _, ( MlyValue.ID ID1, _, ID1right)) :: _ :: ( _, ( _, (
-ARRAYleft as ARRAY1left), _)) :: rest671)) => let val  result = 
+ARRAYleft as ARRAY1left), _)) :: rest671)) => let val  result =
 MlyValue.ty (fn _ => let val  (ID as ID1) = ID1 ()
  in (A.ArrayTy(sym(ID), ARRAYleft))
 end)
@@ -1128,33 +1128,33 @@ end
 []))
  in ( LrTable.NT 11, ( result, defaultPos, defaultPos), rest671)
 end
-|  ( 57, ( ( _, ( MlyValue.ID ID2, _, ID2right)) :: _ :: ( _, ( 
-MlyValue.ID ID1, ID1left, _)) :: rest671)) => let val  result = 
+|  ( 57, ( ( _, ( MlyValue.ID ID2, _, ID2right)) :: _ :: ( _, (
+MlyValue.ID ID1, ID1left, _)) :: rest671)) => let val  result =
 MlyValue.tyfields (fn _ => let val  ID1 = ID1 ()
  val  ID2 = ID2 ()
  in (
 [{name=sym(ID1), escape=ref false,
-		                   typ=sym(ID2), pos=ID1left}]
+                                   typ=sym(ID2), pos=ID1left}]
 )
 end)
  in ( LrTable.NT 11, ( result, ID1left, ID2right), rest671)
 end
-|  ( 58, ( ( _, ( MlyValue.ID ID2, _, ID2right)) :: _ :: ( _, ( 
-MlyValue.ID ID1, _, _)) :: ( _, ( _, COMMAleft, _)) :: ( _, ( 
+|  ( 58, ( ( _, ( MlyValue.ID ID2, _, ID2right)) :: _ :: ( _, (
+MlyValue.ID ID1, _, _)) :: ( _, ( _, COMMAleft, _)) :: ( _, (
 MlyValue.tyfields tyfields1, tyfields1left, _)) :: rest671)) => let
- val  result = MlyValue.tyfields (fn _ => let val  (tyfields as 
+ val  result = MlyValue.tyfields (fn _ => let val  (tyfields as
 tyfields1) = tyfields1 ()
  val  ID1 = ID1 ()
  val  ID2 = ID2 ()
  in (
 tyfields@[{name=sym(ID1), escape=ref false,
-					    typ=sym(ID2), pos=COMMAleft}]
+                                            typ=sym(ID2), pos=COMMAleft}]
 )
 end)
  in ( LrTable.NT 11, ( result, tyfields1left, ID2right), rest671)
 end
 |  ( 59, ( ( _, ( MlyValue.fundec fundec1, fundec1left, fundec1right))
- :: rest671)) => let val  result = MlyValue.fundecs (fn _ => let val 
+ :: rest671)) => let val  result = MlyValue.fundecs (fn _ => let val
  (fundec as fundec1) = fundec1 ()
  in ([fundec])
 end)
@@ -1162,8 +1162,8 @@ end)
 
 end
 |  ( 60, ( ( _, ( MlyValue.fundec fundec1, _, fundec1right)) :: ( _, (
- MlyValue.fundecs fundecs1, fundecs1left, _)) :: rest671)) => let val 
- result = MlyValue.fundecs (fn _ => let val  (fundecs as fundecs1) = 
+ MlyValue.fundecs fundecs1, fundecs1left, _)) :: rest671)) => let val
+ result = MlyValue.fundecs (fn _ => let val  (fundecs as fundecs1) =
 fundecs1 ()
  val  (fundec as fundec1) = fundec1 ()
  in (fundecs@[fundec])
@@ -1172,8 +1172,8 @@ end)
 
 end
 |  ( 61, ( ( _, ( MlyValue.expr expr1, _, expr1right)) :: _ :: _ :: (
- _, ( MlyValue.tyfields tyfields1, _, _)) :: _ :: ( _, ( MlyValue.ID 
-ID1, _, _)) :: ( _, ( _, (FUNCTIONleft as FUNCTION1left), _)) :: 
+ _, ( MlyValue.tyfields tyfields1, _, _)) :: _ :: ( _, ( MlyValue.ID
+ID1, _, _)) :: ( _, ( _, (FUNCTIONleft as FUNCTION1left), _)) ::
 rest671)) => let val  result = MlyValue.fundec (fn _ => let val  (ID
  as ID1) = ID1 ()
  val  (tyfields as tyfields1) = tyfields1 ()
@@ -1185,8 +1185,8 @@ end)
  in ( LrTable.NT 13, ( result, FUNCTION1left, expr1right), rest671)
 
 end
-|  ( 62, ( ( _, ( MlyValue.expr expr1, _, expr1right)) :: _ :: ( _, ( 
-MlyValue.ID ID2, ID2left, _)) :: _ :: _ :: ( _, ( MlyValue.tyfields 
+|  ( 62, ( ( _, ( MlyValue.expr expr1, _, expr1right)) :: _ :: ( _, (
+MlyValue.ID ID2, ID2left, _)) :: _ :: _ :: ( _, ( MlyValue.tyfields
 tyfields1, _, _)) :: _ :: ( _, ( MlyValue.ID ID1, _, _)) :: ( _, ( _,
  (FUNCTIONleft as FUNCTION1left), _)) :: rest671)) => let val  result
  = MlyValue.fundec (fn _ => let val  ID1 = ID1 ()
@@ -1195,35 +1195,35 @@ tyfields1, _, _)) :: _ :: ( _, ( MlyValue.ID ID1, _, _)) :: ( _, ( _,
  val  (expr as expr1) = expr1 ()
  in (
 {name=sym(ID1), params=tyfields, result=SOME((sym(ID2), ID2left)),
-	      body=expr, pos=FUNCTIONleft}
+              body=expr, pos=FUNCTIONleft}
 )
 end)
  in ( LrTable.NT 13, ( result, FUNCTION1left, expr1right), rest671)
 
 end
-|  ( 63, ( ( _, ( MlyValue.expr expr1, _, expr1right)) :: _ :: ( _, ( 
-MlyValue.ID ID1, _, _)) :: ( _, ( _, (VARleft as VAR1left), _)) :: 
+|  ( 63, ( ( _, ( MlyValue.expr expr1, _, expr1right)) :: _ :: ( _, (
+MlyValue.ID ID1, _, _)) :: ( _, ( _, (VARleft as VAR1left), _)) ::
 rest671)) => let val  result = MlyValue.vardec (fn _ => let val  (ID
  as ID1) = ID1 ()
  val  (expr as expr1) = expr1 ()
  in (
 A.VarDec({name=sym(ID), escape=ref false,
-				               typ=NONE, init=expr, pos=VARleft})
+                                               typ=NONE, init=expr, pos=VARleft})
 )
 end)
  in ( LrTable.NT 12, ( result, VAR1left, expr1right), rest671)
 end
-|  ( 64, ( ( _, ( MlyValue.expr expr1, _, expr1right)) :: _ :: ( _, ( 
-MlyValue.ID ID2, _, _)) :: ( _, ( _, COLONleft, _)) :: ( _, ( 
-MlyValue.ID ID1, _, _)) :: ( _, ( _, (VARleft as VAR1left), _)) :: 
+|  ( 64, ( ( _, ( MlyValue.expr expr1, _, expr1right)) :: _ :: ( _, (
+MlyValue.ID ID2, _, _)) :: ( _, ( _, COLONleft, _)) :: ( _, (
+MlyValue.ID ID1, _, _)) :: ( _, ( _, (VARleft as VAR1left), _)) ::
 rest671)) => let val  result = MlyValue.vardec (fn _ => let val  ID1 =
  ID1 ()
  val  ID2 = ID2 ()
  val  (expr as expr1) = expr1 ()
  in (
 A.VarDec({name=sym(ID1), escape=ref false,
-						typ=SOME((sym(ID2), COLONleft)),
-						init=expr, pos=VARleft})
+                                                typ=SOME((sym(ID2), COLONleft)),
+                                                init=expr, pos=VARleft})
 )
 end)
  in ( LrTable.NT 12, ( result, VAR1left, expr1right), rest671)
@@ -1233,7 +1233,7 @@ end
 val void = MlyValue.VOID
 val extract = fn a => (fn MlyValue.program x => x
 | _ => let exception ParseInternal
-	in raise ParseInternal end) a ()
+        in raise ParseInternal end) a ()
 end
 end
 structure Tokens : Tiger_TOKENS =

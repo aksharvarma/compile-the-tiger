@@ -12,7 +12,7 @@ val wordSize = 4
    with each formal parameter, and the number of local variables
    allocated so far *)
 type frame = {name:Temp.label,
-	      formals: access list,
+              formals: access list,
               locals: int ref}
 
 fun exp(InFrame(k)) = (fn(ex) => T.MEM(T.BINOP(T.PLUS, ex, T.CONST(k))))

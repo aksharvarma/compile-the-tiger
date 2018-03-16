@@ -10,8 +10,8 @@ structure A = Absyn
 
 (* Basic changes to Translate based on IR chapter *)
 datatype exp = Ex of Tree.exp
-	     | Nx of Tree.stm
-	     | Cx of Temp.label * Temp.label -> Tree.stm
+             | Nx of Tree.stm
+             | Cx of Temp.label * Temp.label -> Tree.stm
 
 val dummy = Ex(T.CONST(0))
 val error = Ex(T.CONST(0))

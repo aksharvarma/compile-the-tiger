@@ -24,11 +24,11 @@ val sourceStream = ref TextIO.stdIn
 val errorList: (int * int * string) list ref = ref []
 
 fun reset() = (anyErrors:=false;
-	       fileName:="";
-	       lineNum:=1;
-	       linePos:=[0];
-	       sourceStream:=TextIO.stdIn;
-	       errorList:= [])
+               fileName:="";
+               lineNum:=1;
+               linePos:=[0];
+               sourceStream:=TextIO.stdIn;
+               errorList:= [])
 
 exception Error
 
@@ -45,10 +45,10 @@ fun error (posStart:int, posEnd:int, msg:string) =
         *)
         fun mylook (_, 0, n)  = print(Int.toString(n) ^ ".0")
           | mylook(pos::posList, searchpos, n) =
-	        if pos < searchpos
+                if pos < searchpos
                 then app print [Int.toString n, ".", Int.toString(searchpos-pos)]
-	        else mylook (posList, searchpos, n-1)
-	  | mylook ([], searchpos, n) = print("0.0");
+                else mylook (posList, searchpos, n-1)
+          | mylook ([], searchpos, n) = print("0.0");
     in
         anyErrors := true;
         (* print(Int.toString(!lineNum)); *)
