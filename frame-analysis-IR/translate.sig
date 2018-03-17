@@ -27,4 +27,14 @@ sig
   val seqExp: exp * exp -> exp
   val brkExp: Temp.label -> exp
   val stringExp: string -> exp
+  val stringEquality: Absyn.oper * exp * exp -> exp
+  val createArray: exp * exp -> exp
+  val recordExp: exp list -> exp
+  val insertDecs: exp list * exp -> exp
+  val varDec: access * level * exp -> exp
+  val forExp: level * access * Temp.label * exp * exp * exp -> exp
+
+  val procEntryExit : {level: level, body: exp} -> unit
+  structure Frame : FRAME
+  val getResult : unit -> Frame.frag list
 end

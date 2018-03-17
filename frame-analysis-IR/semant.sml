@@ -249,6 +249,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
                     Handles things like var b:rectype := nil
                     where we want RECORD and not NIL as the type *)
                  val typeToUse:Ty.ty ref = ref initType
+                 val newAccess = Translate.allocLocal(level)(!escape)
                in
                  ((case typ
                     (* If the type of the variable was specified,
@@ -274,9 +275,11 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
                                 else ()));
                   (* Recur with the new variable added to the venv *)
                   trDecs(S.enter(venv, name,
-                                 E.VarEntry({access=(Translate.allocLocal(level)(!escape)),
+                                 E.VarEntry({access=newAccess,
                                              ty= !typeToUse})),
-                         tenv, decs, level, brkLabel, Translate.dummy::varDecList))
+                         tenv, decs, level, brkLabel,
+                         Translate.varDec(newAccess, level, #exp initRes)
+                         ::varDecList))
                end
 
              (* Type declarations *)
@@ -446,16 +449,17 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
                               | _ => (throwUp(pos,
                                               "Function header not found!!");
                                       Ty.BOTTOM))
-
+                        val bodyRes = transExp(venv'', tenv, newLevel, brkLabel) body
                      in
                        (* Process the body in the new env with the
                           function decs and the params added.
                           If the body does not have the correct
                           return type, print an error *)
-                       (if ((#ty(transExp(venv'', tenv, newLevel, brkLabel) body) <> resultType))
+                       (if ((#ty(bodyRes) <> resultType))
                         then throwUp(pos,
                                      "Function body does not match result type.")
                         else ();
+                        Translate.procEntryExit({level=newLevel, body=(#exp bodyRes)});
                         (* Process the rest of the fundecs for the
                            second pass *)
                         secondPass(funs))
@@ -549,7 +553,6 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
                   (* Can't compare two NILs *)
                   then throwUp(pos, "Cannot compare two NIL expressions.")
                   else ();
-                  (* TODO haven't done string equality *)
                   {exp=(if(leftType=SOME(Ty.STRING))
                         then Translate.stringEquality(oper, #exp leftRes, #exp rightRes)
                         else Translate.relOp(oper, #exp leftRes, #exp rightRes, false)),
@@ -624,11 +627,12 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
         (* Let expressions. Processing outsourced to trDecs *)
         | trexp(A.LetExp({decs, body, pos})) =
             let
-               (* TODO use vardeclist *)
-                val (venv, tenv,level, brkLabel, varDecList) = trDecs(venv, tenv, decs, level, brkLabel, [])
+                val (venv, tenv,level, brkLabel, varDecList) =
+                        trDecs(venv, tenv, decs, level, brkLabel, [])
                 val transExpArg = (venv, tenv, level, brkLabel)
+                val bodyRes = (transExp(transExpArg) body)
             in
-                (transExp(transExpArg) body)
+                {exp=Translate.insertDecs(varDecList, #exp bodyRes), ty=(#ty bodyRes)}
             end
 
         (* If-then expression *)
@@ -669,16 +673,17 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
         | trexp(A.WhileExp({test=exp1, body=exp2, pos=pos})) =
           let
             val testRes = trexp(exp1)
+            val newBreak = Temp.newLabel()
             (*TODO:  check break nesting *)
             val bodyRes = (brNesting := !brNesting + 1;
-                           trexp(exp2))
+                           transExp(venv, tenv, level, newBreak) (exp2))
             val decrement = (brNesting := !brNesting - 1)
           in
             (check(#ty testRes, Ty.INT, pos,
                    "Non-Int condition check in an while expression.");
              check(#ty bodyRes, Ty.UNIT, pos,
                    "Body of while must be of type UNIT.");
-             {exp=Translate.whileExp(#exp testRes, #exp bodyRes, Temp.newLabel()),
+             {exp=Translate.whileExp(#exp testRes, #exp bodyRes, newBreak),
               ty=Ty.UNIT}) (* while is a valueless expression *)
           end
         (* For loops *)
@@ -688,12 +693,13 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
             (* Add loop variable to the venv with type UNASSIGNABLE.
                UNASSIGNABLE is a subtype of int and indicates that this
                variable should not be assigned to in the for loop *)
+            val iAccess = Translate.allocLocal(level)(!esc)
             val venv' = S.enter(venv, sym,
-                                E.VarEntry({access=Translate.allocLocal(level)(!esc),
-                                ty=Ty.UNASSIGNABLE}))
+                                E.VarEntry({access=iAccess, ty=Ty.UNASSIGNABLE}))
             val loRes = trexp(exp1)
             val hiRes = trexp(exp2)
-            val bodyRes = transExp(venv', tenv, level, brkLabel) exp3
+            val newBreak = Temp.newLabel()
+            val bodyRes = transExp(venv', tenv, level, newBreak) exp3
           in
             (check(#ty loRes, Ty.INT, pos,
                    "Low value in `for` must be of type INT.");
@@ -706,7 +712,9 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
              then ()
              else throwUp(pos, "Body of for must be of type UNIT.");
              brNesting := !brNesting - 1;
-             {exp=Translate.dummy, ty=Ty.UNIT}) (* For is a valueless expression *)
+             {exp=Translate.forExp(level, iAccess, newBreak,
+                                   #exp loRes, #exp hiRes, #exp bodyRes),
+              ty=Ty.UNIT}) (* For is a valueless expression *)
           end
 
         (* Break is of type BOTTOM for greatest flexibility *)

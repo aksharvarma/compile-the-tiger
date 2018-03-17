@@ -38,15 +38,19 @@ fun unEx(Ex e) = e
 
 fun unNx(Ex e) = T.EXP(e)
   | unNx(Nx s) = s
-  | unNx(Cx genstm) =
-       (* TODO: ??? *)
+   (* TODO: replace with dummy later - explain that this will only happen
+      in the seq case in which we want to drop it on the floor *)
+  | unNx(Cx genstm) = let exception UnNxCx in raise UnNxCx end
+       (*
         let
             val t = Temp.newLabel() and f = Temp.newLabel()
         in
             genstm(t, f)
-        end
+        end *)
 
-fun unCx(Ex e) = (fn (t, f) => T.EXP(e))
+fun unCx(Ex(T.CONST 0)) = (fn (t, f) => T.JUMP(T.NAME f, [f]))
+  | unCx(Ex(T.CONST 1)) = (fn (t, f) => T.JUMP(T.NAME t, [t]))
+  | unCx(Ex e) = (fn (t, f) => T.CJUMP(T.NE, e, T.CONST 0, t, f))
   | unCx(Cx genstm) = genstm
   | unCx (Nx _) =
         let
@@ -115,15 +119,13 @@ fun followSL(curLev: level, targetLev: level) =
 fun simpleVar((l, access), level) = Ex(Frame.exp(access)(followSL(level, l)))
 
 (* TODO: check array out of bounds *)
-fun subscriptVar(a, i) =
+fun subscriptVar(a, indexExp) =
     Ex(T.MEM(T.BINOP(T.PLUS,
                   (* This gives us the base address for the array var *)
                   unEx(a),
                   (* Frame.exp(access)(followSL(level, l)), *)
-                  T.BINOP(T.MUL, T.CONST Frame.wordSize, unEx(i)))))
+                  T.BINOP(T.MUL, T.CONST Frame.wordSize, unEx(indexExp)))))
 
-(* TODO fix naming in these functions
-   i is a number here but an exp above *)
 fun fieldVar(a, i) = subscriptVar(a, Ex(T.CONST i))
 
 fun arithOp(oper, left, right) =
@@ -338,4 +340,45 @@ fun recordExp(fieldList:exp list) =
                             initFields(fieldList, r, 0)),
                       T.TEMP r))
         end
+
+fun insertDecs([], body) = body
+  | insertDecs(dec::decs, body) =
+    let
+        exception NeverHappens
+        fun insertHelper([]) = raise NeverHappens
+          | insertHelper(d::[]) = unNx(d)
+          | insertHelper(d::ds) = T.SEQ(unNx(d), insertHelper(ds))
+    in
+        Ex(T.ESEQ(insertHelper(dec::decs), unEx(body)))
+    end
+
+fun varDec(access:access, level, init:exp) =
+        assignExp(simpleVar(access, level), init)
+
+fun forExp(level, iAccess:access, brkLabel, lo:exp, hi:exp, body:exp) =
+    let
+        val limitAccess = allocLocal(level)(false)
+        val i = simpleVar(iAccess, level)
+        val iPlus1 = Ex(T.BINOP(T.PLUS, unEx(i), T.CONST 1))
+        val newBody = Nx(T.SEQ(unNx(body), unNx(varDec(iAccess, level, iPlus1))))
+        val test = relOp(A.LeOp, i, simpleVar(limitAccess, level), false)
+    in
+        Nx(T.SEQ(unNx(varDec(iAccess, level, lo)),
+           T.SEQ(unNx(varDec(limitAccess, level, hi)),
+                 unNx(whileExp(test, newBody, brkLabel)))))
+    end
+
+fun procEntryExit({level, body}) =
+    let
+        val frame = getFrame(level)
+        (* items 6-7 *)
+        val bodyWithRV = T.MOVE(T.TEMP Frame.RV, unEx(body))
+        (* procEntryExit1 gives us items 4-8, items 1-3 and 9-11 will be done
+           later by procEntryExit3 (or 2?) *)
+        val modifiedBody = Frame.procEntryExit1(frame, bodyWithRV)
+    in
+        fragList := Frame.PROC({body=modifiedBody, frame=frame}):: !fragList
+    end
+
+fun getResult() = !fragList
 end

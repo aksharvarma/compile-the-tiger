@@ -7,6 +7,7 @@ datatype access = InReg of Temp.temp | InFrame of int
 
 val FP = Temp.newTemp()
 val wordSize = 4
+val RV = Temp.newTemp()
 
 (* a frame contains a name, a list of the accesses associated
    with each formal parameter, and the number of local variables
@@ -65,6 +66,26 @@ fun allocLocal({name, formals, locals}) =
     fn (b) => if b then InFrame(~(!locals) * wordSize) else InReg(Temp.newTemp()))
 
 fun externalCall(s, args) = T.CALL(T.NAME(Temp.namedLabel(s)), args)
+
+fun procEntryExit1(frame, body) =
+    let
+        fun moveArgs() = T.EXP(T.CONST 0)
+        (*
+        fun moveArgs(i, []) = T.EXP(T.CONST 0)
+          | moveArgs(i, InReg(t)::[]) =
+            (* includes the sl as arg 0 *)
+            if i <= 4
+            then T.MOVE(T.TEMP t, r(i))
+
+          | moveArgs(a::as) =
+          *)
+        fun storeCalleeSaves() = T.EXP(T.CONST 0)
+        fun restoreCalleeSaves() = T.EXP(T.CONST 0)
+        fun combine(stm1, stm2, stm3, stm4) =
+                T.SEQ(stm1, T.SEQ(stm2, T.SEQ(stm3, stm4)))
+    in
+        combine(moveArgs(), storeCalleeSaves(), body, restoreCalleeSaves())
+    end
 
 end
 
