@@ -22,6 +22,19 @@ datatype frag = PROC of {body: Tree.stm, frame: frame}
 fun exp(InFrame(k)) = (fn(ex) => T.MEM(T.BINOP(T.PLUS, ex, T.CONST(k))))
   | exp(InReg(t)) = (fn (ex) => T.TEMP t)
 
+fun printExp(msg, e) = (print(msg ^ "\n");
+                        Printtree.printtree(TextIO.stdOut, e);
+                        print("-------------\n"))
+
+fun printAccess(InReg(t)) = print("in reg: t" ^ Int.toString(t) ^ "\n")
+  | printAccess(InFrame(i)) = print("frame offset: " ^ Int.toString(i) ^ "\n")
+
+fun printFrame({name, formals, locals}) =
+        (printExp("Frame name", T.LABEL name);
+         print("num formals: " ^ Int.toString(List.length(formals)) ^ "\n");
+         (app printAccess formals);
+         print("\nlocals: " ^ Int.toString(!locals) ^ "\n"))
+
 (* TODO:  write view shift instructions *)
 fun newFrame({name: Temp.label, formals: bool list}) =
     let
@@ -65,11 +78,12 @@ fun allocLocal({name, formals, locals}) =
        variable depending on what the boolean is? *)
     fn (b) => if b then InFrame(~(!locals) * wordSize) else InReg(Temp.newTemp()))
 
+(* C functions may need to drop first argument (sl) if translate passes it in *)
 fun externalCall(s, args) = T.CALL(T.NAME(Temp.namedLabel(s)), args)
 
 fun procEntryExit1(frame, body) =
     let
-        fun moveArgs() = T.EXP(T.CONST 0)
+        fun moveArgs() = T.LABEL(Temp.namedLabel("entryExit1: moveArgs (step 4)"))
         (*
         fun moveArgs(i, []) = T.EXP(T.CONST 0)
           | moveArgs(i, InReg(t)::[]) =
@@ -79,8 +93,8 @@ fun procEntryExit1(frame, body) =
 
           | moveArgs(a::as) =
           *)
-        fun storeCalleeSaves() = T.EXP(T.CONST 0)
-        fun restoreCalleeSaves() = T.EXP(T.CONST 0)
+        fun storeCalleeSaves() = T.LABEL(Temp.namedLabel("entryExit1: storeCalleeSaves (step 5)"))
+        fun restoreCalleeSaves() = T.LABEL(Temp.namedLabel("entryExit1: restoreCalleeSaves (step 8)"))
         fun combine(stm1, stm2, stm3, stm4) =
                 T.SEQ(stm1, T.SEQ(stm2, T.SEQ(stm3, stm4)))
     in

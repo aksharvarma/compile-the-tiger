@@ -358,6 +358,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
              (* Function declarations *)
              | A.FunctionDec(funlist) =>
                let
+                 (* this label is where the function body will begin *)
                  (* Returns true if names repeated. *)
                  fun duplication([]) = false
                    | duplication({name:S.symbol, params, body,
@@ -377,10 +378,11 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
                  (* First pass through the function decs, add
                     the headers into the venv with the types of
                     the params and the return type of the function *)
-                 fun addFunHeads(venv, []) = venv
+                 fun addFunHeads(venv, [], _) = venv
+                   | addFunHeads(venv, _, []) = venv
                    | addFunHeads(venv, {name:S.symbol,
                                         params, result,
-                                        body, pos}::xs) =
+                                        body, pos}::xs, funLabel::fls) =
                      let
                        (* Translate all params into a useful form *)
                        val params' = map transparam params
@@ -408,24 +410,27 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
                        (* Recur with the new venv in which the
                           headers have been entered *)
                        addFunHeads(S.enter(venv, name,
-                                           E.FunEntry({level=level, label=Temp.newLabel(),
+                                           E.FunEntry({level=level, label=funLabel,
                                                        formals= map #ty params',
-                                                       result=retTy})), xs)
+                                                       result=retTy})), xs, fls)
                      end
+                 (* creates one label for every function *)
+                 val labelList = map (fn (f) => Temp.newLabel()) funlist
                  (* Perform the first pass through the fun decs.
                     venv' is then the venv augmented with blank headers *)
-                 val venv' = addFunHeads(venv, funlist)
+                 val venv' = addFunHeads(venv, funlist, labelList)
                  (* Second pass through the function decs, process
                     the bodies, taking advantage of the headers that
                     have been entered into venv' by the first pass *)
-                 fun secondPass ([]) = venv'
+                 fun secondPass ([], _) = venv'
+                   | secondPass(_, []) = venv' (* never happens *)
                    | secondPass ({name:S.symbol, params: A.field list, result,
-                                  body, pos}::funs) =
+                                  body, pos}::funs, funLabel::fls) =
                      let
                         (* Extracts the escape field from a param *)
                         fun getEscape({name, escape, typ, pos}) = !escape
                         val newLevel = Translate.newLevel({parent=level,
-                                                           name=Temp.newLabel(),
+                                                           name=funLabel,
                                                            formals=(map getEscape params)})
                        (* Translate the params into a useful format *)
                        val params' = map transparam params
@@ -462,13 +467,13 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
                         Translate.procEntryExit({level=newLevel, body=(#exp bodyRes)});
                         (* Process the rest of the fundecs for the
                            second pass *)
-                        secondPass(funs))
+                        secondPass(funs, fls))
                      end
                in
                  (* Recursively parse the rest of the decs
                     with the new environment after performing the
                     second pass on the funlist *)
-                 trDecs(secondPass(funlist), tenv, decs, level, brkLabel, varDecList)
+                 trDecs(secondPass(funlist, labelList), tenv, decs, level, brkLabel, varDecList)
                end)
       (* trDecs ENDS *)
 
@@ -609,7 +614,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
           end
 
         (* 2 kinds of sequences. *)
-        | trexp(A.SeqExp([])) = ({exp=Translate.intExp(0), ty=Ty.UNIT})
+        | trexp(A.SeqExp([])) = ({exp=Translate.emptySeq(), ty=Ty.UNIT})
         | trexp(A.SeqExp((x,pos)::[])) =
             let
                 val res = trexp(x)
@@ -621,7 +626,8 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
                 val fstRes = trexp(x)
                 val restRes = trexp(A.SeqExp(xs))
             in
-                {exp=Translate.seqExp(#exp fstRes, #exp restRes), ty=(#ty restRes)}
+                {exp=Translate.seqExp(#exp fstRes, #exp restRes, (#ty restRes)=Ty.UNIT),
+                ty=(#ty restRes)}
             end
 
         (* Let expressions. Processing outsourced to trDecs *)
@@ -632,7 +638,9 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
                 val transExpArg = (venv, tenv, level, brkLabel)
                 val bodyRes = (transExp(transExpArg) body)
             in
-                {exp=Translate.insertDecs(varDecList, #exp bodyRes), ty=(#ty bodyRes)}
+                (* trDec recursion makes varDecList backwards *)
+                {exp=Translate.insertDecs(rev varDecList, #exp bodyRes, (#ty bodyRes)=Ty.UNIT),
+                ty=(#ty bodyRes)}
             end
 
         (* If-then expression *)
@@ -768,7 +776,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
                (* If not found, print error and use array of BOTTOM to
                   continue *)
                of NONE => (throwUp(pos, "Array type not found:"^S.name(typ));
-                           {exp=Translate.dummy, ty=Ty.ARRAY(Ty.BOTTOM, ref ())})
+                           {exp=Translate.error, ty=Ty.ARRAY(Ty.BOTTOM, ref ())})
                 (* If found, check if it is an array type *)
                 | SOME(t) =>
                   (case actualTy(t)
@@ -777,12 +785,12 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
                     of Ty.ARRAY(ty, uniq) =>
                        (check(#ty initRes, ty, pos,
                               "Type of initial value does not match array type.");
-                        {exp=Translate.dummy, ty=actualTy(t)})
+                        {exp=Translate.createArray(#exp sizeRes, #exp initRes), ty=actualTy(t)})
 
                      (* If not array, print error and use array of BOTTOM
                         to continue *)
                      | _ => (throwUp(pos, "Type given is not an array.");
-                             {exp=Translate.dummy, ty=Ty.ARRAY(Ty.BOTTOM, ref ())}))))
+                             {exp=Translate.error, ty=Ty.ARRAY(Ty.BOTTOM, ref ())}))))
             end
             (* trexp ENDS *)
     in
@@ -793,7 +801,8 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
 (* The main entry point for a tiger program.
    Translates/type-checks a given program (expression), beginning
    with the base environments *)
-fun transProg(e) = (FindEscape.findEscape(e);
+fun transProg(e) = (Translate.reset();
+                    FindEscape.findEscape(e);
                     errorExists := false;
                     let
                         val result = transExp(E.base_venv, E.base_tenv,
@@ -808,6 +817,8 @@ fun transProg(e) = (FindEscape.findEscape(e);
                           raise ErrorMsg.Error)
 
                     else ();
+                    Printtree.printtree(TextIO.stdOut, Translate.unNx(#exp result));
+                    Translate.printInfo();
                     result)
                     end)
 

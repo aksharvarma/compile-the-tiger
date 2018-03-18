@@ -23,6 +23,7 @@ sig
   val whileExp: exp * exp -> exp
   val intExp: int -> exp
   val assignExp: exp * exp -> exp
+  val emptySeq: unit -> exp
   val singleSeq: exp -> exp
   val seqExp: exp * exp -> exp
   val brkExp: Temp.label -> exp

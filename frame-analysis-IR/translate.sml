@@ -12,8 +12,8 @@ datatype exp = Ex of Tree.exp
              | Nx of Tree.stm
              | Cx of Temp.label * Temp.label -> Tree.stm
 
-val dummy = Ex(T.CONST(~2))
-val error = Ex(T.CONST(~1))
+val dummy = Ex(T.NAME(Temp.namedLabel("dummy")))
+val error = Ex(T.NAME(Temp.namedLabel("error")))
 
 val fragList: Frame.frag list ref = ref []
 (* Signatures for un_x funcstions, and empty definitions *)
@@ -40,7 +40,8 @@ fun unNx(Ex e) = T.EXP(e)
   | unNx(Nx s) = s
    (* TODO: replace with dummy later - explain that this will only happen
       in the seq case in which we want to drop it on the floor *)
-  | unNx(Cx genstm) = let exception UnNxCx in raise UnNxCx end
+   (* invariant assuming a statement which has side effects is never a Cx *)
+  | unNx(Cx genstm) = T.EXP(T.CONST 0)
        (*
         let
             val t = Temp.newLabel() and f = Temp.newLabel()
@@ -62,6 +63,8 @@ fun unCx(Ex(T.CONST 0)) = (fn (t, f) => T.JUMP(T.NAME f, [f]))
 (* thrown if allocLocal is called on the outermost level *)
 exception OutermostException
 
+
+fun printExp(e, msg) = (print(msg ^ "\n"); Printtree.printtree(TextIO.stdOut, unNx(e)); print("-------------\n"))
 
 (* a level contains a frame and a parent level.
    the outermost level is a special level (OUTERMOST) with no frame or parent *)
@@ -168,6 +171,7 @@ fun relOp(oper, left, right, false) =
                      | A.GeOp => {func="stringLt", res=0}
                      | _ => raise RelOpException)
     in
+       (* might need to pass static link to external call ? *)
         Cx(fn(t,f) => T.CJUMP(T.EQ, Frame.externalCall(#func fc,
                                  [unEx(left), unEx(right)]), T.CONST (#res fc), t, f))
     end
@@ -284,7 +288,7 @@ fun whileExp(test, body, done) =
     in
         Nx(T.SEQ(T.JUMP(T.NAME testLabel, [testLabel]),
                  T.SEQ(T.LABEL bodyLabel,
-                 T.SEQ(T.EXP(unEx(body)),
+                 T.SEQ(unNx(body),
                  T.SEQ(T.LABEL testLabel,
                  T.SEQ(unCx(test)(bodyLabel, done), T.LABEL done))))))
     end
@@ -294,9 +298,13 @@ fun intExp(i) = Ex(T.CONST i)
 
 fun assignExp(left, right) = Nx(T.MOVE(unEx(left), unEx(right)))
 
-fun singleSeq(fst) = Ex(unEx(fst))
+fun emptySeq() = Nx(T.EXP(T.CONST 0))
 
-fun seqExp(fst, rest) = Ex(T.ESEQ(unNx(fst), unEx(rest)))
+fun singleSeq(fst) = fst
+
+(* last parameter is true if the result type of the sequence is unit *)
+fun seqExp(fst, rest, false) = Ex(T.ESEQ(unNx(fst), unEx(rest)))
+  | seqExp(fst, rest, true) = Nx(T.SEQ(unNx(fst), unNx(rest)))
 
 fun brkExp(brkLabel) = Nx(T.JUMP(T.NAME brkLabel, [brkLabel]))
 
@@ -341,16 +349,15 @@ fun recordExp(fieldList:exp list) =
                       T.TEMP r))
         end
 
-fun insertDecs([], body) = body
-  | insertDecs(dec::decs, body) =
-    let
-        exception NeverHappens
-        fun insertHelper([]) = raise NeverHappens
-          | insertHelper(d::[]) = unNx(d)
-          | insertHelper(d::ds) = T.SEQ(unNx(d), insertHelper(ds))
-    in
+fun insertHelper([]) = let exception NeverHappens in raise NeverHappens end
+  | insertHelper(d::[]) = unNx(d)
+  | insertHelper(d::ds) = T.SEQ(unNx(d), insertHelper(ds))
+
+fun insertDecs([], body, _) = body
+  | insertDecs(dec::decs, body, false) =
         Ex(T.ESEQ(insertHelper(dec::decs), unEx(body)))
-    end
+  | insertDecs(dec::decs, body, true) =
+        Nx(T.SEQ(insertHelper(dec::decs), unNx(body)))
 
 fun varDec(access:access, level, init:exp) =
         assignExp(simpleVar(access, level), init)
@@ -381,4 +388,18 @@ fun procEntryExit({level, body}) =
     end
 
 fun getResult() = !fragList
+
+fun printFrag(Frame.PROC({body, frame})) = (Frame.printFrame(frame);
+                                            printExp(Nx(body), "frag body"))
+  | printFrag(Frame.STRING(label, str)) = (printExp(Nx(T.LABEL label),
+                                           "string label: " ^ str))
+
+fun printInfo() = (print("-----------Info-------------\n");
+                   printExp(Ex(T.TEMP Frame.FP), "Frame pointer");
+                   printExp(Ex(T.TEMP Frame.RV), "RV");
+                   print("---------frags------\n");
+                   (app printFrag (getResult())))
+
+fun reset() = fragList := []
+
 end
