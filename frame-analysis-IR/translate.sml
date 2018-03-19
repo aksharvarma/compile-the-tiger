@@ -38,16 +38,12 @@ fun unEx(Ex e) = e
 
 fun unNx(Ex e) = T.EXP(e)
   | unNx(Nx s) = s
-   (* TODO: replace with dummy later - explain that this will only happen
-      in the seq case in which we want to drop it on the floor *)
-   (* invariant assuming a statement which has side effects is never a Cx *)
-  | unNx(Cx genstm) = T.EXP(T.CONST 0)
-       (*
+  | unNx(Cx genstm) =
         let
             val t = Temp.newLabel() and f = Temp.newLabel()
         in
-            genstm(t, f)
-        end *)
+            T.SEQ(genstm(t,f), T.SEQ(T.LABEL f, T.LABEL t))
+        end
 
 fun unCx(Ex(T.CONST 0)) = (fn (t, f) => T.JUMP(T.NAME f, [f]))
   | unCx(Ex(T.CONST 1)) = (fn (t, f) => T.JUMP(T.NAME t, [t]))
@@ -271,11 +267,14 @@ fun ifThen(test, Nx(thenStm)) =
   | ifThen(test, Ex(thenExp)) =
         let exception ExInIfThenException in raise ExInIfThenException end
 
-fun funCall(label, argExps, curLev, targetLev, isProcedure) =
+fun funCall(inVenv, name, label, argExps, curLev, targetLev, isProcedure) =
     let
         val sl = followSL(curLev, targetLev)
         val argList = map unEx argExps
-        val result = T.CALL(T.NAME label, sl::argList)
+        val result =
+                if inVenv
+                then Frame.externalCall(Symbol.name(name), argList)
+                else T.CALL(T.NAME label, sl::argList)
     in
         if(isProcedure)
         then Nx(T.EXP result)
@@ -319,13 +318,13 @@ fun stringExp(s, pos) =
 fun stringEquality(oper, left, right) =
         let
             exception StringEquality
-            val tOp = (case oper
-                          of A.EqOp => T.EQ
-                           | A.NeqOp => T.NE
+            val compRes = (case oper
+                          of A.EqOp => T.CONST 1
+                           | A.NeqOp => T.CONST 0
                            | _ => raise StringEquality)
         in
-            Cx(fn(t,f) => T.CJUMP(tOp, Frame.externalCall("stringEqual",
-                                     [unEx(left), unEx(right)]), T.CONST 1, t, f))
+            Cx(fn(t,f) => T.CJUMP(T.EQ, Frame.externalCall("stringEqual",
+                                     [unEx(left), unEx(right)]), compRes, t, f))
         end
 
 fun createArray(size, init) = Ex(Frame.externalCall("initArray",

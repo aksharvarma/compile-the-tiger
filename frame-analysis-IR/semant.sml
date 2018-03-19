@@ -582,7 +582,8 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
                  (if(not(checkTypeList(argList, formals)))
                   then throwUp(pos, "Function args don't match type")
                   else ();
-                  {exp=Translate.funCall(label, map #exp argList, level, lev, actualTy(result)=Ty.UNIT),
+                  {exp=Translate.funCall(Env.inBaseVenv(func), func, label, map #exp argList,
+                   level, lev, istype(actualTy(result), Ty.UNIT)),
                    ty=actualTy(result)})
                end
              | _ => (throwUp(pos, "Undefined function:" ^ S.name(func));
@@ -626,7 +627,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
                 val fstRes = trexp(x)
                 val restRes = trexp(A.SeqExp(xs))
             in
-                {exp=Translate.seqExp(#exp fstRes, #exp restRes, (#ty restRes)=Ty.UNIT),
+                {exp=Translate.seqExp(#exp fstRes, #exp restRes, istype(#ty restRes, Ty.UNIT)),
                 ty=(#ty restRes)}
             end
 
@@ -639,7 +640,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
                 val bodyRes = (transExp(transExpArg) body)
             in
                 (* trDec recursion makes varDecList backwards *)
-                {exp=Translate.insertDecs(rev varDecList, #exp bodyRes, (#ty bodyRes)=Ty.UNIT),
+                {exp=Translate.insertDecs(rev varDecList, #exp bodyRes, istype(#ty bodyRes, Ty.UNIT)),
                 ty=(#ty bodyRes)}
             end
 

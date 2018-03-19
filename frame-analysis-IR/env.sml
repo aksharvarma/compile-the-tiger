@@ -9,6 +9,7 @@ sig
                                    result: Types.ty}
   val base_tenv: Types.ty Symbol.table
   val base_venv: enventry Symbol.table
+  val inBaseVenv: Symbol.symbol -> bool
 end
 
 structure Env :> ENV =
@@ -88,4 +89,9 @@ in
                                        formals=[Types.INT],
                                        result=Types.UNIT}))
 end
+
+fun inBaseVenv(s) =
+        (case Symbol.look(base_venv, s)
+           of SOME(FunEntry(_)) => true
+            | _ => false)
 end

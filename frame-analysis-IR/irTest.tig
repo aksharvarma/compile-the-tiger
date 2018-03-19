@@ -1,0 +1,11 @@
+/*let
+    var s:string := "ab"
+in
+    while (1) do
+     while ("abc" < s | s = "foo") do
+        (3 < 4 & 6 = 5; print(s))
+
+
+end
+*/
+print("abx")
