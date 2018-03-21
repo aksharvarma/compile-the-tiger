@@ -1,11 +1,38 @@
-/*let
-    var s:string := "ab"
+let
+    type rec = {a:int, b:string}
+    var rec1:rec := nil
 in
-    while (1) do
-     while ("abc" < s | s = "foo") do
-        (3 < 4 & 6 = 5; print(s))
+    rec1.a := 2
+end
 
 
+
+
+
+/*
+let
+    type tree = {key: string, left: tree, right:tree}
+
+    function prettyprint(tree: tree) : string =
+        let
+            var output := ""
+
+            function write(s: string) =
+                output := concat(output, s)
+
+            function show(n:int, t:tree) =
+                let function indent(s:string) =
+                        (for i := 1 to n
+                            do write(" ");
+                        output := concat(output, s); write("\n"))
+                in if t=nil then indent(".")
+                else (indent(t.key);
+                      show(n+1, t.left);
+                      show(n+1, t.right))
+                end
+        in show(0,tree); output
+        end
+in
+    prettyprint(tree {key="abc", left=nil, right=nil})
 end
 */
-print("abx")

@@ -61,22 +61,14 @@ fun formals({name, formals, locals}) = formals
 
 (* allocate space in the given frame for a new local variable *)
 fun allocLocal({name, formals, locals}) =
-    (* increment the number of local variables allocated in the given frame *)
-    (locals := !locals + 1;
     (* return a function that takes in a boolean and returns the correct
        access depending on the input *)
-    (* TODO: should the locals variable only be incremented if we're going
-       to store the local variable in the frame? (yes?)
-       Should the incrementing happen when the function we're making gets called?
-       that might produce dangerous things if the function is called more than once. (so no?)
-       are there going to be any weird referencing problem with the locals ref
-       since we're returning a function that will do the calculation later?
-       function that we return could potentially return a different offset depending
-       on at what point it's called - that seems like a problem.
-       should we be dereferencing locals and doing the calculation now or later?
-       how can we make the calculation outside the function but also only increment the
-       variable depending on what the boolean is? *)
-    fn (b) => if b then InFrame(~(!locals) * wordSize) else InReg(Temp.newTemp()))
+    (* when we call this, we always call the returned function immediately,
+       but if this function were to be called more than once, it would assign
+       a new location/temp for the variable *)
+    fn (b) => if b
+              then (locals := !locals + 1; InFrame(~(!locals) * wordSize))
+              else InReg(Temp.newTemp())
 
 (* C functions may need to drop first argument (sl) if translate passes it in *)
 fun externalCall(s, args) = T.CALL(T.NAME(Temp.namedLabel(s)), args)

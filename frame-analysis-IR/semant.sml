@@ -17,7 +17,7 @@ sig
   type expty = {exp: Translate.exp, ty: Ty.ty}
 
   (* main semantic analysis entry point for a tiger program *)
-  val transProg : A.exp -> expty
+  val transProg : A.exp -> Frame.frag list
 end
 
 structure Semant :> SEMANT =
@@ -35,7 +35,6 @@ val errorExists = ref false
 (* Tracks whether we are currently in a scope that allows breaks *)
 val brNesting = ref 0
 
-
 (* Helper methods *)
 
 (* Sets error flag and outputs error message *)
@@ -44,7 +43,6 @@ val brNesting = ref 0
    an interval. The initial pos should still be accurate *)
 fun throwUp(pos, msg) = (errorExists := true;
                          ErrorMsg.error(pos, pos, msg))
-
 
 (* Takes in a list of record fields (from Ty.RECORD) and finds the
    field with the given name if it exists *)
@@ -170,11 +168,8 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
                     (* if we did find it,
                        then return the type of that field *)
                     | SOME(t) =>
-                        (if t = Ty.NIL
-                        then throwUp(pos, "Attempted to access field of nil")
-                        else ();
                         {exp=Translate.fieldVar(#exp varRes,
-                                                getIndex(sym, id, 0)), ty=t}))
+                                                getIndex(sym, id, 0)), ty=t})
                (* if the LHS wasn't a record, then print error
                   and return BOTTOM to continue *)
                | _ => (throwUp(pos, "accessing field of non-record:" ^ S.name(id));
@@ -464,7 +459,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
                         then throwUp(pos,
                                      "Function body does not match result type.")
                         else ();
-                        Translate.procEntryExit({level=newLevel, body=(#exp bodyRes)});
+                        Translate.procEntryExit({level=newLevel, body=(#exp bodyRes), isProcedure=istype(actualTy(resultType), Ty.UNIT)});
                         (* Process the rest of the fundecs for the
                            second pass *)
                         secondPass(funs, fls))
@@ -522,7 +517,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
                     (* Right expression must be of the same type *)
                     | SOME(t) => check(#ty rightRes, t, pos,
                                     "Type of both expressions should match for comparisons.");
-                  {exp=Translate.relOp(oper, #exp leftRes, #exp rightRes, leftType=SOME(Ty.STRING)),
+                  {exp=Translate.relOp(oper, #exp leftRes, #exp rightRes, istype(valOf(leftType), Ty.STRING)),
                    ty=Ty.INT})
                end
               (* Handle equality checks: =, <> *)
@@ -578,13 +573,23 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
             of SOME(E.FunEntry({level=lev, label, formals, result})) =>
                let
                  val argList = map trexp args
+                 val inBaseVenv =
+                    (case S.look(E.base_venv, func)
+                        of SOME(E.FunEntry({level=baseLev, label=baseLab, formals=baseForm,
+                                            result=baseRes})) =>
+                                if (label = baseLab)
+                                then true
+                                else false
+                         | _ => false)
+                val expRes = if inBaseVenv
+                             then Translate.libCall(func, map #exp argList, istype(actualTy(result), Ty.UNIT))
+                             else Translate.funCall(label, map #exp argList,
+                                        level, lev, istype(actualTy(result), Ty.UNIT))
                in
                  (if(not(checkTypeList(argList, formals)))
                   then throwUp(pos, "Function args don't match type")
                   else ();
-                  {exp=Translate.funCall(Env.inBaseVenv(func), func, label, map #exp argList,
-                   level, lev, istype(actualTy(result), Ty.UNIT)),
-                   ty=actualTy(result)})
+                  {exp=expRes, ty=actualTy(result)})
                end
              | _ => (throwUp(pos, "Undefined function:" ^ S.name(func));
                      {exp=Translate.error, ty=Types.BOTTOM}))
@@ -812,22 +817,24 @@ fun transProg(e) = (Translate.reset();
                                                  formals=[]},
                                                  (* TODO: change to error label *)
                                                  Temp.newLabel()) e
+                        val finalResult = Translate.appendErrorLabels(#exp result)
                     in
                     (if !errorExists
                     then (throwUp(0,"Type-checking failed.");
                           raise ErrorMsg.Error)
 
                     else ();
-                    Printtree.printtree(TextIO.stdOut, Translate.unNx(#exp result));
+                    Printtree.printtree(TextIO.stdOut, Translate.unNx(finalResult));
                     Translate.printInfo();
-                    result)
+                    (* Dropping result on the floor because book says to return fragments *)
+                    Translate.getResult())
                     end)
 
 end
 
 signature MAIN =
 sig
-  val run: string -> Semant.expty
+  val run: string -> Frame.frag list
   val printAST: string -> unit
 end
 

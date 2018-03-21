@@ -12,14 +12,20 @@ datatype exp = Ex of Tree.exp
              | Nx of Tree.stm
              | Cx of Temp.label * Temp.label -> Tree.stm
 
-val dummy = Ex(T.NAME(Temp.namedLabel("dummy")))
-val error = Ex(T.NAME(Temp.namedLabel("error")))
+(* get rid of error *)
+val error = Ex(T.CONST 0)
+val nop = Ex(T.CONST 0)
+(* runtime error labels *)
+val derefNil = Temp.newLabel()
+val outOfBounds = Temp.newLabel()
 
 val fragList: Frame.frag list ref = ref []
 (* Signatures for un_x funcstions, and empty definitions *)
 (*val unEx: Translate.exp -> Tree.exp
 val unNx: Translate.exp -> Tree.stm
 val unCx: Translate.exp -> (Temp.label * Temp.label -> Tree.stm) *)
+
+val stringTable:Temp.label Symbol.table ref = ref Symbol.empty
 
 fun unEx(Ex e) = e
   | unEx(Cx genstm) =
@@ -42,7 +48,7 @@ fun unNx(Ex e) = T.EXP(e)
         let
             val t = Temp.newLabel() and f = Temp.newLabel()
         in
-            T.SEQ(genstm(t,f), T.SEQ(T.LABEL f, T.LABEL t))
+            T.SEQ(genstm(t,f), T.SEQ(T.LABEL t, T.LABEL f))
         end
 
 fun unCx(Ex(T.CONST 0)) = (fn (t, f) => T.JUMP(T.NAME f, [f]))
@@ -125,7 +131,15 @@ fun subscriptVar(a, indexExp) =
                   (* Frame.exp(access)(followSL(level, l)), *)
                   T.BINOP(T.MUL, T.CONST Frame.wordSize, unEx(indexExp)))))
 
-fun fieldVar(a, i) = subscriptVar(a, Ex(T.CONST i))
+(* explain this *)
+fun fieldVar(a, i) =
+        let
+            val z = Temp.newLabel()
+        in
+            Ex(T.ESEQ(T.SEQ(T.CJUMP(T.EQ, T.MEM(unEx(a)), T.CONST 0, derefNil, z),
+                                     T.LABEL z),
+                               unEx(subscriptVar(a, Ex(T.CONST i)))))
+        end
 
 fun arithOp(oper, left, right) =
     let
@@ -186,55 +200,33 @@ fun ifThenElse(test, Nx(thenStm), Nx(elseStm)) =
         end
   | ifThenElse(test, Cx(thenFun), Cx(elseFun)) =
         let
-            val r = Temp.newTemp()
-            val z = Temp.newLabel() and join = Temp.newLabel()
-            val t = Temp.newLabel() and f = Temp.newLabel()
+            val x = Temp.newLabel() and y = Temp.newLabel()
         in
-            Ex(T.ESEQ(T.SEQ(T.MOVE(T.TEMP r, T.CONST 0),
-                            T.SEQ(unCx(test)(t,f),
-                            T.SEQ(T.LABEL t,
-                            T.SEQ(thenFun(z, join),
-                            T.SEQ(T.LABEL z,
-                            T.SEQ(T.MOVE(T.TEMP r, T.CONST 1),
-                            T.SEQ(T.JUMP(T.NAME join, [join]),
-                            T.SEQ(T.LABEL f,
-                            T.SEQ(elseFun(z, join),
-                            T.LABEL join))))))))), T.TEMP r))
+            Cx(fn (t,f) =>  T.SEQ(unCx(test)(x,y),
+                            T.SEQ(T.LABEL x,
+                            T.SEQ(thenFun(t, f),
+                            T.SEQ(T.LABEL y,
+                            elseFun(t, f))))))
         end
   | ifThenElse(test, Cx(thenFun), Ex(elseExp)) =
         let
-            val r = Temp.newTemp()
-            val z = Temp.newLabel() and join = Temp.newLabel()
-            val t = Temp.newLabel() and f = Temp.newLabel()
+            val x = Temp.newLabel() and y = Temp.newLabel()
         in
-            Ex(T.ESEQ(T.SEQ(T.MOVE(T.TEMP r, T.CONST 0),
-                            T.SEQ(unCx(test)(t,f),
-                            T.SEQ(T.LABEL t,
-                            T.SEQ(thenFun(z, join),
-                            T.SEQ(T.LABEL z,
-                            T.SEQ(T.MOVE(T.TEMP r, T.CONST 1),
-                            T.SEQ(T.JUMP(T.NAME join, [join]),
-                            T.SEQ(T.LABEL f,
-                            T.SEQ(T.MOVE(T.TEMP r, elseExp),
-                            T.LABEL join))))))))), T.TEMP r))
-
+            Cx(fn (t,f) =>  T.SEQ(unCx(test)(x,y),
+                            T.SEQ(T.LABEL x,
+                            T.SEQ(thenFun(t, f),
+                            T.SEQ(T.LABEL y,
+                            unCx(Ex(elseExp))(t,f))))))
         end
   | ifThenElse(test, Ex(thenExp), Cx(elseFun)) =
         let
-            val r = Temp.newTemp()
-            val z = Temp.newLabel() and join = Temp.newLabel()
-            val t = Temp.newLabel() and f = Temp.newLabel()
+            val x = Temp.newLabel() and y = Temp.newLabel()
         in
-            Ex(T.ESEQ(T.SEQ(T.MOVE(T.TEMP r, T.CONST 0),
-                            T.SEQ(unCx(test)(t,f),
-                            T.SEQ(T.LABEL t,
-                            T.SEQ(T.MOVE(T.TEMP r, thenExp),
-                            T.SEQ(T.JUMP(T.NAME join, [join]),
-                            T.SEQ(T.LABEL f,
-                            T.SEQ(elseFun(z, join),
-                            T.SEQ(T.LABEL z,
-                            T.SEQ(T.MOVE(T.TEMP r, T.CONST 1),
-                            T.LABEL join))))))))), T.TEMP r))
+            Cx(fn (t,f) =>  T.SEQ(unCx(test)(x,y),
+                            T.SEQ(T.LABEL x,
+                            T.SEQ(unCx(Ex(thenExp))(t,f),
+                            T.SEQ(T.LABEL y,
+                            elseFun(t, f))))))
         end
   | ifThenElse(test, Ex(thenExp), Ex(elseExp)) =
         let
@@ -267,14 +259,23 @@ fun ifThen(test, Nx(thenStm)) =
   | ifThen(test, Ex(thenExp)) =
         let exception ExInIfThenException in raise ExInIfThenException end
 
-fun funCall(inVenv, name, label, argExps, curLev, targetLev, isProcedure) =
+(* explain difference from libcall *)
+fun funCall(label, argExps, curLev, targetLev, isProcedure) =
     let
         val sl = followSL(curLev, targetLev)
         val argList = map unEx argExps
-        val result =
-                if inVenv
-                then Frame.externalCall(Symbol.name(name), argList)
-                else T.CALL(T.NAME label, sl::argList)
+        val result = T.CALL(T.NAME label, sl::argList)
+    in
+        if(isProcedure)
+        then Nx(T.EXP result)
+        else Ex(result)
+    end
+
+(* if we need to call a library function, we make an external call using the function's name *)
+fun libCall(name, argExps, isProcedure) =
+    let
+        val argList = map unEx argExps
+        val result = Frame.externalCall(Symbol.name(name), argList)
     in
         if(isProcedure)
         then Nx(T.EXP result)
@@ -309,10 +310,20 @@ fun brkExp(brkLabel) = Nx(T.JUMP(T.NAME brkLabel, [brkLabel]))
 
 fun stringExp(s, pos) =
     let
-      val lab = Temp.newLabel()
+      val lab =
+        (* check if we've already seen this string, if so use the same label,
+           if not generate new label and add it to the string table *)
+        (case Symbol.look(!stringTable, Symbol.symbolize(s))
+            of SOME(l) => l
+             | NONE => let
+                         val newLab = Temp.newLabel()
+                       in
+                         (stringTable := Symbol.enter(!stringTable, Symbol.symbolize(s), newLab);
+                         fragList := Frame.STRING(newLab, s) :: !fragList;
+                         newLab)
+                       end)
     in
-      (fragList := Frame.STRING(lab, s) :: !fragList;
-       Ex(T.NAME lab))
+      Ex(T.NAME lab)
     end
 
 fun stringEquality(oper, left, right) =
@@ -366,19 +377,28 @@ fun forExp(level, iAccess:access, brkLabel, lo:exp, hi:exp, body:exp) =
         val limitAccess = allocLocal(level)(false)
         val i = simpleVar(iAccess, level)
         val iPlus1 = Ex(T.BINOP(T.PLUS, unEx(i), T.CONST 1))
-        val newBody = Nx(T.SEQ(unNx(body), unNx(varDec(iAccess, level, iPlus1))))
-        val test = relOp(A.LeOp, i, simpleVar(limitAccess, level), false)
+        val testLe = relOp(A.LeOp, i, simpleVar(limitAccess, level), false)
+        val testLt = relOp(A.LtOp, i, simpleVar(limitAccess, level), false)
+        val bodyLabel = Temp.newLabel() and incLabel = Temp.newLabel()
     in
         Nx(T.SEQ(unNx(varDec(iAccess, level, lo)),
            T.SEQ(unNx(varDec(limitAccess, level, hi)),
-                 unNx(whileExp(test, newBody, brkLabel)))))
+           T.SEQ(unCx(testLe)(bodyLabel, brkLabel),
+           T.SEQ((T.LABEL incLabel),
+           T.SEQ(unNx(varDec(iAccess, level, iPlus1)),
+           T.SEQ((T.LABEL bodyLabel),
+           T.SEQ(unNx(body),
+           T.SEQ(unCx(testLt)(incLabel, brkLabel), T.LABEL brkLabel)))))))))
     end
 
-fun procEntryExit({level, body}) =
+fun procEntryExit({level, body, isProcedure}) =
     let
         val frame = getFrame(level)
         (* items 6-7 *)
-        val bodyWithRV = T.MOVE(T.TEMP Frame.RV, unEx(body))
+        (* only move the result into RV if the function is not a procedure *)
+        val bodyWithRV = if isProcedure
+                         then unNx(body)
+                         else T.MOVE(T.TEMP Frame.RV, unEx(body))
         (* procEntryExit1 gives us items 4-8, items 1-3 and 9-11 will be done
            later by procEntryExit3 (or 2?) *)
         val modifiedBody = Frame.procEntryExit1(frame, bodyWithRV)
@@ -399,6 +419,16 @@ fun printInfo() = (print("-----------Info-------------\n");
                    print("---------frags------\n");
                    (app printFrag (getResult())))
 
-fun reset() = fragList := []
+fun reset() = (fragList := []; stringTable := Symbol.empty)
 
+fun appendErrorLabels(e) =
+        let
+            val done = Temp.newLabel()
+        in Nx(T.SEQ(unNx(e),
+              T.SEQ(T.JUMP(T.NAME done, [done]),
+              T.SEQ(T.LABEL derefNil,
+              T.SEQ(unNx(libCall(Symbol.symbolize("print"),
+                         [stringExp("Attempted to deref a nil record", 0)], true)),
+              T.LABEL done)))))
+        end
 end
