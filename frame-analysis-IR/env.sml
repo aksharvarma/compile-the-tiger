@@ -1,3 +1,18 @@
+(* This is the environment that has the variable and type environments 
+ *
+ * These were modified for the frame analysis assignment to include
+ * - The variable's access (frame/temp register) in VarEntry
+ * - The function's level (information about it's frame) in FunEntry
+ *
+ * A helper function was added for the translation to IR phase
+ *
+ * inBaseVenv: Symbol.symbol -> bool
+ * 
+ * This is used to determine if a function was predefined or was later
+ * defined by the user (shadowed). This information is needed to know
+ * if translate should make an externalCall to the runtime or call the
+ * user defined version
+ *)
 signature ENV =
 sig
   type access

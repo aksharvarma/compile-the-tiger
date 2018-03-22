@@ -14,6 +14,8 @@ sig
   val externalCall: string * Tree.exp list -> Tree.exp
   val RV : Temp.temp (* as seen by callee *)
   val procEntryExit1: frame * Tree.stm -> Tree.stm
+
+  (* The following two functions are to facilitate debugging *)
   val printAccess: access -> unit
   val printFrame: frame -> unit
 end
