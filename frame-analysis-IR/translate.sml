@@ -125,20 +125,39 @@ fun simpleVar((l, access), level) = Ex(Frame.exp(access)(followSL(level, l)))
 
 (* TODO: check array out of bounds *)
 fun subscriptVar(a, indexExp) =
-    Ex(T.MEM(T.BINOP(T.PLUS,
+    let
+        val r = Temp.newTemp() val t = Temp.newTemp()
+        val z = Temp.newLabel() and x = Temp.newLabel()
+        val varTree = unEx(a)
+        val indexTree = unEx(indexExp)
+    in
+        Ex(T.ESEQ(T.SEQ(T.MOVE(T.TEMP r, varTree),
+                  T.SEQ(T.MOVE(T.TEMP t, indexTree),
+                  T.SEQ(T.CJUMP(T.GE, T.TEMP t, T.MEM(T.TEMP r), outOfBounds, z),
+                  T.SEQ(T.LABEL z,
+                  T.SEQ(T.CJUMP(T.LT, T.TEMP t, T.CONST 0, outOfBounds, x),
+                        T.LABEL x))))),
+                  T.MEM(T.BINOP(T.PLUS,
                   (* This gives us the base address for the array var *)
-                  unEx(a),
-                  (* Frame.exp(access)(followSL(level, l)), *)
-                  T.BINOP(T.MUL, T.CONST Frame.wordSize, unEx(indexExp)))))
+                  T.TEMP r,
+                  (* add 1 to the index exp because the first element of the array
+                     in memory will be the size *)
+                  T.BINOP(T.MUL, T.CONST Frame.wordSize,
+                          T.BINOP(T.PLUS, T.TEMP t, T.CONST 1))))))
+    end
 
 (* explain this *)
 fun fieldVar(a, i) =
         let
+            val r = Temp.newTemp()
             val z = Temp.newLabel()
         in
-            Ex(T.ESEQ(T.SEQ(T.CJUMP(T.EQ, T.MEM(unEx(a)), T.CONST 0, derefNil, z),
-                                     T.LABEL z),
-                               unEx(subscriptVar(a, Ex(T.CONST i)))))
+            Ex(T.ESEQ(T.SEQ(T.MOVE(T.TEMP r, unEx(a)),
+                      T.SEQ(T.CJUMP(T.EQ, T.TEMP r, T.CONST 0, derefNil, z),
+                                     T.LABEL z)),
+                  T.MEM(T.BINOP(T.PLUS,
+                  T.TEMP r,
+                  T.BINOP(T.MUL, T.CONST Frame.wordSize, T.CONST i)))))
         end
 
 fun arithOp(oper, left, right) =
@@ -463,6 +482,10 @@ fun appendErrorLabels(e) =
               T.SEQ(T.LABEL derefNil,
               T.SEQ(unNx(libCall(Symbol.symbolize("print"),
                          [stringExp("Attempted to deref a nil record", 0)], true)),
-              T.LABEL done)))))
+              T.SEQ(T.JUMP(T.NAME done, [done]),
+              T.SEQ(T.LABEL outOfBounds,
+              T.SEQ(unNx(libCall(Symbol.symbolize("print"),
+                         [stringExp("Index out of bounds exception", 0)], true)),
+              T.LABEL done))))))))
         end
 end
