@@ -459,7 +459,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
                         then throwUp(pos,
                                      "Function body does not match result type.")
                         else ();
-                        Translate.procEntryExit({level=newLevel, body=(#exp bodyRes), isProcedure=istype(actualTy(resultType), Ty.UNIT)});
+                        Translate.procEntryExit({level=newLevel, body=(#exp bodyRes), isProcedure=istype(actualTy(resultType), Ty.UNIT), isMain=false});
                         (* Process the rest of the fundecs for the
                            second pass *)
                         secondPass(funs, fls))
@@ -811,20 +811,23 @@ fun transProg(e) = (Translate.reset();
                     FindEscape.findEscape(e);
                     errorExists := false;
                     let
-                        val result = transExp(E.base_venv, E.base_tenv,
-                             Translate.newLevel {parent=Translate.outermost,
+                        val mainLevel =  Translate.newLevel {parent=Translate.outermost,
                                                  name=Temp.newLabel(),
-                                                 formals=[]},
+                                                 formals=[]}
+                        val result = transExp(E.base_venv, E.base_tenv,
+                                              mainLevel,
                                                  (* TODO: change to error label *)
                                                  Temp.newLabel()) e
-                        val finalResult = Translate.appendErrorLabels(#exp result)
                     in
                     (if !errorExists
                     then (throwUp(0,"Type-checking failed.");
                           raise ErrorMsg.Error)
 
                     else ();
-                    Printtree.printtree(TextIO.stdOut, Translate.unNx(finalResult));
+                    Translate.procEntryExit({level=mainLevel, body=(#exp result),
+                                             isProcedure=istype(#ty result, Ty.UNIT),
+                                             isMain=true});
+                    Printtree.printtree(TextIO.stdOut, Translate.unNx(#exp result));
                     Translate.printInfo();
                     (* Dropping result on the floor because book says to return fragments *)
                     Translate.getResult())

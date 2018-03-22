@@ -444,7 +444,23 @@ fun forExp(level, iAccess:access, brkLabel, lo:exp, hi:exp, body:exp) =
            T.SEQ(unCx(testLt)(incLabel, brkLabel), T.LABEL brkLabel)))))))))
     end
 
-fun procEntryExit({level, body, isProcedure}) =
+fun appendErrorLabels(e) =
+        let
+            val done = Temp.newLabel()
+        in T.SEQ(e,
+              T.SEQ(T.JUMP(T.NAME done, [done]),
+              T.SEQ(T.LABEL derefNil,
+              T.SEQ(unNx(libCall(Symbol.symbolize("print"),
+                         [stringExp("Attempted to deref a nil record", 0)], true)),
+              T.SEQ(T.JUMP(T.NAME done, [done]),
+              T.SEQ(T.LABEL outOfBounds,
+              T.SEQ(unNx(libCall(Symbol.symbolize("print"),
+                         [stringExp("Index out of bounds exception", 0)], true)),
+              T.LABEL done)))))))
+        end
+
+
+fun procEntryExit({level, body, isProcedure, isMain}) =
     let
         val frame = getFrame(level)
         (* items 6-7 *)
@@ -455,8 +471,11 @@ fun procEntryExit({level, body, isProcedure}) =
         (* procEntryExit1 gives us items 4-8, items 1-3 and 9-11 will be done
            later by procEntryExit3 (or 2?) *)
         val modifiedBody = Frame.procEntryExit1(frame, bodyWithRV)
+        val finalBody = if isMain
+                        then appendErrorLabels(modifiedBody)
+                        else modifiedBody
     in
-        fragList := Frame.PROC({body=modifiedBody, frame=frame}):: !fragList
+        fragList := Frame.PROC({body=finalBody, frame=frame}):: !fragList
     end
 
 fun getResult() = !fragList
@@ -474,18 +493,4 @@ fun printInfo() = (print("-----------Info-------------\n");
 
 fun reset() = (fragList := []; stringTable := Symbol.empty)
 
-fun appendErrorLabels(e) =
-        let
-            val done = Temp.newLabel()
-        in Nx(T.SEQ(unNx(e),
-              T.SEQ(T.JUMP(T.NAME done, [done]),
-              T.SEQ(T.LABEL derefNil,
-              T.SEQ(unNx(libCall(Symbol.symbolize("print"),
-                         [stringExp("Attempted to deref a nil record", 0)], true)),
-              T.SEQ(T.JUMP(T.NAME done, [done]),
-              T.SEQ(T.LABEL outOfBounds,
-              T.SEQ(unNx(libCall(Symbol.symbolize("print"),
-                         [stringExp("Index out of bounds exception", 0)], true)),
-              T.LABEL done))))))))
-        end
 end
