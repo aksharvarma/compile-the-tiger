@@ -208,7 +208,7 @@ fun ifThenElse(test, Nx(thenStm), Nx(elseStm)) =
                             T.SEQ(T.LABEL y,
                             elseFun(t, f))))))
         end
-  | ifThenElse(test, Cx(thenFun), Ex(elseExp)) =
+  | ifThenElse(test, Cx(thenFun), Ex(T.CONST 0)) =
         let
             val x = Temp.newLabel() and y = Temp.newLabel()
         in
@@ -216,17 +216,51 @@ fun ifThenElse(test, Nx(thenStm), Nx(elseStm)) =
                             T.SEQ(T.LABEL x,
                             T.SEQ(thenFun(t, f),
                             T.SEQ(T.LABEL y,
-                            unCx(Ex(elseExp))(t,f))))))
+                            unCx(Ex(T.CONST 0))(t,f))))))
         end
-  | ifThenElse(test, Ex(thenExp), Cx(elseFun)) =
+  | ifThenElse(test, Cx(thenFun), Ex(elseExp)) =
+        let
+            val r = Temp.newTemp()
+            val z = Temp.newLabel() and join = Temp.newLabel()
+            val t = Temp.newLabel() and f = Temp.newLabel()
+        in
+            Ex(T.ESEQ(T.SEQ(T.MOVE(T.TEMP r, T.CONST 0),
+                      T.SEQ(unCx(test)(t,f),
+                       T.SEQ(T.LABEL t,
+                       T.SEQ(thenFun(z, join),
+                       T.SEQ(T.LABEL z,
+                       T.SEQ(T.MOVE(T.TEMP r, T.CONST 1),
+                       T.SEQ(T.JUMP(T.NAME join, [join]),
+                       T.SEQ(T.LABEL f,
+                       T.SEQ(T.MOVE(T.TEMP r, elseExp),
+                       T.LABEL join))))))))), T.TEMP r))
+        end
+  | ifThenElse(test, Ex(T.CONST 1), Cx(elseFun)) =
         let
             val x = Temp.newLabel() and y = Temp.newLabel()
         in
             Cx(fn (t,f) =>  T.SEQ(unCx(test)(x,y),
                             T.SEQ(T.LABEL x,
-                            T.SEQ(unCx(Ex(thenExp))(t,f),
+                            T.SEQ(unCx(Ex(T.CONST 1))(t,f),
                             T.SEQ(T.LABEL y,
                             elseFun(t, f))))))
+        end
+  | ifThenElse(test, Ex(thenExp), Cx(elseFun)) =
+        let
+            val r = Temp.newTemp()
+            val z = Temp.newLabel() and join = Temp.newLabel()
+            val t = Temp.newLabel() and f = Temp.newLabel()
+        in
+            Ex(T.ESEQ(T.SEQ(T.MOVE(T.TEMP r, T.CONST 0),
+                      T.SEQ(unCx(test)(t,f),
+                      T.SEQ(T.LABEL t,
+                      T.SEQ(T.MOVE(T.TEMP r, thenExp),
+                      T.SEQ(T.JUMP(T.NAME join, [join]),
+                      T.SEQ(T.LABEL f,
+                      T.SEQ(elseFun(z, join),
+                      T.SEQ(T.LABEL z,
+                      T.SEQ(T.MOVE(T.TEMP r, T.CONST 1),
+                      T.LABEL join))))))))), T.TEMP r))
         end
   | ifThenElse(test, Ex(thenExp), Ex(elseExp)) =
         let
