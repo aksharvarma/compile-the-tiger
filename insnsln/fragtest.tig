@@ -1,0 +1,24 @@
+/* define a recursive function */
+let
+
+/* calculate n! */
+function nfactor(n: int): int =
+    let
+        var one : int := 1
+        var myN : int := n - one
+        function dec(n:int): int =
+            let
+                function oneFn(): int = one
+            in
+                n - oneFn()
+            end
+    in
+                if  myN = 0
+                        then one
+                        else n * nfactor(dec(n))
+    end
+in
+        (nfactor(10); nfactor(20))
+end
+
+
