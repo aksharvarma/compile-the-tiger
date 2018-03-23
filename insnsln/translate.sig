@@ -1,9 +1,5 @@
 signature TRANSLATE =
 sig
-
-  structure Frame : FRAME
-
-  type frag = Frame.frag                     (* is Frame.frag *)
   type exp                      (* Ex, Nx, Cx *)
   type level
   type access                   (* Different from Frame.access *)
@@ -49,7 +45,7 @@ sig
                        isMain: bool} -> unit
 
   (* This is the final result that is used. *)
-  val getResult : unit -> frag list
+  val getResult : unit -> Frame.frag list
 
   (* Used for debugging *)
   val printInfo: unit -> unit

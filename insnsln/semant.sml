@@ -32,7 +32,7 @@ sig
   type expty = {exp: Translate.exp, ty: Ty.ty}
 
   (* main semantic analysis entry point for a tiger program *)
-  val transProg : A.exp -> Translate.frag list
+  val transProg : A.exp -> unit
 end
 
 structure Semant :> SEMANT =
@@ -900,18 +900,13 @@ fun transProg(e) =
         Translate.procEntryExit({level=mainLevel, body=(#exp result),
                                  isProcedure=istype(#ty result,
                                                     Ty.UNIT),
-                                 isMain=true});
-        (* Two debugging prints *)
-        (* Printtree.printtree(TextIO.stdOut, Translate.unNx(#exp result));         *)
-
-        (* return the list of all the frags *)
-        Translate.getResult())
+                                 isMain=true}))
      end)
 end
 
 signature RUNNER =
 sig
-  val run: string -> Translate.frag list
+  val run: string -> unit
   val printAST: string -> unit
   val printFrags: string -> unit
 end

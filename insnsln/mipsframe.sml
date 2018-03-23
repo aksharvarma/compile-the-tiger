@@ -210,14 +210,14 @@ fun procEntryExit1(frame, body) =
       (* will move escaping args (including SL) into frame
        * and others into fresh temporary registers. *)
       fun moveArgs() =
-          T.LABEL(Temp.namedLabel("entryExit1::moveArgs(step-4)"))
+          T.LABEL(Temp.namedLabel("entryExit1_moveArgs_step4"))
 
       (* store the callee-saves registers in frame *)
       fun storeCalleeSaves() =
-          T.LABEL(Temp.namedLabel("entryExit1::storeCalleeSaves(step-5)"))
+          T.LABEL(Temp.namedLabel("entryExit1_storeCalleeSaves_step5"))
       (* restore the callee-saves registers from frame *)
       fun restoreCalleeSaves() =
-          T.LABEL(Temp.namedLabel("entryExit1::restoreCalleeSaves(step-8)"))
+          T.LABEL(Temp.namedLabel("entryExit1_restoreCalleeSaves_step8"))
       (* combine prologue+body+epilogue *)
       fun combine(moveArgsStm, storeRegsStm, bodyStm, restoreRegsStm) =
           T.SEQ(moveArgsStm,
@@ -231,6 +231,7 @@ fun procEntryExit1(frame, body) =
     end
 
 (* TODO: To be filled in later *)
-fun string(lab, str) = str
-                         
+fun string(lab, str) = Symbol.name(lab) ^ ": .asciiz \"" ^ str ^ "\"\n"
+
 end
+structure Frame:>FRAME = MipsFrame

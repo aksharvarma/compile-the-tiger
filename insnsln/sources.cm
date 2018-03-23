@@ -5,12 +5,10 @@ assem.sml
 errormsg.sml
 env.sml
 findescape.sml
-flowgraph.sml
 frame.sig
-graph.sig
-graph.sml
 main.sml
 mipsframe.sml
+mipsgen.sml
 olincanon2.sml
 parse.sml
 prabsyn.sml

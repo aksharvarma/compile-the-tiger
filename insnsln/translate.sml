@@ -10,14 +10,6 @@ struct
 structure T = Tree
 structure A = Absyn
 
-(* We are only supporting an implementation for the MIPS architecture.
- * Hence our Frame module is just the MipsFrame module.
- *)
-structure Frame :> FRAME = MipsFrame
-
-(* Just a renaming because Semant shouldn't know anything about Frame *)
-type frag = Frame.frag
-
 (* These are wrappers around Tree stms and exps. *)
 datatype exp = Ex of Tree.exp
              | Nx of Tree.stm
@@ -83,7 +75,7 @@ val derefNil = Temp.namedLabel("dereference_NIL")
 val outOfBounds = Temp.namedLabel("outOfBounds")
 
 (* The list of Frame.frag (=Translate.frag) *)
-val fragList: frag list ref = ref []
+val fragList: Frame.frag list ref = ref []
 
 (* Keeps a hash table of strings encountered until now
  * This is used to ensure that the same string doesn't get two labels
