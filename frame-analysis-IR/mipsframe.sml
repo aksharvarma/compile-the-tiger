@@ -1,11 +1,11 @@
-(* This is the module that contains all the machine specific details 
+(* This is the module that contains all the machine specific details
  * of MIPS needed to go from AST to IR tree (and for later phases)
  *
  * It is used to implement the following functionalities:
- * -  Abstracts out how variables need to be accessed 
+ * -  Abstracts out how variables need to be accessed
  *    (via temp registers or somewhere in the stack frame).
  * - Has the global FramePointer and ReturnValue temp regs (FP and RV).
- * - Abstracts out how the frame looks like. 
+ * - Abstracts out how the frame looks like.
  *   Other modules use functions to get at this functionality.
  * - Has the fragments datatype which is used later to finish compiling
  * - procEntryExit is used to add prologue and epilogue to functions.
@@ -33,9 +33,9 @@ val RV:Temp.temp = Temp.newTemp()
  * - A label to the start of the function (check this)
  * - A list of the accesses associated with each formal parameter
  * - The number of escaping local variables allocated so far
- * 
+ *
  * This frame type contains all the information needed to finish the
- * frame in later stages of the compiler. 
+ * frame in later stages of the compiler.
  * What isn't available in this type, is either available elsewhere or
  * can be computed easily.
  *)
@@ -46,9 +46,9 @@ type frame = {name:Temp.label,
 (* The final translation is going to be a list of these fragments
  * - PROC are procedures which have the code and associated frame
  * - STRING is a string literal that is stored at given label
- * 
+ *
  * This list is enough to finish later compiler stages.
- * 
+ *
  * Every function and its body becomes a PROC frag
  * - The body is in the Tree.stm
  * - The frame information needed later is present in frame.
@@ -62,12 +62,12 @@ datatype frag = PROC of {body: Tree.stm, frame: frame}
               | STRING of Temp.label * string
 
 (* exp: access -> Tree.exp -> Tree.exp
- * 
+ *
  * Given an access, it returns a function that takes a static link
  * and returns the location of a variable
  * - either the temp reg as a Tree.exp, or
  * - the memory location in stack (correctly offset)
- * 
+ *
  * Need this because Translate shouldn't know machine specific details.
  * Thus, it needs this interface to correctly use InFrame/InReg.
  *)
@@ -93,33 +93,33 @@ fun printFrame({name, formals, locals}) =
      print("\nlocals: " ^ Int.toString(!locals) ^ "\n"))
 
 (* newFrame: {name: Temp.label, formals: bool list} -> frame
- * 
+ *
  * This creates a new frame for a function.
  * - name is the label of the function
  * - formals is a list of bools denoting whether the formals escape.
  *   The static link is always added to this list as an escaping arg.
- * 
+ *
  * This is the function that will actually do the view shift
  * It is not being done now because we need many more machine specific
  * details including the names for various special registers.
- * Since this is not available as of now, we defer the view shift 
+ * Since this is not available as of now, we defer the view shift
  * implementation until later.
  *)
 fun newFrame({name: Temp.label, formals: bool list}) =
     let
       (* createAccesses: bool list * int -> access list
-       * 
+       *
        * Returns an access for the formal given whether it escapes.
        * Escaping formals go in the frame, else they stay in regs.
        *
-       * Note: We always increment the index regardless of where the 
+       * Note: We always increment the index regardless of where the
        * param is stored so as to reserve space for all formal params.
        * This helps with having >4 params because we always know the
        * offset for the kth argument of the function enabling later access
        * It is also useful to have space to move args into if we want
        * to use the arg registers to call other functions because we
        * know the physical registers used only post regalloc.
-       * 
+       *
        * This implementation keeps things reasonably flexible to refine
        * in later phases of the project.
        *)
@@ -146,28 +146,28 @@ fun name({name, formals, locals}) = name
 fun formals({name, formals, locals}) = formals
 
 (* allocLocal: frame -> bool -> access
- * 
+ *
  * Make an access for a new local variable in a frame
- * 
+ *
  * Note 1: We only allocate space in the stack for escaping locals
  * Otherwise they go in regs and are saved by the callee/caller saves
  * convention.
- * 
+ *
  * Note 2: Although we return a function, it's usage is very restricted
  * in the sense that it is immediately called and is only called once.
  * This allows performing the increment of count in that function.
  * The curried form of the function is based on the signature given
  * in Chapter 6 of the book. Our usage doesn't need a curried function.
- * 
+ *
  * Warning wrt Note 2!
  * Don't call the returned function twice for the same local,
  * it will create a new temp and a new frame location unnecessarily.
- * 
+ *
  * Note 3: In the final signature for the Frame module provided in the
- * book at pg 260, chapter 12, the allocLocal function has the 
+ * book at pg 260, chapter 12, the allocLocal function has the
  * following signature:
  * allocLocal: frame -> int
- * 
+ *
  * We keep the earlier signature until we find out why the signature
  * changes later.
  *)
@@ -182,22 +182,22 @@ fun allocLocal({name, formals, locals}) =
  * We use the simple form given in the book for now and defer further
  * refinement and details until a later stage when we know exactly how
  * the called external functions's MIPS assembly code looks like.
- * 
- * Since all external functions are implemented in C, we do not call 
+ *
+ * Since all external functions are implemented in C, we do not call
  * this function with any static link and only pass in the formals.
- * Also, Temp.namedLabel has been modified to have a 'tig_' prefix 
+ * Also, Temp.namedLabel has been modified to have a 'tig_' prefix
  * which seems to be what the final assembly labels will be.
- * Based on linking conventions mentioned in: 
+ * Based on linking conventions mentioned in:
  * https://course.ccs.neu.edu/csu4410/runtime/
  *)
 fun externalCall(s, args) = T.CALL(T.NAME(Temp.namedLabel(s)), args)
 
 (* procEntryExit1: frame * Tree.stm -> Tree.stm
- * 
+ *
  * This is the function that adds the prologue and epilogue to the code
  * of the function. Currently it is quite barren and will be filled in
  * at a later stage when we have more details of MIPS (esp. registers)
- * 
+ *
  * The required code will come in the following helper functions:
  * - moveArgs: will move escaping args (including SL) into frame
    and others into fresh temporary registers.

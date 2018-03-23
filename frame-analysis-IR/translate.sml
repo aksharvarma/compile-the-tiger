@@ -1,5 +1,5 @@
 (* The Translate module does all the heavylifting and interfacing,
- * allowing Semant to interact with both the MipsFrame module 
+ * allowing Semant to interact with both the MipsFrame module
  * (for frame analysis) and Tree (for AST to IR translation) module.
  *)
 
@@ -32,7 +32,7 @@ datatype level = OUTERMOST
 
 (* Note this is different than Frame.access. It includes a level *)
 type access = level * Frame.access
-                        
+
 (* Thrown if allocLocal is called on the outermost level
  * Shouldn't happen.
  *)
@@ -45,7 +45,7 @@ val nop = Ex(T.CONST 0)
 val outermost = OUTERMOST
 
 (* newLevel: {parent: level, name: Temp.label, formals: bool list} -> level
- * 
+ *
  * Create a new level with the given parent level, a name, and booleans
  * corresponding to the escapes for the formal parameters *)
 fun newLevel({parent:level, name: Temp.label, formals:bool list}) =
@@ -55,8 +55,8 @@ fun newLevel({parent:level, name: Temp.label, formals:bool list}) =
          unique=ref ()})
 
 (* formals: level -> access list
- * 
- * Return list of Translate.access for the formals of the given level 
+ *
+ * Return list of Translate.access for the formals of the given level
  *)
 fun formals(Lev({frame, parent, unique})) =
     map (fn (a) => (Lev({frame=frame, parent=parent, unique=unique}), a))
@@ -64,7 +64,7 @@ fun formals(Lev({frame, parent, unique})) =
   | formals(OUTERMOST) = []
 
 (* allocLocal: level -> bool -> access
- * 
+ *
  * Return a function that takes a boolean and returns the Translate.access
  * for the new local variable; Wraps over the namesake Frame.allocLocal
  *)
@@ -91,8 +91,8 @@ val fragList: frag list ref = ref []
 val stringTable:Temp.label Symbol.table ref = ref Symbol.empty
 
 (* These functions help extract inner IR representation in the form we want *)
-                                                  
-(* unEx: Translate.exp -> Tree.exp 
+
+(* unEx: Translate.exp -> Tree.exp
  *
  * Standard implementation from the book
  *)
@@ -121,8 +121,8 @@ fun unNx(Ex e) = T.EXP(e)
       T.SEQ(genstm(t,f), T.SEQ(T.LABEL t, T.LABEL f))
     end
 
-(* unCx: Translate.exp -> (Temp.label * Temp.label -> Tree.stm) 
- * 
+(* unCx: Translate.exp -> (Temp.label * Temp.label -> Tree.stm)
+ *
  * The unCx for 0 and 1 help to make AND/OR translation cleaner
  *)
 fun unCx(Ex(T.CONST 0)) = (fn (t, f) => T.JUMP(T.NAME f, [f]))
@@ -136,17 +136,17 @@ fun unCx(Ex(T.CONST 0)) = (fn (t, f) => T.JUMP(T.NAME f, [f]))
       raise UnCxException
     end
 
-(* followSl: level * level -> Tree.exp 
+(* followSl: level * level -> Tree.exp
  *
  * This is the function that follows the SL to reach required level.
- * curLev is current level and targetLev is the one whose FP you want 
- * 
+ * curLev is current level and targetLev is the one whose FP you want
+ *
  * Since we store SL at FP+0, we can simply recurse with T.MEM()
  * We keep recursing until we reach the correct level at which point
  * we use the FP to finish our expression to find the correct address
- * 
+ *
  * Note: Our way of doing things (and result) differs from Appel's way
- * Our result is his with all inner SL-offsets to be 0. 
+ * Our result is his with all inner SL-offsets to be 0.
  *)
 fun followSL(curLev: level, targetLev: level) =
     let
@@ -175,7 +175,7 @@ fun followSL(curLev: level, targetLev: level) =
 fun simpleVar((l, access), level) = Ex(Frame.exp(access)(followSL(level, l)))
 
 (* subscriptVar : exp  * exp -> exp
- * 
+ *
  * We perform array bound checking by storing the size of the array in
  * the base memory address. This means we offset our index by 1.
  * Using this size, we jump to an error label if the index is out of bounds
@@ -206,7 +206,7 @@ fun subscriptVar(a, indexExp) =
     end
 
 (* fieldVar : exp * int -> exp
- * 
+ *
  * We check for nil deferences here. Since nil is set to 0, we simply
  * add a check to ensure that we are not dereferencing 0.
  * If we are, we jump to the derefNil error label.
@@ -242,8 +242,8 @@ fun arithOp(oper, left, right) =
     end
 
 (* relOp: Absyn.oper * exp * exp * bool -> exp
- * 
- * The relOp is different for strings and for other types. The final 
+ *
+ * The relOp is different for strings and for other types. The final
  * parameter is a boolean denoting if we are comparing strings
  *)
 fun relOp(oper, left, right, false) = (* Not comparing strings *)
@@ -286,7 +286,7 @@ fun relOp(oper, left, right, false) = (* Not comparing strings *)
     end
 
 (* ifThen: exp * exp -> exp
- * 
+ *
  * The cases without the else is easy. It'll contain Nx and return Nx.
  * Raise exceptions in other cases (won't happen because we type-check)
  *)
@@ -305,14 +305,20 @@ fun ifThen(test, Nx(thenStm)) =
   | ifThen(test, Ex(thenExp)) =
     let exception ExInIfThenException in raise ExInIfThenException end
 
-      
-(* ifThenElse: exp * exp * exp -> exp 
- * 
+
+(* ifThenElse: exp * exp * exp -> exp
+ *
  * To make the IR code efficient the cases are handled differently.
+ * Depending on the kinds of exp's in the branches, we produce the
+ * most appropriate kind of exp for the if/then/else as a whole.
  * We explain each case separately as well.
  *)
 
-(* This is the simplest case. Do the test and jump to the right place *)
+(* This is the simplest case. Do the test and jump to the right place, ending
+ * at the newly created label z.
+ * Both branches are statements, so the whole if/then/else should also be
+ * statements (Nx)
+ *)
 fun ifThenElse(test, Nx(thenStm), Nx(elseStm)) =
     let
       val z = Temp.newLabel()
@@ -325,8 +331,12 @@ fun ifThenElse(test, Nx(thenStm), Nx(elseStm)) =
          T.SEQ(T.LABEL f,
          T.SEQ(elseStm, T.LABEL z)))))))
     end
-
-  (* EXPLAIN *)
+  (* Both branches are Cx's and should be evaluated for control, not value,
+   * and thus the whole if/then/else should also be evaluated for control (Cx).
+   * If the test statement is true, then we want to use the then branch as the
+   * real test. Similarly, if false, we want to use the else branch as the real
+   * test.
+   *)
   | ifThenElse(test, Cx(thenFun), Cx(elseFun)) =
     let
       val x = Temp.newLabel() and y = Temp.newLabel()
@@ -337,8 +347,13 @@ fun ifThenElse(test, Nx(thenStm), Nx(elseStm)) =
                      T.SEQ(T.LABEL y,
                            elseFun(t, f))))))
     end
-
-  (* EXPLAIN *)
+  (* When the then branch contains a Cx and the else branch contains 0,
+   * this is equivalent to an AND. We want to specifically optimize this
+   * case to evaluate for control, not value. This produces optimal jumps
+   * for the AND case, and also still will produce the correct result if
+   * this expression later needed to be evaluate for value (by unExing
+   * this Cx). Also note that unCx of 0 is treated specially.
+   *)
   | ifThenElse(test, Cx(thenFun), Ex(T.CONST 0)) =
     let
       val x = Temp.newLabel() and y = Temp.newLabel()
@@ -349,8 +364,17 @@ fun ifThenElse(test, Nx(thenStm), Nx(elseStm)) =
                             T.SEQ(T.LABEL y,
                             unCx(Ex(T.CONST 0))(t,f))))))
     end
-
-  (* EXPLAIN *)
+  (* When the then branch contains a Cx and the else branch contains
+   * an arbitrary expression, the if/then/else is assumed to be used
+   * for value rather than control. Producing an Ex is necessary here
+   * to preserve the value in the else expression.
+   * To do this, while still evaluating the Cx in then expression for
+   * control, we perform the test, and if it is true, we evaluate the
+   * then test and move the correct value (0 or 1) into a temp r and
+   * jump to the end. Else, if the original test was false, we move
+   * the result of the else expression into the temp r. At the end,
+   * r is then the result of the expression.
+   *)
   | ifThenElse(test, Cx(thenFun), Ex(elseExp)) =
     let
       val r = Temp.newTemp()
@@ -368,8 +392,13 @@ fun ifThenElse(test, Nx(thenStm), Nx(elseStm)) =
                 T.SEQ(T.MOVE(T.TEMP r, elseExp),
                 T.LABEL join))))))))), T.TEMP r))
     end
-
-  (* EXPLAIN *)
+  (* When the then branch contains 1 and the else branch contains a Cx,
+   * this is equivalent to an OR. We want to specifically optimize this
+   * case to evaluate for control, not value. This produces optimal jumps
+   * for the OR case, and also still will produce the correct result if
+   * this expression later needed to be evaluate for value (by unExing
+   * this Cx). Also note that unCx of 1 is treated specially.
+   *)
   | ifThenElse(test, Ex(T.CONST 1), Cx(elseFun)) =
     let
       val x = Temp.newLabel() and y = Temp.newLabel()
@@ -380,8 +409,16 @@ fun ifThenElse(test, Nx(thenStm), Nx(elseStm)) =
                      T.SEQ(T.LABEL y,
                      elseFun(t, f))))))
     end
-
-  (* EXPLAIN *)
+  (* When the then branch contains an arbitrary expression and the else
+   * branch contains a Cx, the if/then/else is assumed to be used
+   * for value rather than control. Producing an Ex is necessary here
+   * to preserve the value in the then expression.
+   * To do this, while still evaluating the Cx in else expression for
+   * control, we perform the test, and if it is true, we just move
+   * the result of the then expression into a temp r. If false, we
+   * evaluate the else test and move the correct value (0 or 1) into a temp r.
+   * At the end, r is then the result of the expression.
+   *)
   | ifThenElse(test, Ex(thenExp), Cx(elseFun)) =
     let
       val r = Temp.newTemp()
@@ -399,8 +436,12 @@ fun ifThenElse(test, Nx(thenStm), Nx(elseStm)) =
                 T.SEQ(T.MOVE(T.TEMP r, T.CONST 1),
                 T.LABEL join))))))))), T.TEMP r))
     end
-
-  (* EXPLAIN *)
+  (* This is a simple case in which both branches are expressions,
+   * and the if/then/else is assumed to be used for value.
+   * Simply moving the results of the appropriate expression
+   * into a new temp r and making that the result is all that is
+   * needed here
+   *)
   | ifThenElse(test, Ex(thenExp), Ex(elseExp)) =
     let
       val r = Temp.newTemp()
@@ -416,13 +457,14 @@ fun ifThenElse(test, Nx(thenStm), Nx(elseStm)) =
                 T.LABEL z)))))), T.TEMP r))
     end
 
-  (* This remaining are type-errors, raise exception. *)
+  (* The remaining cases are type-errors and will be caught by the
+   * type checker, raise exception.
+   *)
   | ifThenElse(_) =
     let exception IfThenElseNxMismatch in raise IfThenElseNxMismatch end
 
-
 (* funCall: Temp.label * exp list * level * level * bool -> exp
- * 
+ *
  * The levels are the current level and the level used to find SL to pass
  * The isProcedure bool is used to determine whether a result should
  * be expected or not and behave differently.
@@ -439,11 +481,11 @@ fun funCall(label, argExps, curLev, targetLev, isProcedure) =
     end
 
 (* libCall: Symbol.symbol * exp list * bool -> exp
- * 
+ *
  * This is to make calls to predefined/libarary functions.
  * They need to use externalCall as Tiger's predefined functions are
  * all written in the C runtime.
- * 
+ *
  * This also means that we don't need to find SL. However, we still
  * check if it is a procedure or not.
  *)
@@ -458,7 +500,7 @@ fun libCall(name, argExps, isProcedure) =
     end
 
 (* whileExp: exp * exp * Temp.label -> exp
- * 
+ *
  * We use the version with the test at the end of the body.
  *)
 fun whileExp(test, body, done) =
@@ -473,19 +515,19 @@ fun whileExp(test, body, done) =
     end
 
 (* intExp: int -> exp
- * 
+ *
  * This is also used by nilExp because we assume that nil is just 0.
  *)
 fun intExp(i) = Ex(T.CONST i)
 
 (* assignExp: exp * exp -> exp
- * 
+ *
  * This is also used in Vardec and gets called there.
  *)
 fun assignExp(left, right) = Nx(T.MOVE(unEx(left), unEx(right)))
 
-(* emptySeq: unit -> exp 
- * 
+(* emptySeq: unit -> exp
+ *
  * Essentially nop, but as an Nx, not an Ex.
  *)
 fun emptySeq() = Nx(T.EXP(T.CONST 0))
@@ -494,7 +536,7 @@ fun emptySeq() = Nx(T.EXP(T.CONST 0))
 fun singleSeq(fst) = fst
 
 (* seqExp: exp * exp * bool -> exp
- * 
+ *
  * The bool tells us whether result is UNIT or not.
  * We use that to decide between Nx and Ex.
  *)
@@ -505,12 +547,12 @@ fun seqExp(fst, rest, false) = Ex(T.ESEQ(unNx(fst), unEx(rest)))
 fun brkExp(brkLabel) = Nx(T.JUMP(T.NAME brkLabel, [brkLabel]))
 
 (* stringExp: string -> exp
- * 
+ *
  * Most of the work with strings will be done later on, so we only need
  * to add them to the frag list for now.
- * 
- * However, we do test if we've seen the string before. 
- * If so, we don't make a new entry in the frag list. 
+ *
+ * However, we do test if we've seen the string before.
+ * If so, we don't make a new entry in the frag list.
  * We simply find its existing label and use that.
  *)
 fun stringExp(s) =
@@ -552,7 +594,7 @@ fun stringEquality(oper, left, right) =
     end
 
 (* createArray: exp * exp -> exp
- * 
+ *
  * Simple external call to initArray
  *)
 fun createArray(size, init) =
@@ -584,15 +626,15 @@ fun recordExp(fieldList:exp list) =
     end
 
 (* insertHelper: exp list -> Tree.stm
- * 
+ *
  * Internal helper function for insertDecs
  *)
 fun insertHelper([]) = let exception NeverHappens in raise NeverHappens end
   | insertHelper(d::[]) = unNx(d)
   | insertHelper(d::ds) = T.SEQ(unNx(d), insertHelper(ds))
 
-(* insertDecs: exp list * exp * bool -> exp 
- * 
+(* insertDecs: exp list * exp * bool -> exp
+ *
  * The bool is whether the body unit or not. Use Nx if it is.
  *)
 fun insertDecs([], body, _) = body
@@ -602,14 +644,14 @@ fun insertDecs([], body, _) = body
     Nx(T.SEQ(insertHelper(dec::decs), unNx(body)))
 
 (* varDec: access * level * exp -> exp
- * 
+ *
  * A varDec is simply an assignExp with appropriate expressions.
  *)
 fun varDec(access:access, level, init:exp) =
     assignExp(simpleVar(access, level), init)
 
 (* forExp: level * access * Temp.label * exp * exp * exp -> exp
- * 
+ *
  * We incorporate the suggestion by Appel in the book so as to allow
  * hi to be maxint. This needs multiple tests and jumps but ensures
  * that the resultant code is correct.
@@ -690,7 +732,7 @@ fun procEntryExit({level, body, isProcedure, isMain}) =
 fun getResult() = !fragList
 
 
-(* printInfo: unit -> unit 
+(* printInfo: unit -> unit
  *
  * Just a debugging function that prints FP, RV, and the fraglist.
  *)
@@ -716,7 +758,7 @@ fun printInfo() =
        print("---------frags------\n");
        (app printFrag (getResult())))
     end
-      
+
 (* reset: unit -> unit *)
 fun reset() = (fragList := []; stringTable := Symbol.empty)
 

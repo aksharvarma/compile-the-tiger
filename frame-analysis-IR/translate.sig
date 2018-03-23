@@ -5,11 +5,11 @@ sig
 
   type frag                     (* is Frame.frag *)
   type exp                      (* Ex, Nx, Cx *)
-  type level                  
+  type level
   type access                   (* Different from Frame.access *)
 
   val nop : exp                 (* placeholder expression *)
-  val outermost: level          
+  val outermost: level
 
   (* Called when a new function called *)
   val newLevel: {parent: level,

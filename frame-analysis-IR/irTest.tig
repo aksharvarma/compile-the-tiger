@@ -1,7 +1,7 @@
 let
         type intArray = array of int
         var a := intArray [10] of 0
-in  
+in
     a[11]
 end
 /*"\097"*/
@@ -21,7 +21,7 @@ end*/
   var a := (if 3<4
       then -345
       else (if 9<7 then 3 else 0=8))
-in   
+in
      a
 end
 */

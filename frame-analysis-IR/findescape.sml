@@ -4,8 +4,8 @@
  * at variables and see which ones are called from a different frame.
  * The boolen escape ref inside those variables' VarEntry is made true
  * so that Semant can perform the necessary frame analysis properly.
- * 
- * Other modules only see the function 
+ *
+ * Other modules only see the function
  *     findEscape: Absyn.exp -> unit
  * which sets all bool refs for variables in the AST to correct values
  * This is done in place (mutates) the refs inside VarEntries so that
@@ -34,13 +34,13 @@ type escEnv = (depth * bool ref) Symbol.table
 (* The three helper functions *)
 
 (* traverseVar: escEnv * depth * Absyn.var -> unit
- * 
+ *
  * traverses the variables in the AST, setting the escapes to true when
  * a simple var is found referenced deeper than where it was declared.
  * Other variables make recursive calls.
  *)
 
-(* Simple variable case. Setting escape to true can only happen here  
+(* Simple variable case. Setting escape to true can only happen here
  *)
 fun traverseVar(env:escEnv, depth:depth, Absyn.SimpleVar(id, pos)): unit =
     (case Symbol.look(env, id)
@@ -56,7 +56,7 @@ fun traverseVar(env:escEnv, depth:depth, Absyn.SimpleVar(id, pos)): unit =
     traverseVar(env, d, var)
 
   (* Recursively traverse the subscript expression
-   * and the array var whose subscript was accessed. 
+   * and the array var whose subscript was accessed.
    *)
   | traverseVar(env, d, Absyn.SubscriptVar(var, e, pos)): unit =
     (traverseExp(env, d, e);
@@ -65,7 +65,7 @@ fun traverseVar(env:escEnv, depth:depth, Absyn.SimpleVar(id, pos)): unit =
 (* traverseExp: escEnv * depth * Absyn.exp -> unit
  *
  * Recursively traverses the exp's in the AST and make calls to the
- * traverseVar and traverseDec when needed. 
+ * traverseVar and traverseDec when needed.
  * No modifications to the escape field are made by this function.
  *)
 
@@ -115,7 +115,7 @@ and traverseExp(env:escEnv, d:depth, Absyn.VarExp(var)): unit =
 
   (* traverse the lo and hi expressions in the current escEnv,
    * then traverse the loop's body in the escape environment
-   * augmented with the loop variable 
+   * augmented with the loop variable
    *)
   | traverseExp(env, d, Absyn.ForExp({var, escape, lo, hi, body, pos})) =
     (traverseExp(env, d, lo);
@@ -132,7 +132,7 @@ and traverseExp(env:escEnv, d:depth, Absyn.VarExp(var)): unit =
 
 
 (* traverseDecs: escEnv * depth * Absyn.dec list -> unit
- * 
+ *
  * Recursively traverses the given decs list
  * This is the main function that adds relevant escape refs to the
  * escape environment at the current depth level
@@ -142,10 +142,10 @@ and traverseDecs(env, d, []): escEnv = env (* base case *)
   (* The other cases, handle first dec and recurse over the rest *)
   | traverseDecs(env, d, dec::decs: Absyn.dec list): escEnv =
     (* Vars, Funcs, Types behave differently, case over them *)
-    case dec of                 
+    case dec of
         (* Variables
          *
-         * Traverse the init expression and augment escEnv with the 
+         * Traverse the init expression and augment escEnv with the
          * escape field of the current vardec.
          * Recursively continue parsing the decs list with new escEnv
          *)
@@ -153,20 +153,20 @@ and traverseDecs(env, d, []): escEnv = env (* base case *)
         (traverseExp(env, d, init);
          traverseDecs(Symbol.enter(env, name, (d, escape)), d, decs))
 
-      (* Typedec 
-       * 
+      (* Typedec
+       *
        * They can't refer to anything that escapes. Just recurse. *)
       | Absyn.TypeDec(tylist) => traverseDecs(env, d, decs)
 
       (* FunctionDecs
-       * 
+       *
        * They are done one by one, each function adds 1 to the depth.
        * We then traverse the body with incremented depth.
        *)
       (* Recur if end of Fundec list *)
       | Absyn.FunctionDec([]) => traverseDecs(env, d, decs)
 
-      (* Each function is done individually. 
+      (* Each function is done individually.
        * Params are added to escEnv and then the body is traversed *)
       | Absyn.FunctionDec({name, params, result, body, pos}::fs) =>
         let

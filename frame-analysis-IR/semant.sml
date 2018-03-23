@@ -1,10 +1,10 @@
 (* The Semant module
- * 
+ *
  * - uses FindEscape to perform escape analysis
  * - Does the type checking
  * - Simultaneously makes calls to Translate functions to translate the
  *   AST into the IR tree.
- * 
+ *
  * The actual code here is only for static semantic analysis including
  * type checking and verifying positions of breaks.
  * Everything else is done in its own module and details/comments are
@@ -26,7 +26,7 @@ sig
   (* static type environment, table maps symbols to Ty.ty *)
   type tenv = Ty.ty S.table
 
-  (* expty: a translated expression and its type 
+  (* expty: a translated expression and its type
    * this is what transExp essentially computes
    *)
   type expty = {exp: Translate.exp, ty: Ty.ty}
@@ -53,7 +53,7 @@ val brNesting = ref 0
 (* Helper methods *)
 
 (* throwUp: int * string -> unit
- * 
+ *
  * Sets error flag and outputs error message
  * Note since only the starting positions are stored in the AST
  * the error messages will have the same pos twice rather than
@@ -63,7 +63,7 @@ fun throwUp(pos, msg) = (errorExists := true;
                          ErrorMsg.error(pos, pos, msg))
 
 (* Takes in a list of record fields (from Ty.RECORD) and finds the
- * field with the given name if it exists 
+ * field with the given name if it exists
  *)
 and findField([], id:S.symbol) = NONE
   | findField((x:S.symbol, ty:Ty.ty)::xs, id:S.symbol) =
@@ -127,7 +127,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
       (* Many more helper methods *)
 
       (* Checks whether the given expression is of the target type.
-       * If not, print the given error message. 
+       * If not, print the given error message.
        *)
       fun check(ty:Ty.ty, targetType:Ty.ty, pos, msg) =
           if (not (istype(ty, actualTy(targetType))))
@@ -139,7 +139,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
        * have the same types as the actual types of the
        * types in the second list (order matters).
        * This helper is useful for checking whether the
-       * arguments used to call a function have the correct types 
+       * arguments used to call a function have the correct types
        *)
       and checkTypeList([], []) = true (* we're good if both empty *)
         (* if exactly one is empty, something's wrong *)
@@ -150,7 +150,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
           #ty(e) = actualTy(t) andalso checkTypeList(es, ts)
 
       (* Verifies whether the given list of record field declarations
-       * match the types of the record fields looked up from the tenv 
+       * match the types of the record fields looked up from the tenv
        *)
       and verifyFields([], [], pos) = () (* both empty => we're good *)
         | verifyFields([], _, pos) =
@@ -569,7 +569,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
                       case typ
                        of Ty.INT => SOME(Ty.INT)
                         (* when comparing unassignables are ints *)
-                        | Ty.UNASSIGNABLE => SOME(Ty.INT) 
+                        | Ty.UNASSIGNABLE => SOME(Ty.INT)
                         | Ty.STRING => SOME(Ty.STRING)
                         | Ty.RECORD(t) => SOME(Ty.RECORD(t))
                         | Ty.ARRAY(t) => SOME(Ty.ARRAY(t))
@@ -868,7 +868,7 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
 (* The main entry point for a tiger program.
  * - Call FindEscape to perform escape analysis
  * - Translates/type-checks a given program (expression), beginning
- * with the base environments 
+ * with the base environments
  * - Call Translate.getResult() to get list of frags at the end.
 *)
 fun transProg(e) =
@@ -881,9 +881,9 @@ fun transProg(e) =
                                name=Temp.namedLabel("MAIN_TIGER_PROG"),
                                formals=[]}
 
-       (* The brklabel for outermost doesn't matter. 
+       (* The brklabel for outermost doesn't matter.
         * It's a type error to break here, so this label will disappear
-        * 
+        *
         * This variable will contain the tree of the whole program
         *)
        val result = transExp(E.base_venv, E.base_tenv,
@@ -928,5 +928,5 @@ fun printAST(filename:string) = PrintAbsyn.print(TextIO.stdOut,
 (* Prints the frags computed by Translate *)
 fun printFrags(filename:string) = (run(filename);
                                    Translate.printInfo())
-                                                
+
 end

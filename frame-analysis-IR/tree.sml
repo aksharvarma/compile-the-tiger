@@ -1,4 +1,4 @@
-(* This contains the IR tree provided. 
+(* This contains the IR tree provided.
  *
  * There are some binops and relops that are not used by us that we are
  * not removing because they might be useful later on.

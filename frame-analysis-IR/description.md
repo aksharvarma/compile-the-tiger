@@ -42,7 +42,7 @@ The static semantic analysis phase did type type checking using the Semant modul
 ## Translate
   * This module exposes an interface that allows Semant to translate ASTs into the IR tree.
   * It also provides Semant access to the Frame module with its interface.
-  * Whereas Semant's primary function is to type-check, Translate helps it to translate the program on the side. 
+  * Whereas Semant's primary function is to type-check, Translate helps it to translate the program on the side.
 
 
 # Modularity of modules
@@ -90,16 +90,20 @@ Most of the view shift needs knowledge of MIPS registers (knowing which register
 ### Handling more than four procedure parameters
 We allow arbitrary length list of parameters and we reserve space for all parameters although non-escaping parameters go into temp registers. Since we reserve space irrespective of the length of the param list or whether it escapes, we know the exact offset for each param. This allows us to handle all cases (with escaping and number of parameters changing) correctly.
 
-The difference for more than 4 parameters will come in only when we implement the view shift. At that time we will need to consider where the arguments are coming in from. As mentioned above, we do not have enough information to implement the view shift (in particular we do not know which registers the arguments will come in). Since any other change that needs to be made is part of the view shift, as far as frame analysis and IR translation is concerned, we handle arbitrary number of parameters. 
+The difference for more than 4 parameters will come in only when we implement the view shift. At that time we will need to consider where the arguments are coming in from. As mentioned above, we do not have enough information to implement the view shift (in particular we do not know which registers the arguments will come in). Since any other change that needs to be made is part of the view shift, as far as frame analysis and IR translation is concerned, we handle arbitrary number of parameters.
 
 ## Primarily related to translation
 ### allocLocal signature confusion
 The signature that is provided for allocLocal in Chapter 6 is `allocLocal: frame -> bool -> access`. However, in the final signature for the Frame module provided in the book at pg 260, chapter 12, the allocLocal function has the signature: `allocLocal: frame -> int`. The currying is confusing because the only places we have had to call allocLocal are also where we immediately call the function that is returned. The currying doesn't seem to be necessary. However, we do need it to return an `access` type which isn't an int. Since we don't know why the final signature is different, we keep the signature provided in Chapter 6 and write the rest of the code accordingly.
 
-### if-then-else handling
-# TODO!! WRITE THIS UP!! TODO TODO TODO TODO
-#### AND/OR as if-then-else
-#### Anything else?
+### if-then-else handling and optimization
+In order to handle if-then-else's in a smart way, there are several different cases that should be treated differently. The exp type that the entire if/then/else translates to is dependent on whether the if statement should be evaluated for control (Cx), value (Ex), or side effects (Nx). Determining how we want to evaluate the if/then/else then depends on the kinds of exps that are present in the then and else branches. The various cases are broken out and explained extensively in translate.
+To highlight a few of the special cases:
+* If both the then and else exp's are Nx's then we should evaluate the if/then/else as a statmement and produce an Nx.
+* If both the then and else exp's are Cx's then we should evaluate the if/then/else for control and produce another Cx, optimizing the jumps logically.
+* We optimize for the AND (Cx in then, 0 in else) and OR (1 in then, Cx in else) cases, specially, evaluating them for control and producing a Cx as this will be a common case for test expressions. Also note that unCx handles 0 and 1 specially and this is used in this case.
+* If there is on Cx and one Ex (that is not 0 or 1), then we assume we want to evaluate the if/then/else for value, not control in order to preserve the value that is in the arbitrary expression. If we had evaluated for control and produced a Cx, then the value in the Ex would have been lost if we had actually needed to evaluate for value.
+See the if/then/else function in translate for more details.
 
 ### String comparison
 Since we have control over the runtime, we decided to make two functions (apart from stringEqual) that help us perform string inequality testing. These are the stringLt and stringLte functions that will be added to the runtime.c code at a later point. These new functions make the translated code much shorter and simpler.
@@ -118,7 +122,7 @@ Currently, the string frags don't do much. They are simple stored and when they 
 ### nil is 0
 We make the nil (pointer) point to the address 0. This is keeping with the common C convention of making the NULL pointer point to 0. In Tiger, nil behaves somewhat as the NULL pointer in C, although it is only valid in the context of records.
 
-### Dereferencing nil 
+### Dereferencing nil
 We have code that checks before dereferencing records with nil pointers. This is a runtime check since records can be made to point to something other than nil by arbitrary code (conditionals, function calls, etc.) and that cannot be distinguished at compile time.
 
 ### Bound checking for arrays
