@@ -51,7 +51,7 @@ struct
   val nop = T.EXP(T.CONST 0)
 
   fun reorder ((e as T.CALL _ )::rest) =
-	let val t = Temp.newtemp()
+	let val t = Temp.newTemp()
 	 in reorder(T.ESEQ(T.MOVE(T.TEMP t, e), T.TEMP t) :: rest)
 	end
     | reorder (a::rest) =
@@ -59,7 +59,7 @@ struct
 	     val (stms',el) = reorder rest
 	  in if commute(stms',e)
 	     then (stms % stms',e::el)
-	     else let val t = Temp.newtemp()
+	     else let val t = Temp.newTemp()
 		   in (stms % T.MOVE(T.TEMP t, e) % stms', T.TEMP t :: el)
 		  end
 	 end
@@ -121,7 +121,7 @@ struct
       every block ends with a JUMP or CJUMP *)
 
   fun basicBlocks stms = 
-     let val done = Temp.newlabel()
+     let val done = Temp.newLabel()
          fun blocks((head as T.LABEL _) :: tail, blist) =
 	     let fun next((s as (T.JUMP _))::rest, thisblock) =
 		                endblock(rest, s::thisblock)
@@ -139,7 +139,7 @@ struct
 	     in next(tail, [head])
 	     end
 	   | blocks(nil, blist) = rev blist
-	   | blocks(stms, blist) = blocks(T.LABEL(Temp.newlabel())::stms, blist)
+	   | blocks(stms, blist) = blocks(T.LABEL(Temp.newLabel())::stms, blist)
       in (blocks(stms,nil), done)
      end
 
@@ -162,7 +162,7 @@ struct
              | (SOME(b' as _::_), _) => 
 		           most @ [T.CJUMP(T.notRel opr,x,y,f,t)]
 		                @ trace(table, b', rest)
-             | _ => let val f' = Temp.newlabel()
+             | _ => let val f' = Temp.newLabel()
 		     in most @ [T.CJUMP(opr,x,y,t,f'), 
 				T.LABEL f', T.JUMP(T.NAME f,[f])]
 			     @ getnext(table,rest)

@@ -2,6 +2,7 @@ Group is
 
 absyn.sml
 assem.sml
+canon.sml
 errormsg.sml
 env.sml
 findescape.sml
@@ -9,7 +10,6 @@ frame.sig
 main.sml
 mipsframe.sml
 mipsgen.sml
-olincanon2.sml
 parse.sml
 prabsyn.sml
 printtree.sml

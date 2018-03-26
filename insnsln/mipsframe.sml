@@ -210,14 +210,14 @@ fun procEntryExit1(frame, body) =
       (* will move escaping args (including SL) into frame
        * and others into fresh temporary registers. *)
       fun moveArgs() =
-          T.LABEL(Temp.namedLabel("entryExit1_moveArgs_step4"))
+          T.LABEL(Temp.namedLabel(Symbol.name(name(frame))^"_entryExit1_moveArgs_step4"))
 
       (* store the callee-saves registers in frame *)
       fun storeCalleeSaves() =
-          T.LABEL(Temp.namedLabel("entryExit1_storeCalleeSaves_step5"))
+          T.LABEL(Temp.namedLabel(Symbol.name(name(frame))^"_entryExit1_storeCalleeSaves_step5"))
       (* restore the callee-saves registers from frame *)
       fun restoreCalleeSaves() =
-          T.LABEL(Temp.namedLabel("entryExit1_restoreCalleeSaves_step8"))
+          T.LABEL(Temp.namedLabel(Symbol.name(name(frame))^"_entryExit1_restoreCalleeSaves_step8"))
       (* combine prologue+body+epilogue *)
       fun combine(moveArgsStm, storeRegsStm, bodyStm, restoreRegsStm) =
           T.SEQ(moveArgsStm,
@@ -231,7 +231,61 @@ fun procEntryExit1(frame, body) =
     end
 
 (* TODO: To be filled in later *)
-fun string(lab, str) = Symbol.name(lab) ^ ": .asciiz \"" ^ str ^ "\"\n"
+fun string(lab, str) = (Symbol.name(lab) ^ ": .asciiz \"" ^ str ^ "\"\n")
 
+                                                                   
+(* Registers *)
+type register = string
+                  
+val specialRegs:(register * Temp.temp) list = [("$v0", RV),
+                                               ("$zero", Temp.newTemp()),
+                                               ("$ra", Temp.newTemp()),
+                                               ("$sp", Temp.newTemp())]
+
+val argRegs:(register * Temp.temp) list = [("$v1", Temp.newTemp()),
+                                           ("$a0", Temp.newTemp()),
+                                           ("$a1", Temp.newTemp()),
+                                           ("$a2", Temp.newTemp()),
+                                           ("$a3", Temp.newTemp())]
+
+val calleeSaves:(register * Temp.temp) list = [("$s0", Temp.newTemp()),
+                                               ("$s1", Temp.newTemp()),
+                                               ("$s2", Temp.newTemp()),
+                                               ("$s3", Temp.newTemp()),
+                                               ("$s4", Temp.newTemp()),
+                                               ("$s5", Temp.newTemp()),
+                                               ("$s6", Temp.newTemp()),
+                                               ("$s7", Temp.newTemp()),
+                                               ("$r30", Temp.newTemp())]
+(* The last thing in the calleeSaves list is actually the fp. But we do not use
+ *   *)
+                                                
+val callerSaves:(register * Temp.temp) list = [("$t0", Temp.newTemp()),
+                                               ("$t1", Temp.newTemp()),
+                                               ("$t2", Temp.newTemp()),
+                                               ("$t3", Temp.newTemp()),
+                                               ("$t4", Temp.newTemp()),
+                                               ("$t5", Temp.newTemp()),
+                                               ("$t6", Temp.newTemp()),
+                                               ("$t7", Temp.newTemp()),
+                                               ("$t8", Temp.newTemp()),
+                                               ("$t9", Temp.newTemp())]
+
+(* These are reserved registers  *)
+val reservedRegs:(register * Temp.temp) list = [("$at", Temp.newTemp()),
+                                               ("$k0", Temp.newTemp()),
+                                               ("$k1", Temp.newTemp()),
+                                               ("$gp", Temp.newTemp())]
+
+
+fun getRegNum(str, tempNum) = tempNum
+                                  
+(* val tab = Temp.Table *)
+val tempMap:register Temp.Table.table =
+    foldr (fn ((str, n), table) => Temp.Table.enter(table, n, str))
+          Temp.Table.empty
+          (specialRegs@argRegs@calleeSaves@callerSaves@reservedRegs)
+
+                                          
 end
 structure Frame:>FRAME = MipsFrame

@@ -19,5 +19,9 @@ sig
   (* The following two functions are to facilitate debugging *)
   val printAccess: access -> unit
   val printFrame: frame -> unit
+
+  type register = string
+  val tempMap:register Temp.Table.table
+                       
 end
 

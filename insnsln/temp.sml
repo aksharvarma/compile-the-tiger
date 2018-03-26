@@ -10,6 +10,7 @@ structure Table = IntMapTable(type key = int
 
 fun makeString t = "t" ^ Int.toString t
 
+                                      
 type label = Symbol.symbol
 
 local structure F = Format
