@@ -26,6 +26,8 @@ datatype access = InReg of Temp.temp | InFrame of int
 
 (* The frame pointer register. This is fixed for all frames *)
 val FP:Temp.temp = Temp.newTemp()
+(* The stack pointer register. This is fixed for all frames *)
+val SP:Temp.temp = Temp.newTemp()
 (* The return value register. This is fixed for all frames *)
 val RV:Temp.temp = Temp.newTemp()
 
@@ -206,29 +208,32 @@ fun externalCall(s, args) = T.CALL(T.NAME(Temp.namedLabel(s)), args)
  * - combine: combine prologue+body+epilogue
  *)
 fun procEntryExit1(frame, body) =
-    let
-      (* will move escaping args (including SL) into frame
-       * and others into fresh temporary registers. *)
-      fun moveArgs() =
-          T.LABEL(Temp.namedLabel(Symbol.name(name(frame))^"_entryExit1_moveArgs_step4"))
+    body
+(* let *)
+    (*   (* will move escaping args (including SL) into frame *)
+    (*    * and others into fresh temporary registers. *) *)
+    (*   fun moveArgs() = *)
+    (*       T.LABEL(Temp.namedLabel(Symbol.name(name(frame))^"_entryExit1_moveArgs_step4")) *)
 
-      (* store the callee-saves registers in frame *)
-      fun storeCalleeSaves() =
-          T.LABEL(Temp.namedLabel(Symbol.name(name(frame))^"_entryExit1_storeCalleeSaves_step5"))
-      (* restore the callee-saves registers from frame *)
-      fun restoreCalleeSaves() =
-          T.LABEL(Temp.namedLabel(Symbol.name(name(frame))^"_entryExit1_restoreCalleeSaves_step8"))
-      (* combine prologue+body+epilogue *)
-      fun combine(moveArgsStm, storeRegsStm, bodyStm, restoreRegsStm) =
-          T.SEQ(moveArgsStm,
-                T.SEQ(storeRegsStm,
-                      T.SEQ(bodyStm, restoreRegsStm)))
-    in
-      combine(moveArgs(),
-              storeCalleeSaves(),
-              body,
-              restoreCalleeSaves())
-    end
+    (*   (* store the callee-saves registers in frame *) *)
+    (*   fun storeCalleeSaves() = *)
+    (*       T.LABEL(Temp.namedLabel(Symbol.name(name(frame))^"_entryExit1_storeCalleeSaves_step5")) *)
+    (*   (* restore the callee-saves registers from frame *) *)
+    (*   fun restoreCalleeSaves() = *)
+    (*       T.LABEL(Temp.namedLabel(Symbol.name(name(frame))^"_entryExit1_restoreCalleeSaves_step8")) *)
+    (*   (* combine prologue+body+epilogue *) *)
+    (*   fun combine(moveArgsStm, storeRegsStm, bodyStm, restoreRegsStm) = *)
+    (*       T.SEQ(moveArgsStm, *)
+    (*             T.SEQ(storeRegsStm, *)
+    (*                   T.SEQ(bodyStm, restoreRegsStm))) *)
+    (* in *)
+    (*   combine(moveArgs(), *)
+    (*           storeCalleeSaves(), *)
+    (*           body, *)
+    (*           restoreCalleeSaves()) *)
+    (* end *)
+
+
 
 (* TODO: To be filled in later *)
 fun string(lab, str) = (Symbol.name(lab) ^ ": .asciiz \"" ^ str ^ "\"\n")
@@ -240,7 +245,7 @@ type register = string
 val specialRegs:(register * Temp.temp) list = [("$v0", RV),
                                                ("$zero", Temp.newTemp()),
                                                ("$ra", Temp.newTemp()),
-                                               ("$sp", Temp.newTemp())]
+                                               ("$sp", SP)]
 
 val argRegs:(register * Temp.temp) list = [("$v1", Temp.newTemp()),
                                            ("$a0", Temp.newTemp()),
@@ -278,6 +283,31 @@ val reservedRegs:(register * Temp.temp) list = [("$at", Temp.newTemp()),
                                                ("$gp", Temp.newTemp())]
 
 
+(* procEntryExit2: frame * Assem.instr list -> Assem.instr list
+ * 
+ * Adds a vacuous instruction to the end of a function body so that liveness 
+ * analysis can know that certain registers are live when a function returns.
+ *)
+fun procEntryExit2(frame, body) = 
+    let
+      val liveTemps = map (fn (str, tmp) => tmp) (specialRegs@calleeSaves)
+    in
+    body @ [Assem.OPER{assem="",
+                       src=liveTemps, dst=[],
+                       jump=SOME[]}]
+    end
+
+(* procEntryExit3: frame * Assem.instr list -> {prolog:string, 
+ *                                              body: Assem.instr list,
+ *                                              epilog:string}
+ * 
+ * Adds the prolog and epilog to the functions. (Will be filled later)
+ *)
+fun procEntryExit3({name, formals, locals}, body) = 
+    {prolog="PROCEDURE "^Symbol.name(name)^"\n",
+     body=body,
+     epilog="END "^Symbol.name(name)^"\n"}
+                                                 
 fun getRegNum(str, tempNum) = tempNum
                                   
 (* val tab = Temp.Table *)

@@ -28,6 +28,8 @@ fun emitproc out (F.PROC{body,frame}) =
             app (fn stm => (Printtree.printtree(TextIO.stdOut, stm);
                             print("--------\n"))) stms'
         val instrs =  List.concat(map (MipsGen.codeGen frame) stms')
+        val instrs' = Frame.procEntryExit2(frame, instrs)
+        val instrs'' = Frame.procEntryExit3(frame, instrs')
         val format0 = Assem.format(modifiedMakeString)
     in
       (* (app (fn stm => (Printtree.printtree(TextIO.stdOut, stm); *)

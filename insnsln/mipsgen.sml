@@ -18,6 +18,9 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
       (* the list of instructions that we have generated so far *)
       val ilist = ref (nil: Assem.instr list)
 
+      val fs = Temp.namedLabel(Symbol.name(Frame.name(frame))^"_framesize")
+      val FPtoSP = T.MEM(T.BINOP(T.PLUS, T.TEMP Frame.SP, T.MEM(T.NAME fs)))
+
       (* emit : Assem.instr -> unit
        *
        * Adds the given instruction to the instruction list
@@ -46,8 +49,8 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          *)
         | munchStm(T.MOVE(T.MEM(T.BINOP(T.PLUS, e1, T.CONST i)), e2)) =
           emit(Assem.MOVE{assem="sw 's0 " ^ Int.toString(i) ^ "('d0)\n",
-                          src=(munchExp e2),
-                          dst=(munchExp e1)})
+                                   src=(munchExp e2),
+                                   dst=(munchExp e1)})
         (* store into an address offset by a constant (left)
          * Nodes: 5
          *)
@@ -259,14 +262,29 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
           emit(Assem.OPER{assem="j " ^ Symbol.name(lab) ^ "\n",
                           src=[], dst=[], jump=SOME(labs)})
 
+
+        (* Move something into a temp
+         * Nodes: 2
+         *)
+        | munchStm(T.MOVE(T.TEMP(t1), T.TEMP(t2))) =
+          if t1=Frame.FP
+          then munchStm(T.MOVE(FPtoSP, T.TEMP(t2)))
+          else if t2=Frame.FP
+          then munchStm(T.MOVE(T.TEMP(t1), FPtoSP))
+          else emit(Assem.OPER{assem="move 'd0 's0\n",
+                               src=[t2],
+                               dst=[t1],
+                               jump=NONE})
         (* Move something into a temp
          * Nodes: 2
          *)
         | munchStm(T.MOVE(T.TEMP(t), e)) =
-          emit(Assem.OPER{assem="lw 'd0 0('s0)"^"\n",
-                          src=[munchExp e],
-                          dst=[t],
-                          jump=NONE})
+          if t=Frame.FP
+          then munchStm(T.MOVE(FPtoSP, e))
+          else  emit(Assem.OPER{assem="lw 'd0 0('s0)"^"\n",
+                                src=[munchExp e],
+                                dst=[t],
+                                jump=NONE})
 
         (* These is the nop
          * Nodes: 2
@@ -290,7 +308,10 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
           end
 
             
-      and munchExp(T.TEMP(t)) = t
+      and munchExp(T.TEMP(t)) =
+          if t=Frame.FP
+          then munchExp(FPtoSP)
+          else t
         | munchExp(T.MEM(T.BINOP(T.PLUS, e1, T.CONST i))) =
           (result(fn r => emit(Assem.OPER{assem="lw 'd0 "^Int.toString(i)^"('s0)\n",
                                       src=[munchExp e1], dst=[r],
@@ -337,12 +358,64 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
                                       src=[], dst=[r],
                                       jump=NONE})))
         | munchExp(T.CALL(T.NAME(funName), args)) = 
-          (emit(Assem.OPER{assem="jal "^Symbol.name(funName)^"\n",
+          let
+            val fsAddr = Temp.newTemp()
+            and fsVal = Temp.newTemp()
+            and newfsVal = Temp.newTemp()
+            val argsSpace = Int.toString(Frame.wordSize*List.length(args))
+          in
+          (                     (* Pre-call things *)
+            emit(Assem.OPER{assem="addi $sp $sp -"^argsSpace^"\n",
+                          src=[Frame.SP],
+                          dst=[Frame.SP],
+                          jump=NONE});
+            emit(Assem.OPER{assem="la 'd0 "^Symbol.name(fs)^"\n",
+                          src=[],
+                          dst=[fsAddr],
+                          jump=NONE});
+            emit(Assem.OPER{assem="lw 'd0 ('s0)\n",
+                          src=[fsAddr],
+                          dst=[fsVal],
+                          jump=NONE});
+            emit(Assem.OPER{assem="addi 'd0 's0 "^argsSpace^"\n",
+                          src=[fsVal],
+                          dst=[newfsVal],
+                          jump=NONE});
+            emit(Assem.OPER{assem="sw 's0 ('d0)\n",
+                          src=[newfsVal],
+                          dst=[fsAddr],
+                          jump=NONE});
+           (* Actual funcall *)
+           emit(Assem.OPER{assem="jal "^Symbol.name(funName)^"\n",
                           src=munchArgs(0, args),
                           dst=[Frame.RV],
                           jump=NONE});
+           (* Undo the pre-call things *)
+            emit(Assem.OPER{assem="la 'd0 "^Symbol.name(fs)^"\n",
+                          src=[],
+                          dst=[fsAddr],
+                          jump=NONE});
+            emit(Assem.OPER{assem="lw 'd0 ('s0)\n",
+                          src=[fsAddr],
+                          dst=[fsVal],
+                          jump=NONE});
+            emit(Assem.OPER{assem="addi 'd0 's0 -"^argsSpace^"\n",
+                          src=[fsVal],
+                          dst=[newfsVal],
+                          jump=NONE});
+            emit(Assem.OPER{assem="sw 's0 ('d0)\n",
+                          src=[newfsVal],
+                          dst=[fsAddr],
+                          jump=NONE});
+           emit(Assem.OPER{assem="addi $sp $sp "^argsSpace^"\n",
+                          src=[Frame.SP],
+                          dst=[Frame.SP],
+                          jump=NONE});
+           (* Return the return value *)
            Frame.RV)
-        | munchExp(e) =
+          end
+            
+          | munchExp(e) =
           let exception Uncaught_munchExp in raise Uncaught_munchExp end
 
 
@@ -358,11 +431,13 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
           (print(Int.toString(i)^"::");
            Printtree.printtree(TextIO.stdOut, T.EXP(arg));           
           (* TODO: Actually code something meangingful here. *)
-           if i=0
-           then ()              (* SL *)
-           else if i<=4
-           then ()              (* Reg args *)
-           else ();             (* Other args *)
+           if i=0               (* SL *)
+           then emit(Assem.OPER{assem="move $v1 's0",
+                                src=[munchExp arg], dst=[],
+                                jump=NONE})
+           else if i<=4         (* Pass in register or not *)
+           then ()              
+           else ();             
            (* Temp.new::munchArgs(i+1, args) *)
            map (fn arg => Temp.newTemp()) args)
 
