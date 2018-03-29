@@ -241,17 +241,26 @@ fun string(lab, str) = (Symbol.name(lab) ^ ": .asciiz \"" ^ str ^ "\"\n")
                                                                    
 (* Registers *)
 type register = string
+
+(* Doing this for hacking up a findArgTemp
+ * In the long run, doing this for everything might be a good idea.
+ *)
+val v1 = Temp.newTemp()
+and a0 = Temp.newTemp()
+and a1 = Temp.newTemp()
+and a2 = Temp.newTemp()
+and a3 = Temp.newTemp()
                   
 val specialRegs:(register * Temp.temp) list = [("$v0", RV),
                                                ("$zero", Temp.newTemp()),
                                                ("$ra", Temp.newTemp()),
                                                ("$sp", SP)]
 
-val argRegs:(register * Temp.temp) list = [("$v1", Temp.newTemp()),
-                                           ("$a0", Temp.newTemp()),
-                                           ("$a1", Temp.newTemp()),
-                                           ("$a2", Temp.newTemp()),
-                                           ("$a3", Temp.newTemp())]
+val argRegs:(register * Temp.temp) list = [("$v1", v1),
+                                           ("$a0", a0),
+                                           ("$a1", a1),
+                                           ("$a2", a2),
+                                           ("$a3", a3)]
 
 val calleeSaves:(register * Temp.temp) list = [("$s0", Temp.newTemp()),
                                                ("$s1", Temp.newTemp()),
@@ -283,6 +292,9 @@ val reservedRegs:(register * Temp.temp) list = [("$at", Temp.newTemp()),
                                                ("$gp", Temp.newTemp())]
 
 
+(* Some sugar-coating for the RHS *)
+val allUserRegs = specialRegs@argRegs@calleeSaves@callerSaves@reservedRegs
+                                                                
 (* procEntryExit2: frame * Assem.instr list -> Assem.instr list
  * 
  * Adds a vacuous instruction to the end of a function body so that liveness 
@@ -313,9 +325,25 @@ fun getRegNum(str, tempNum) = tempNum
 (* val tab = Temp.Table *)
 val tempMap:register Temp.Table.table =
     foldr (fn ((str, n), table) => Temp.Table.enter(table, n, str))
-          Temp.Table.empty
-          (specialRegs@argRegs@calleeSaves@callerSaves@reservedRegs)
+          Temp.Table.empty allUserRegs
+(* TODO: Can we create a table in the other direction? *)
+          
+(* findTemp: string -> Temp.temp
+ * 
+ * Given a string representation of a register, find corresponding temp 
+ *)
+(* This is a hacky version *)
+(* fun findArgTemp("$v1") = v1 *)
+(*   | findArgTemp("$a0") = a0 *)
+(*   | findArgTemp("$a1") = a1 *)
+(*   | findArgTemp("$a2") = a2 *)
+(*   | findArgTemp("$a3") = a3 *)
 
+(* I eventually want something like this.  *)
+fun findArgTemp(queryStr) =
+    case List.find (fn (str, t) => str=queryStr) allUserRegs
+     of SOME((s,t)) => t
+     | _ => Temp.newTemp()
                                           
 end
 structure Frame:>FRAME = MipsFrame

@@ -28,6 +28,6 @@ sig
 
   type register = string
   val tempMap:register Temp.Table.table
-                       
+  val findArgTemp: string -> Temp.temp
 end
 
