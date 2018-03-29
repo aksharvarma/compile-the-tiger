@@ -19,10 +19,10 @@ fun modifiedMakeString(t) =
 
 fun emitproc out (F.PROC{body,frame}) =
     let val _ = print ("emit " ^ Symbol.name(F.name(frame)) ^ "\n")
-        val _ =                (* Print canonicalized stms' *)
-            (print("START--##############################\n");
-             Printtree.printtree(TextIO.stdOut, body);
-             print("END--##############################\n"))
+        (* val _ =                (* Print canonicalized stms' *) *)
+        (*     (print("START--##############################\n"); *)
+        (*      Printtree.printtree(TextIO.stdOut, body); *)
+        (*      print("END--##############################\n")) *)
         val stms = Canon.linearize body
         val stms' = Canon.traceSchedule(Canon.basicBlocks stms)
         val _ =                (* Print canonicalized stms' *)
