@@ -24,4 +24,26 @@ There are 4 cases for the load because of the possibility of load immediate.
 * The address from which we're loading can have an offset. (2 symmetric cases)
 * The MEM on the right and a TEMP on the left. However, we use the catchall mechanism to get at this since the TEMP will come from munchExp(e) for some e, which also catches everything. So both those cases are equivalent.
 
+## Canonicalizer and false branches falling through
+The canonicalizer always sets it up so that the false branch is always fallthrough. So we assume the we can jump to the true label and depend on the canonicalizer to put the false label below. 
+
 ## munchArgs
+
+
+## RV and liveness
+We make a conservative estimate and assume that the RV is always live at the end of a procedure call for liveness analysis even if we are actually dealing with a procedure and not a function.
+
+## Assumption about FP
+We assume the following two things about the FP:
+- We never add constants to the FP [TODO. Isn't it the exact opposite?]
+- We never subtract from the FP
+
+## SL register convention used [Change if we change]
+We use the $v1 register as a dedicated SL register and keep all the actual arguments of the function in the $a0--$a3 registers.
+
+## Not handling MEM(CONST i))
+Why were we doing this again?
+
+
+## framesize instead of FP
+We use framesize instead of the FP because our stack cannot be dynamically allocated to.

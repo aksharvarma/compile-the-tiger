@@ -1,15 +1,17 @@
-L33:
-li 'd0, 3
-addi 'd0, 's0, 4
-lw 'd0 0('s0)
-tig_DONE:
-j L32
+L193:
+li t570, 3
+addi t569, t570, 4
+move $v0, t569
+li t571, 0
+move $a0, t571
+jal tig_exit_TigMain
 tig_dereference_NIL:
-jal tig_print
-j tig_DONE
+li t572, ~1
+move $a0, t572
+jal tig_exit_TigMain
 tig_outOfBounds:
-jal tig_print
-j tig_DONE
-L32:
-L31: .asciiz "Index out of bounds exception"
-L30: .asciiz "Attempted to deref a nil record"
+li t573, ~2
+move $a0, t573
+jal tig_exit_TigMain
+j L192
+L192:

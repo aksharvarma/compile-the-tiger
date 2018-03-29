@@ -256,8 +256,7 @@ val specialRegs:(register * Temp.temp) list = [("$v0", RV),
                                                ("$ra", Temp.newTemp()),
                                                ("$sp", SP)]
 
-val argRegs:(register * Temp.temp) list = [("$v1", v1),
-                                           ("$a0", a0),
+val argRegs:(register * Temp.temp) list = [("$a0", a0),
                                            ("$a1", a1),
                                            ("$a2", a2),
                                            ("$a3", a3)]
@@ -270,7 +269,8 @@ val calleeSaves:(register * Temp.temp) list = [("$s0", Temp.newTemp()),
                                                ("$s5", Temp.newTemp()),
                                                ("$s6", Temp.newTemp()),
                                                ("$s7", Temp.newTemp()),
-                                               ("$r30", Temp.newTemp())]
+                                               ("$r30", Temp.newTemp()),
+                                               ("$v1", v1)]
 (* The last thing in the calleeSaves list is actually the fp. But we do not use
  *   *)
                                                 

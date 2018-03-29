@@ -285,7 +285,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
         | munchStm(T.MOVE(T.TEMP(t), e)) =
           if t=Frame.FP
           then munchStm(T.MOVE(FPtoSP, e))
-          else  emit(Assem.OPER{assem="lw 'd0, 0('s0)"^"\n",
+          else  emit(Assem.OPER{assem="move 'd0, 's0\n",
                                 src=[munchExp e],
                                 dst=[t],
                                 jump=NONE})
@@ -444,23 +444,23 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
        *)
       and munchArgs(_, []) = []
         | munchArgs(i, arg::args) =
-          (print(Int.toString(i)^"::");
-           Printtree.printtree(TextIO.stdOut, T.EXP(arg));           
+          ((* print(Int.toString(i)^"::"); *)
+           (* Printtree.printtree(TextIO.stdOut, T.EXP(arg));            *)
            (* TODO: Find a better way for findArgTemp *)
-           if i=0               (* SL *)
-           then
-             (emit(Assem.OPER{assem="move $v1, 's0\n",
-                              src=[munchExp arg],
-                              dst=[Frame.findArgTemp("$v1")],
-                              jump=NONE});
-              Frame.findArgTemp("$v1")::munchArgs(i+1, args))
-           else if i<=4
+           (* if i=0               (* SL *) *)
+           (* then *)
+           (*   (emit(Assem.OPER{assem="move $v1, 's0\n", *)
+           (*                    src=[munchExp arg], *)
+           (*                    dst=[Frame.findArgTemp("$v1")], *)
+           (*                    jump=NONE}); *)
+           (*    Frame.findArgTemp("$v1")::munchArgs(i+1, args)) *)
+           if i<4
            then                 (* Pass in $a0--$a3 *)
-             (emit(Assem.OPER{assem="move $a"^Int.toString(i-1)^", 's0\n",
+             (emit(Assem.OPER{assem="move $a"^Int.toString(i)^", 's0\n",
                               src=[munchExp arg],
-                              dst=[Frame.findArgTemp("$a"^Int.toString(i-1))],
+                              dst=[Frame.findArgTemp("$a"^Int.toString(i))],
                               jump=NONE});
-              Frame.findArgTemp("$a"^Int.toString(i-1))::munchArgs(i+1, args))
+              Frame.findArgTemp("$a"^Int.toString(i))::munchArgs(i+1, args))
            else                 (* Put on the stack frame *)
              (emit(Assem.OPER{assem="sw 's0, "^
                                     Int.toString(i*Frame.wordSize)^"('d0)\n",
@@ -470,6 +470,8 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
               munchArgs(i+1, args)))
 
     in
+      (* emit(Assem.LABEL{assem=Frame.name(frame), *)
+      (*                  lab=Symbol.symbolize(Frame.name(frame))}); *)
       munchStm stm;
       rev(!ilist)
     end

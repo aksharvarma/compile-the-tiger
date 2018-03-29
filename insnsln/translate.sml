@@ -683,17 +683,18 @@ fun procEntryExit({level, body, isProcedure, isMain}) =
       (* If Main function, need to append these labels to frag *)
       fun appendErrorLabels(e) =
           let
-            val done = Temp.namedLabel("DONE")
+            (* val done = Temp.namedLabel("DONE") *)
+            val goodExit = 0
+            val badDerefExit = ~1
+            val outOfBoundsExit = ~2
           in T.SEQ(e,
-             T.SEQ(T.JUMP(T.NAME done, [done]),
+             T.SEQ(T.EXP(Frame.externalCall("exit_TigMain", [T.CONST(goodExit)])),
              T.SEQ(T.LABEL derefNil,
-             T.SEQ(unNx(libCall(Symbol.symbolize("print"),
-                   [stringExp("Attempted to deref a nil record")], true)),
-             T.SEQ(T.JUMP(T.NAME done, [done]),
+                   T.SEQ(T.EXP(Frame.externalCall("exit_TigMain",
+                                                  [T.CONST(badDerefExit)])),
              T.SEQ(T.LABEL outOfBounds,
-             T.SEQ(unNx(libCall(Symbol.symbolize("print"),
-                   [stringExp("Index out of bounds exception")], true)),
-             T.LABEL done)))))))
+                   T.EXP(Frame.externalCall("exit_TigMain",
+                                      [T.CONST(outOfBoundsExit)])))))))
           end
 
       (* Helper function to get the frame from level *)
