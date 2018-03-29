@@ -24,21 +24,18 @@ fun emitproc out (F.PROC{body,frame}) =
              Printtree.printtree(TextIO.stdOut, body);
              print("END--##############################\n"))
         val stms = Canon.linearize body
-        (* val _ =                (* Print partially canonicalized stms *) *)
-        (*     app (fn stm => (Printtree.printtree(TextIO.stdOut, stm); *)
-        (*                     print("--------\n"))) stms *)
         val stms' = Canon.traceSchedule(Canon.basicBlocks stms)
         val _ =                (* Print canonicalized stms' *)
             app (fn stm => (Printtree.printtree(TextIO.stdOut, stm);
                             print("--------\n"))) stms'
         val instrs =  List.concat(map (MipsGen.codeGen frame) stms')
         val instrs' = Frame.procEntryExit2(frame, instrs)
-        val instrs'' = Frame.procEntryExit3(frame, instrs')
+        val {prolog, body=finalBody, epilog} = Frame.procEntryExit3(frame, instrs')
         val format0 = Assem.format(modifiedMakeString)
     in
-      (* (app (fn stm => (Printtree.printtree(TextIO.stdOut, stm); *)
-      (*      print("--------\n"))) stms'; *)
-      (app (fn i => TextIO.output(out,format0 i)) instrs')
+      (TextIO.output(out, prolog);
+       (app (fn i => TextIO.output(out,format0 i)) finalBody);
+       TextIO.output(out, epilog))
     end
   (* end *)
   | emitproc out (F.STRING(lab,s)) = TextIO.output(out,F.string(lab,s))

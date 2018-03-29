@@ -24,7 +24,8 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
        * offset from the frame pointer to just before the outgoing
        * argument space.
        *)
-      val fs = Temp.namedLabel(Symbol.name(Frame.name(frame))^"_framesize")
+      val fs = Temp.namedLabel(String.extract(Symbol.name(Frame.name(frame)), 4, NONE)
+                               ^"_framesize")
 
       (* Tree code for adding the framesize to the stack pointer: SP + fs *)
       val FPtoSP = T.MEM(T.BINOP(T.PLUS, T.TEMP Frame.SP, T.MEM(T.NAME fs)))
@@ -534,7 +535,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
                               dst=[fsAddr],
                               jump=NONE});
               (* Load the initial value of the frame size *)
-              emit(Assem.OPER{assem="lw 'd0, ('s0)\n",
+              emit(Assem.OPER{assem="lw 'd0, 0('s0)\n",
                               src=[fsAddr],
                               dst=[fsVal],
                               jump=NONE});
@@ -544,7 +545,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
                               dst=[newfsVal],
                               jump=NONE});
               (* Store the new value of the frame size *)
-              emit(Assem.OPER{assem="sw 's0, ('d0)\n",
+              emit(Assem.OPER{assem="sw 's0, 0('d0)\n",
                               src=[newfsVal],
                               dst=[fsAddr],
                               jump=NONE});
@@ -562,7 +563,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
                               src=[],
                               dst=[fsAddr],
                               jump=NONE});
-              emit(Assem.OPER{assem="lw 'd0, ('s0)\n",
+              emit(Assem.OPER{assem="lw 'd0, 0('s0)\n",
                               src=[fsAddr],
                               dst=[fsVal],
                               jump=NONE});
@@ -570,7 +571,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
                               src=[fsVal],
                               dst=[newfsVal],
                               jump=NONE});
-              emit(Assem.OPER{assem="sw 's0, ('d0)\n",
+              emit(Assem.OPER{assem="sw 's0, 0('d0)\n",
                               src=[newfsVal],
                               dst=[fsAddr],
                               jump=NONE});
@@ -609,7 +610,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
                 argTemp::munchArgs(i+1, args))
               end
            else (* Put on the stack frame *)
-             (emit(Assem.OPER{assem="sw 's0, "^Int.toString(i*Frame.wordSize)^"('d0)\n",
+             (emit(Assem.OPER{assem="sw 's0, "^Int.toString(i*Frame.wordSize)^"0('d0)\n",
                               src=[munchExp arg],
                               dst=[],
                               jump=NONE});

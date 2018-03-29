@@ -709,8 +709,11 @@ fun procEntryExit({level, body, isProcedure, isMain}) =
                        then unNx(body)
                        else T.MOVE(T.TEMP Frame.RV, unEx(body))
 
+      (* Add in the function label to the start of the body *)
+      val bodyWithRvAndLabel = T.SEQ(T.LABEL(Frame.name(frame)), bodyWithRV)
+
       (* procEntryExit1 modifies the body to do items 4-8. *)
-      val modifiedBody = Frame.procEntryExit1(frame, bodyWithRV)
+      val modifiedBody = Frame.procEntryExit1(frame, bodyWithRvAndLabel)
 
       (* If isMain, then append runtime error labels to the end *)
       val finalBody = if isMain

@@ -238,7 +238,7 @@ fun procEntryExit1(frame, body) =
 (* TODO: To be filled in later *)
 fun string(lab, str) = (Symbol.name(lab) ^ ": .asciiz \"" ^ str ^ "\"\n")
 
-                                                                   
+
 (* Registers *)
 type register = string
 
@@ -250,7 +250,7 @@ and a0 = Temp.newTemp()
 and a1 = Temp.newTemp()
 and a2 = Temp.newTemp()
 and a3 = Temp.newTemp()
-                  
+
 val specialRegs:(register * Temp.temp) list = [("$v0", RV),
                                                ("$zero", Temp.newTemp()),
                                                ("$ra", Temp.newTemp()),
@@ -273,7 +273,7 @@ val calleeSaves:(register * Temp.temp) list = [("$s0", Temp.newTemp()),
                                                ("$v1", v1)]
 (* The last thing in the calleeSaves list is actually the fp. But we do not use
  *   *)
-                                                
+
 val callerSaves:(register * Temp.temp) list = [("$t0", Temp.newTemp()),
                                                ("$t1", Temp.newTemp()),
                                                ("$t2", Temp.newTemp()),
@@ -294,13 +294,13 @@ val reservedRegs:(register * Temp.temp) list = [("$at", Temp.newTemp()),
 
 (* Some sugar-coating for the RHS *)
 val allUserRegs = specialRegs@argRegs@calleeSaves@callerSaves@reservedRegs
-                                                                
+
 (* procEntryExit2: frame * Assem.instr list -> Assem.instr list
- * 
- * Adds a vacuous instruction to the end of a function body so that liveness 
+ *
+ * Adds a vacuous instruction to the end of a function body so that liveness
  * analysis can know that certain registers are live when a function returns.
  *)
-fun procEntryExit2(frame, body) = 
+fun procEntryExit2(frame, body) =
     let
       val liveTemps = map (fn (str, tmp) => tmp) (specialRegs@calleeSaves)
     in
@@ -309,28 +309,34 @@ fun procEntryExit2(frame, body) =
                        jump=SOME[]}]
     end
 
-(* procEntryExit3: frame * Assem.instr list -> {prolog:string, 
+(* procEntryExit3: frame * Assem.instr list -> {prolog:string,
  *                                              body: Assem.instr list,
  *                                              epilog:string}
- * 
+ *
  * Adds the prolog and epilog to the functions. (Will be filled later)
  *)
-fun procEntryExit3({name, formals, locals}, body) = 
-    {prolog="PROCEDURE "^Symbol.name(name)^"\n",
-     body=body,
-     epilog="END "^Symbol.name(name)^"\n"}
-                                                 
+fun procEntryExit3({name, formals, locals}, body: Assem.instr list) =
+    let
+      fun getAssem(Assem.OPER{assem, dst, src, jump}) = assem
+        | getAssem(Assem.LABEL{assem, lab}) = assem
+        | getAssem(Assem.MOVE{assem, dst, src}) = assem
+    in
+      {prolog="PROCEDURE "^Symbol.name(name)^"\n"^getAssem(hd body),
+       body=(tl body),
+       epilog="END "^Symbol.name(name)^"\n"}
+    end
+
 fun getRegNum(str, tempNum) = tempNum
-                                  
+
 (* val tab = Temp.Table *)
 val tempMap:register Temp.Table.table =
     foldr (fn ((str, n), table) => Temp.Table.enter(table, n, str))
           Temp.Table.empty allUserRegs
 (* TODO: Can we create a table in the other direction? *)
-          
+
 (* findTemp: string -> Temp.temp
- * 
- * Given a string representation of a register, find corresponding temp 
+ *
+ * Given a string representation of a register, find corresponding temp
  *)
 (* This is a hacky version *)
 (* fun findArgTemp("$v1") = v1 *)
@@ -344,6 +350,6 @@ fun findArgTemp(queryStr) =
     case List.find (fn (str, t) => str=queryStr) allUserRegs
      of SOME((s,t)) => t
      | _ => Temp.newTemp()
-                                          
+
 end
 structure Frame:>FRAME = MipsFrame
