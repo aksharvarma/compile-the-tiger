@@ -20,4 +20,21 @@ struct
            Graph.Table.look(use,node) = SOME(use-list)
    *)
 
+    fun printFG(FGRAPH{control, def, use, ismove}) =
+        let
+          fun stringTempList([], acc) = acc^")"
+            | stringTempList(t::ts, acc) =
+                stringTempList(ts, acc^Temp.makeString(t)^", ")
+
+          val nodeList = Graph.nodes(control)
+          fun printNode(node) =
+            (print(Graph.nodename(node)^": ");
+             print(stringTempList(valOf(Graph.Table.look(def, node)), " ("));
+             print(stringTempList(valOf(Graph.Table.look(use, node)), " ("));
+             print(" "^Bool.toString(valOf(Graph.Table.look(ismove, node)))^"\n");
+             (app (fn (n) => print(Graph.nodename(n)^", ")) (Graph.succ(node)));
+             print("\n"))
+        in
+            app printNode nodeList
+        end
 end

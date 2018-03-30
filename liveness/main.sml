@@ -10,6 +10,18 @@ fun modifiedMakeString(t) =
      of SOME(str) => str
       | NONE => Temp.makeString(t)
 
+fun createFlowGraph(body, format) =
+      let
+        fun replaceAssem(Assem.OPER{assem, dst, src, jump}, newAssem) =
+            Assem.OPER{assem=newAssem, dst=dst, src=src, jump=jump}
+          | replaceAssem(Assem.MOVE{assem, dst, src}, newAssem) =
+            Assem.MOVE{assem=newAssem, dst=dst, src=src}
+          | replaceAssem(Assem.LABEL{assem, lab}, newAssem) =
+            Assem.LABEL{assem=newAssem, lab=lab}
+      in
+        MakeGraph.instrs2graph(ListPair.map replaceAssem (body, map format body))
+      end
+
 (* emitproc: TextIO.outstream -> Frame.frag -> unit
  *
  * Process and emit all function proc framents, but skip all string fragments
@@ -29,6 +41,8 @@ fun emitproc out (Frame.PROC{body,frame}) =
         (* Format the resulting assembly instructions to insert correct
          * temps/registers *)
         val format0 = Assem.format(modifiedMakeString)
+        val (fg, nodes) = createFlowGraph(finalBody, format0)
+        val _ = Flow.printFG(fg)
     in
       (* Print the prolog, then the final proc body, followed by the epilog *)
       (TextIO.output(out, prolog);

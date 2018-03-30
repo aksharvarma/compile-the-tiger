@@ -1,10 +1,1 @@
-let
-    function foo(a:int):int =
-        let
-            function bar():int = a
-        in
-            bar()
-        end
-in
-    foo(3)
-end
+3

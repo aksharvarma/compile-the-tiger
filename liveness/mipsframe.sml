@@ -304,8 +304,8 @@ fun procEntryExit3({name, formals, locals}, body: Assem.instr list) =
         | getAssem(Assem.LABEL{assem, lab}) = assem
         | getAssem(Assem.MOVE{assem, dst, src}) = assem
     in
-      {prolog="PROCEDURE "^Symbol.name(name)^"\n"^getAssem(hd body),
-       body=(tl body),
+      {prolog="PROCEDURE "^Symbol.name(name)^"\n",
+       body=body,
        epilog="jr $ra\nEND "^Symbol.name(name)^"\n"}
     end
 
