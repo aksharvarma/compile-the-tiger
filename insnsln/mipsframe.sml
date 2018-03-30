@@ -10,10 +10,10 @@
  * - Has the fragments datatype which is used later to finish compiling
  * - procEntryExit is used to add prologue and epilogue to functions.
  *)
-structure T = Tree
-
 structure MipsFrame :> FRAME =
 struct
+
+structure T = Tree
 
 (* The wordSize of the machine in bytes *)
 val wordSize = 4
@@ -194,6 +194,75 @@ fun allocLocal({name, formals, locals}) =
  *)
 fun externalCall(s, args) = T.CALL(T.NAME(Temp.namedLabel(s)), args)
 
+(* string: Temp.label * string -> string
+ *
+ * Translates a string literal to the correct assembly form
+ *)
+fun string(lab, str) = (Symbol.name(lab) ^ ": .asciiz \"" ^ str ^ "\"\n")
+
+(* Registers *)
+type register = string
+
+(* Pulls out the temp values for the argument registers.
+ * Used for referencing the correct temp when assigning arguments
+ * to arg regs
+ *)
+val v1 = Temp.newTemp()
+and a0 = Temp.newTemp()
+and a1 = Temp.newTemp()
+and a2 = Temp.newTemp()
+and a3 = Temp.newTemp()
+
+(* Includes return value ($v0), zero reg ($zero), return address ($ra), and
+ * stack pointer ($sp)
+ *)
+val specialRegs:(register * Temp.temp) list = [("$v0", RV),
+                                               ("$zero", Temp.newTemp()),
+                                               ("$ra", Temp.newTemp()),
+                                               ("$sp", SP)]
+(* Argument registers: $a0-$a3 *)
+val argRegs:(register * Temp.temp) list = [("$a0", a0),
+                                           ("$a1", a1),
+                                           ("$a2", a2),
+                                           ("$a3", a3)]
+
+(* Callee saved registers: $s0-$s7.
+ * This list also includes the frame pointer register ($r30) and the second
+ * return value register ($v1) because they will not otherwise be used for their
+ * special purposes
+ *)
+val calleeSaves:(register * Temp.temp) list = [("$s0", Temp.newTemp()),
+                                               ("$s1", Temp.newTemp()),
+                                               ("$s2", Temp.newTemp()),
+                                               ("$s3", Temp.newTemp()),
+                                               ("$s4", Temp.newTemp()),
+                                               ("$s5", Temp.newTemp()),
+                                               ("$s6", Temp.newTemp()),
+                                               ("$s7", Temp.newTemp()),
+                                               ("$r30", Temp.newTemp()),
+                                               ("$v1", v1)]
+
+(* Caller saved registers: $t0-$t9 *)
+val callerSaves:(register * Temp.temp) list = [("$t0", Temp.newTemp()),
+                                               ("$t1", Temp.newTemp()),
+                                               ("$t2", Temp.newTemp()),
+                                               ("$t3", Temp.newTemp()),
+                                               ("$t4", Temp.newTemp()),
+                                               ("$t5", Temp.newTemp()),
+                                               ("$t6", Temp.newTemp()),
+                                               ("$t7", Temp.newTemp()),
+                                               ("$t8", Temp.newTemp()),
+                                               ("$t9", Temp.newTemp())]
+
+(* These are reserved registers that cannot be used by the program  *)
+val reservedRegs:(register * Temp.temp) list = [("$at", Temp.newTemp()),
+                                               ("$k0", Temp.newTemp()),
+                                               ("$k1", Temp.newTemp()),
+                                               ("$gp", Temp.newTemp())]
+
+(* Some sugar-coating for the RHS *)
+val allUserRegs = specialRegs@argRegs@calleeSaves@callerSaves@reservedRegs
+
 (* procEntryExit1: frame * Tree.stm -> Tree.stm
  *
  * This is the function that adds the prologue and epilogue to the code
@@ -207,93 +276,7 @@ fun externalCall(s, args) = T.CALL(T.NAME(Temp.namedLabel(s)), args)
  * - restoreCalleeSaves: restore the callee-saves registers from frame
  * - combine: combine prologue+body+epilogue
  *)
-fun procEntryExit1(frame, body) =
-    body
-(* let *)
-    (*   (* will move escaping args (including SL) into frame *)
-    (*    * and others into fresh temporary registers. *) *)
-    (*   fun moveArgs() = *)
-    (*       T.LABEL(Temp.namedLabel(Symbol.name(name(frame))^"_entryExit1_moveArgs_step4")) *)
-
-    (*   (* store the callee-saves registers in frame *) *)
-    (*   fun storeCalleeSaves() = *)
-    (*       T.LABEL(Temp.namedLabel(Symbol.name(name(frame))^"_entryExit1_storeCalleeSaves_step5")) *)
-    (*   (* restore the callee-saves registers from frame *) *)
-    (*   fun restoreCalleeSaves() = *)
-    (*       T.LABEL(Temp.namedLabel(Symbol.name(name(frame))^"_entryExit1_restoreCalleeSaves_step8")) *)
-    (*   (* combine prologue+body+epilogue *) *)
-    (*   fun combine(moveArgsStm, storeRegsStm, bodyStm, restoreRegsStm) = *)
-    (*       T.SEQ(moveArgsStm, *)
-    (*             T.SEQ(storeRegsStm, *)
-    (*                   T.SEQ(bodyStm, restoreRegsStm))) *)
-    (* in *)
-    (*   combine(moveArgs(), *)
-    (*           storeCalleeSaves(), *)
-    (*           body, *)
-    (*           restoreCalleeSaves()) *)
-    (* end *)
-
-
-
-(* TODO: To be filled in later *)
-fun string(lab, str) = (Symbol.name(lab) ^ ": .asciiz \"" ^ str ^ "\"\n")
-
-
-(* Registers *)
-type register = string
-
-(* Doing this for hacking up a findArgTemp
- * In the long run, doing this for everything might be a good idea.
- *)
-val v1 = Temp.newTemp()
-and a0 = Temp.newTemp()
-and a1 = Temp.newTemp()
-and a2 = Temp.newTemp()
-and a3 = Temp.newTemp()
-
-val specialRegs:(register * Temp.temp) list = [("$v0", RV),
-                                               ("$zero", Temp.newTemp()),
-                                               ("$ra", Temp.newTemp()),
-                                               ("$sp", SP)]
-
-val argRegs:(register * Temp.temp) list = [("$a0", a0),
-                                           ("$a1", a1),
-                                           ("$a2", a2),
-                                           ("$a3", a3)]
-
-val calleeSaves:(register * Temp.temp) list = [("$s0", Temp.newTemp()),
-                                               ("$s1", Temp.newTemp()),
-                                               ("$s2", Temp.newTemp()),
-                                               ("$s3", Temp.newTemp()),
-                                               ("$s4", Temp.newTemp()),
-                                               ("$s5", Temp.newTemp()),
-                                               ("$s6", Temp.newTemp()),
-                                               ("$s7", Temp.newTemp()),
-                                               ("$r30", Temp.newTemp()),
-                                               ("$v1", v1)]
-(* The last thing in the calleeSaves list is actually the fp. But we do not use
- *   *)
-
-val callerSaves:(register * Temp.temp) list = [("$t0", Temp.newTemp()),
-                                               ("$t1", Temp.newTemp()),
-                                               ("$t2", Temp.newTemp()),
-                                               ("$t3", Temp.newTemp()),
-                                               ("$t4", Temp.newTemp()),
-                                               ("$t5", Temp.newTemp()),
-                                               ("$t6", Temp.newTemp()),
-                                               ("$t7", Temp.newTemp()),
-                                               ("$t8", Temp.newTemp()),
-                                               ("$t9", Temp.newTemp())]
-
-(* These are reserved registers  *)
-val reservedRegs:(register * Temp.temp) list = [("$at", Temp.newTemp()),
-                                               ("$k0", Temp.newTemp()),
-                                               ("$k1", Temp.newTemp()),
-                                               ("$gp", Temp.newTemp())]
-
-
-(* Some sugar-coating for the RHS *)
-val allUserRegs = specialRegs@argRegs@calleeSaves@callerSaves@reservedRegs
+fun procEntryExit1(frame, body) = body
 
 (* procEntryExit2: frame * Assem.instr list -> Assem.instr list
  *
@@ -323,33 +306,26 @@ fun procEntryExit3({name, formals, locals}, body: Assem.instr list) =
     in
       {prolog="PROCEDURE "^Symbol.name(name)^"\n"^getAssem(hd body),
        body=(tl body),
-       epilog="END "^Symbol.name(name)^"\n"}
+       epilog="jr $ra\nEND "^Symbol.name(name)^"\n"}
     end
 
-fun getRegNum(str, tempNum) = tempNum
-
-(* val tab = Temp.Table *)
+(* tempMap: register Temp.Table.table
+ *
+ * Maps temp numbers to their string names if they correspond to a special
+ * register
+ *)
 val tempMap:register Temp.Table.table =
     foldr (fn ((str, n), table) => Temp.Table.enter(table, n, str))
           Temp.Table.empty allUserRegs
-(* TODO: Can we create a table in the other direction? *)
 
 (* findTemp: string -> Temp.temp
  *
  * Given a string representation of a register, find corresponding temp
  *)
-(* This is a hacky version *)
-(* fun findArgTemp("$v1") = v1 *)
-(*   | findArgTemp("$a0") = a0 *)
-(*   | findArgTemp("$a1") = a1 *)
-(*   | findArgTemp("$a2") = a2 *)
-(*   | findArgTemp("$a3") = a3 *)
-
-(* I eventually want something like this.  *)
-fun findArgTemp(queryStr) =
+fun findTemp(queryStr) =
     case List.find (fn (str, t) => str=queryStr) allUserRegs
      of SOME((s,t)) => t
      | _ => Temp.newTemp()
-
 end
+
 structure Frame:>FRAME = MipsFrame

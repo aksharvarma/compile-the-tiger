@@ -26,7 +26,7 @@ During the IR generation, we had created fragments for each function, but we had
 We had assumed that procEntryExit1 would create the prolog and epilog for functions, but that is to be done by the other procEntryExit functions. This is rectified.
 
 ## Error handling
-Earlier we had a IR Tree with labels that we jumped to in case of errors, printed errors and jumped to a DONE label which was supposed to indicate the end of the program. However, the canonicalizer jumbles up orders so that DONE is not necessarily at the end anymore. 
+Earlier we had a IR Tree with labels that we jumped to in case of errors, printed errors and jumped to a DONE label which was supposed to indicate the end of the program. However, the canonicalizer jumbles up orders so that DONE is not necessarily at the end anymore.
 
 We rectify this by assuming that there'll be a function in the runtime.c which we call with an argument specifying whether we are exiting the program due to an error (and if so, which error) or if it is a good, normal exit.
 
@@ -45,7 +45,7 @@ Note: We assume that these functions that are added to the runtime by the compil
 # Choices related to Instruction Selection
 ## Stores
 There are only three stores (cases of T.MOVE with a MEM on the left) because we only have the store word instruction.
-* MEM on the left 
+* MEM on the left
 * The two symmetric cases where the MEM on the left has a constant offset addition inside it. (T.MOVE(addr+i, reg) and T.MOVE(i+addr, reg))
 
 ## Loads
@@ -57,7 +57,7 @@ There are 4 cases for the load because of the possibility of load immediate.
 Note: There is one case where we move a temp to a temp, we do not count that in either of the above counts for store/load.
 
 ## Canonicalizer and false branches falling through
-The canonicalizer always sets it up so that the false branch is always fallthrough. So we assume the we can jump to the true label and depend on the canonicalizer to put the false label below. 
+The canonicalizer always sets it up so that the false branch is always fallthrough. So we assume the we can jump to the true label and depend on the canonicalizer to put the false label below.
 
 ## munchArgs
 munchArgs needs to call munchExp on the arguments to a function. It also returns the temps from the munchExp call.
@@ -90,7 +90,7 @@ This was one of the cases mentioned in class, but we do not do this because Tige
 We use framesize instead of the FP because our stack cannot be dynamically allocated to.
 
 ## Changing framesize on function calls
-Our current design is to move the SP down and change the framesize every time we need to move arguments into registers/frame before calling a function. 
+Our current design is to move the SP down and change the framesize every time we need to move arguments into registers/frame before calling a function.
 
 Thus, pre-call we decrease SP, increase framesize, move arguments into correct registers, and then make the call using `jal`.
 

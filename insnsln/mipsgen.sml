@@ -6,6 +6,7 @@ end
 structure MipsGen :> CODEGEN =
 struct
 
+structure T = Tree
 (* codegen : Frame.frame -> Tree.stm -> Assem.instr list
  *
  * Given a frame, returns a function that produces the
@@ -27,7 +28,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
       val fs = Symbol.symbolize(Symbol.name(Frame.name(frame))^"_framesize")
 
       (* Tree code for adding the framesize to the stack pointer: SP + fs *)
-      val FPtoSP = T.MEM(T.BINOP(T.PLUS, T.TEMP Frame.SP, T.MEM(T.NAME fs)))
+      val FPtoSP = T.BINOP(T.PLUS, T.TEMP Frame.SP, T.MEM(T.NAME fs))
 
       (* emit : Assem.instr -> unit
        *
@@ -90,6 +91,14 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
                           src=(munchExp e2),
                           dst=(munchExp e1)})
 
+        (* store into an address without offset
+         * Nodes: 2
+         *)
+        | munchStm(T.MOVE(T.MEM(e1), e2)) =
+          emit(Assem.MOVE{assem="sw 's0, 0('d0)\n",
+                          src=(munchExp e2),
+                          dst=(munchExp e1)})
+
         (* Load constant into the destination e1
          * Nodes: 2
          *)
@@ -104,7 +113,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          *)
         | munchStm(T.MOVE(T.TEMP(t1), T.TEMP(t2))) =
           if t1=Frame.FP
-          then munchStm(T.MOVE(FPtoSP, T.TEMP(t2)))
+          then munchStm(T.MOVE(T.TEMP(munchExp FPtoSP), T.TEMP(t2)))
           else if t2=Frame.FP
           then munchStm(T.MOVE(T.TEMP(t1), FPtoSP))
           else emit(Assem.OPER{assem="move 'd0, 's0\n",
@@ -117,19 +126,11 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          *)
         | munchStm(T.MOVE(T.TEMP(t), e)) =
           if t=Frame.FP
-          then munchStm(T.MOVE(FPtoSP, e))
+          then munchStm(T.MOVE(T.TEMP(munchExp FPtoSP), e))
           else  emit(Assem.OPER{assem="move 'd0, 's0\n",
                                 src=[munchExp e],
                                 dst=[t],
                                 jump=NONE})
-
-        (* store into an address without offset
-         * Nodes: 2
-         *)
-        | munchStm(T.MOVE(T.MEM(e1), e2)) =
-          emit(Assem.MOVE{assem="sw 's0, 0('d0)\n",
-                          src=(munchExp e2),
-                          dst=(munchExp e1)})
 
         (* load from an address without offset
          * Nodes: 2
@@ -322,10 +323,13 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Nodes: 3
          *)
         | munchStm(T.EXP(T.CALL(T.NAME(funName), args))) =
-          emit(Assem.OPER{assem="jal "^Symbol.name(funName)^"\n",
-                          src=munchArgs(0, args),
-                          dst=[],
-                          jump=NONE})
+          (* Delegate to munchExp to get the necessary precall/postcall stuff
+           * by eliminating the surrounding T.EXP,
+           * and then drop the register that it returns (RV) on the floor
+           * because this function was called as a statement and should not
+           * have a return value.
+           *)
+          (munchExp(T.CALL(T.NAME(funName), args)); ())
 
         (* These are the nop's
          * Nodes: 2
@@ -513,12 +517,22 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
           let
             (* Address of the frame size label *)
             val fsAddr = Temp.newTemp()
+            and fsAddr' = Temp.newTemp()
             (* Initial value of the frame size *)
             and fsVal = Temp.newTemp()
+            and fsVal' = Temp.newTemp()
             (* New value of the frame size *)
             and newfsVal = Temp.newTemp()
+            and newfsVal' = Temp.newTemp()
             (* Space necessary for the outgoing arguments *)
             val argsSpace = Int.toString(Frame.wordSize*List.length(args))
+            (* Gets all of the temps for the registers that are expected
+             * to be trashed by a function call:
+             * caller-saves, return address, return value
+             *)
+            val trashedByCall = map Frame.findTemp ["$t0", "$t1", "$t2", "$t3",
+                                                    "$t4", "$t5", "$t6", "$t7",
+                                                    "$t8", "$t9", "$ra"]
           in
               (* Pre-call things *)
               (* Extend the stack pointer to accommate the space for the
@@ -551,28 +565,24 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
               (* Actual function call *)
               emit(Assem.OPER{assem="jal "^Symbol.name(funName)^"\n",
                               src=munchArgs(0, args),
-                              (* TODO: Add caller-saves, and $ra.
-                               * Should we use a function to access reglists?
-                               * Or can they be visible to other modules?
-                               *)
-                              dst=[Frame.RV],
+                              dst=Frame.RV::trashedByCall,
                               jump=NONE});
               (* Undo the pre-call things *)
               emit(Assem.OPER{assem="la 'd0, "^Symbol.name(fs)^"\n",
                               src=[],
-                              dst=[fsAddr],
+                              dst=[fsAddr'],
                               jump=NONE});
               emit(Assem.OPER{assem="lw 'd0, 0('s0)\n",
-                              src=[fsAddr],
-                              dst=[fsVal],
+                              src=[fsAddr'],
+                              dst=[fsVal'],
                               jump=NONE});
               emit(Assem.OPER{assem="addi 'd0, 's0, -"^argsSpace^"\n",
-                              src=[fsVal],
-                              dst=[newfsVal],
+                              src=[fsVal'],
+                              dst=[newfsVal'],
                               jump=NONE});
               emit(Assem.OPER{assem="sw 's0, 0('d0)\n",
-                              src=[newfsVal],
-                              dst=[fsAddr],
+                              src=[newfsVal'],
+                              dst=[fsAddr'],
                               jump=NONE});
               emit(Assem.OPER{assem="addi $sp, $sp, "^argsSpace^"\n",
                               src=[Frame.SP],
@@ -600,7 +610,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
            (if i<4
            then (* Pass in $a0--$a3 *)
              let
-               val argTemp = Frame.findArgTemp("$a"^Int.toString(i))
+               val argTemp = Frame.findTemp("$a"^Int.toString(i))
              in
                (emit(Assem.OPER{assem="move $a"^Int.toString(i)^", 's0\n",
                                 src=[munchExp arg],
@@ -609,7 +619,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
                 argTemp::munchArgs(i+1, args))
               end
            else (* Put on the stack frame *)
-             (emit(Assem.OPER{assem="sw 's0, "^Int.toString(i*Frame.wordSize)^"0('d0)\n",
+             (emit(Assem.OPER{assem="sw 's0,"^Int.toString(i*Frame.wordSize)^"($sp)\n",
                               src=[munchExp arg],
                               dst=[],
                               jump=NONE});

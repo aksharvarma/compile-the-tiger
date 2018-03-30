@@ -33,7 +33,7 @@ fun reset() = (anyErrors:=false;
 
 exception Error
 exception impossible
-            
+
 (* Prints an error in the format "fileName:[x.y--w.z] Error: msg" *)
 fun error (posStart:int, posEnd:int, msg:string) =
     let

@@ -65,6 +65,6 @@ datatype stm = SEQ of stm * stm
 
 fun notRel(Op) = Op
 fun commute(Op) = Op
-                   
+
 end
 

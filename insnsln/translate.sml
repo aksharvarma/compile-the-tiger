@@ -213,9 +213,7 @@ fun fieldVar(a, i) =
                 T.LABEL z)),
                 T.MEM(T.BINOP(T.PLUS,
                               T.TEMP r,
-                              T.BINOP(T.MUL,
-                                      T.CONST Frame.wordSize,
-                                      T.CONST i)))))
+                              T.CONST(Frame.wordSize * i)))))
     end
 
 (* arithOp : Absyn.oper * exp * exp -> exp *)
@@ -671,7 +669,7 @@ fun forExp(level, iAccess:access, brkLabel, lo:exp, hi:exp, body:exp) =
 
 (* procEntryExit: {level:level, body:exp, isProcedure:bool, isMain:bool} -> unit
  *
- * This is the function that calls the Frame.procEntryExit1 function
+ * This is the function that calls the Frame.procEntryExit1-3 functions
  * Based on the list of items from the book, we don't do these yet:
  * 1-3, 9-11,
  * This functions combines 6 and 7 (move result to RV)
@@ -683,18 +681,15 @@ fun procEntryExit({level, body, isProcedure, isMain}) =
       (* If Main function, need to append these labels to frag *)
       fun appendErrorLabels(e) =
           let
-            (* val done = Temp.namedLabel("DONE") *)
             val goodExit = 0
             val badDerefExit = ~1
             val outOfBoundsExit = ~2
           in T.SEQ(e,
              T.SEQ(T.EXP(Frame.externalCall("exit_TigMain", [T.CONST(goodExit)])),
              T.SEQ(T.LABEL derefNil,
-                   T.SEQ(T.EXP(Frame.externalCall("exit_TigMain",
-                                                  [T.CONST(badDerefExit)])),
+             T.SEQ(T.EXP(Frame.externalCall("exit_TigMain", [T.CONST(badDerefExit)])),
              T.SEQ(T.LABEL outOfBounds,
-                   T.EXP(Frame.externalCall("exit_TigMain",
-                                      [T.CONST(outOfBoundsExit)])))))))
+                   T.EXP(Frame.externalCall("exit_TigMain", [T.CONST(outOfBoundsExit)])))))))
           end
 
       (* Helper function to get the frame from level *)
