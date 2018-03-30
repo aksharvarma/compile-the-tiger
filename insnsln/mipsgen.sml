@@ -24,8 +24,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
        * offset from the frame pointer to just before the outgoing
        * argument space.
        *)
-      val fs = Temp.namedLabel(String.extract(Symbol.name(Frame.name(frame)), 4, NONE)
-                               ^"_framesize")
+      val fs = Symbol.symbolize(Symbol.name(Frame.name(frame))^"_framesize")
 
       (* Tree code for adding the framesize to the stack pointer: SP + fs *)
       val FPtoSP = T.MEM(T.BINOP(T.PLUS, T.TEMP Frame.SP, T.MEM(T.NAME fs)))
