@@ -1,0 +1,15 @@
+let
+    var i := 0
+    function foo(a:int):int =
+        let
+            function bar(b:int):int = i + a
+        in
+            bar(a)
+        end
+in
+    for j := 0 to i do
+        let
+            function baz(c: int):int = j + 2
+        in
+        end
+end
