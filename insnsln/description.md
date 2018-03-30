@@ -3,6 +3,8 @@
 1. Caitlin Matuszak
 2. Akshar Varma
 
+Changes and bug fixes added on the last submission are detailed at the end of the file.
+
 Takes the IR Tree, canonicalizes it and performs instruction selection.
 
 1. The first part of this file mentions some design changes from last time.
@@ -89,22 +91,20 @@ This was one of the cases mentioned in class, but we do not do this because Tige
 ## framesize instead of FP
 We use framesize instead of the FP because our stack cannot be dynamically allocated to.
 
-## Changing framesize on function calls
-Our current design is to move the SP down and change the framesize every time we need to move arguments into registers/frame before calling a function.
-
-Thus, pre-call we decrease SP, increase framesize, move arguments into correct registers, and then make the call using `jal`.
-
-Post-call, we decrease the framesize and increase the SP.
-
-We have to do this because we assume that the SP is the lowest point in the stack and it doesn't include the space for outgoing parameters. We also do not have an FP. These design decisions necessitate the above pre-call & post-call changes.
-
-Note: Since the current design is complicated and makes the assembly code slightly bloated, we plan to change this design later to incorporate the space for outgoing parameter into the framesize and setting our SP after this space. Hence we would not need to perform these pre-call/post-call instructions.
-
-## Location of strings
-Currently, the strings are not necessarily at the top of the assembly file. We assume that whenever we flesh out Frame.string() and/or when we put all of our phases together, we will rectify this.
-
 ## End of "main" function
 As mentioned above, our earlier design to denote end of program was to have a DONE label at the end. We have changed this to make a function call to a runtime function which is simply an exit call in C. With the correct arguments we control whether the exit is a good, normal exit, or an exit caused due to an error (refer above).
 
 ## Assembly listing
 We provide the assembly that our compiler generates on test4.tig from Appel's list of testcases. This contains a function to compute the factorial and makes a call to this function, as required in the assignment.
+
+# Fixes added on resubmission
+## Bug fixes
+* Fixed string manipulation bug (corrected in the second email) causing an exception to be thrown for labels of regular functions of < 4 characters
+* Fixed bug with an extraneous MEM node when converting offsets from the frame pointer to offsets from the stack pointer. This affected the correctness of the static links.
+* Logic error with assignment to an element of an array. This was due to a misordering of the patterns in munchStm. This has been corrected.
+* Fixed bug with 4 arguments. Now correctly writes the extra arguments to the correct offset from the stack pointer
+
+## Changes to FPtoSP translation
+* Now we assume that the stack pointer is at the bottom of the outgoing arguments section, and that the frame size is large enough to accommodate the maximum number of outgoing arguments that this frame will need. Making these assumptions greatly simplified the function call logic and eliminated all of the precall and postcall instructions that we previously believed were necessary.
+* Now we assume that we have a fixed frame size (large enough to accommodate the maximum number of outgoing arguments) and that the register allocator will write this frame size to <FRAMELABEL>\_framesize when it determines the final size.
+

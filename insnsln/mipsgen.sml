@@ -538,7 +538,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
               (* Extend the stack pointer to accommate the space for the
                * outgoing arguments
                *)
-              (emit(Assem.OPER{assem="addi $sp, $sp, -"^argsSpace^"\n",
+         (*     (emit(Assem.OPER{assem="addi $sp, $sp, -"^argsSpace^"\n",
                               src=[Frame.SP],
                               dst=[Frame.SP],
                               jump=NONE});
@@ -561,14 +561,14 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
               emit(Assem.OPER{assem="sw 's0, 0('d0)\n",
                               src=[newfsVal],
                               dst=[fsAddr],
-                              jump=NONE});
+                              jump=NONE}); *)
               (* Actual function call *)
-              emit(Assem.OPER{assem="jal "^Symbol.name(funName)^"\n",
+              (emit(Assem.OPER{assem="jal "^Symbol.name(funName)^"\n",
                               src=munchArgs(0, args),
                               dst=Frame.RV::trashedByCall,
                               jump=NONE});
               (* Undo the pre-call things *)
-              emit(Assem.OPER{assem="la 'd0, "^Symbol.name(fs)^"\n",
+(*              emit(Assem.OPER{assem="la 'd0, "^Symbol.name(fs)^"\n",
                               src=[],
                               dst=[fsAddr'],
                               jump=NONE});
@@ -587,7 +587,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
               emit(Assem.OPER{assem="addi $sp, $sp, "^argsSpace^"\n",
                               src=[Frame.SP],
                               dst=[Frame.SP],
-                              jump=NONE});
+                              jump=NONE}); *)
               (* Return the return value *)
               Frame.RV)
           end

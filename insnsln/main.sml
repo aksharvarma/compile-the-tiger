@@ -21,9 +21,6 @@ fun emitproc out (Frame.PROC{body,frame}) =
          * into basic blocks*)
         val stms = Canon.linearize body
         val stms' = Canon.traceSchedule(Canon.basicBlocks stms)
-        val _ = (* Print canonicalized stms' *)
-            app (fn stm => (Printtree.printtree(TextIO.stdOut, stm);
-                            print("--------\n"))) stms'
         (* Apply codeGen to transform the list of Tree statements into
          * a list of mips assembly instructions *)
         val instrs =  List.concat(map (MipsGen.codeGen frame) stms')
