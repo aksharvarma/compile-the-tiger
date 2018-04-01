@@ -99,9 +99,10 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Nodes: 2
          *)
         | munchStm(T.MOVE(T.MEM(e1), e2)) =
-          emit(Assem.MOVE{assem="sw 's0, 0('d0)\n",
-                          src=(munchExp e2),
-                          dst=(munchExp e1)})
+          emit(Assem.OPER{assem="sw 's0, 0('d0)\n",
+                          src=[(munchExp e2)],
+                          dst=[(munchExp e1)],
+                          jump=NONE})
 
         (* Load constant into the destination e1
          * Nodes: 2
@@ -138,9 +139,10 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Nodes: 2
          *)
         | munchStm(T.MOVE(e1, T.MEM(e2))) =
-          emit(Assem.MOVE{assem="lw 'd0, 0('s0)\n",
-                          src=(munchExp e2),
-                          dst=(munchExp e1)})
+          emit(Assem.OPER{assem="lw 'd0, 0('s0)\n",
+                          src=[(munchExp e2)],
+                          dst=[(munchExp e1)],
+                          jump=NONE})
 
 
         (******************T.CJUMP***************************)
@@ -410,8 +412,9 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Nodes: 1
          *)
         | munchExp(T.MEM(e)) =
-          (result(fn r => emit(Assem.MOVE{assem="lw 'd0, 0('s0)\n",
-                                          src=(munchExp e), dst=r})))
+          (result(fn r => emit(Assem.OPER{assem="lw 'd0, 0('s0)\n",
+                                          src=[(munchExp e)], dst=[r],
+                                          jump=NONE})))
 
 
         (***************************T.BINOP***************************)

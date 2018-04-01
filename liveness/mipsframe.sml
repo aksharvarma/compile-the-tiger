@@ -287,7 +287,7 @@ fun procEntryExit2(frame, body) =
     let
       val liveTemps = map (fn (str, tmp) => tmp) (specialRegs@calleeSaves)
     in
-    body @ [Assem.OPER{assem="",
+    body @ [Assem.OPER{assem="procEntryExit2_FOR_DEBUG_ONLY\n",
                        src=liveTemps, dst=[],
                        jump=SOME[]}]
     end
@@ -299,15 +299,9 @@ fun procEntryExit2(frame, body) =
  * Adds the prolog and epilog to the functions. (Will be filled later)
  *)
 fun procEntryExit3({name, formals, locals}, body: Assem.instr list) =
-    let
-      fun getAssem(Assem.OPER{assem, dst, src, jump}) = assem
-        | getAssem(Assem.LABEL{assem, lab}) = assem
-        | getAssem(Assem.MOVE{assem, dst, src}) = assem
-    in
-      {prolog="PROCEDURE "^Symbol.name(name)^"\n",
-       body=body,
-       epilog="jr $ra\nEND "^Symbol.name(name)^"\n"}
-    end
+    {prolog="PROCEDURE "^Symbol.name(name)^"\n",
+     body=body,
+     epilog="jr $ra\nEND "^Symbol.name(name)^"\n"}
 
 (* tempMap: register Temp.Table.table
  *

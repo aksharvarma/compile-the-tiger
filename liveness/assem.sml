@@ -13,8 +13,29 @@ structure Assem = struct
                             dst: temp,
                             src: temp}
 
+  fun getAssem(OPER{assem, dst, src, jump}) = assem
+    | getAssem(LABEL{assem, lab}) = assem
+    | getAssem(MOVE{assem, dst, src}) = assem
+
+  fun getDst(OPER{assem, dst, src, jump}) = dst
+    | getDst(LABEL{assem, lab}) = []
+    | getDst(MOVE{assem, dst, src}) = [dst]
+
+  fun getSrc(OPER{assem, dst, src, jump}) = src
+    | getSrc(LABEL{assem, lab}) = []
+    | getSrc(MOVE{assem, dst, src}) = [src]
+
+  fun getJumps(OPER{assem, dst, src, jump}) =
+      (case jump
+       of NONE => []
+        | SOME(l) => l)
+    | getJumps(_) = []
+
+  fun isMove(MOVE _) = true
+    | isMove(_) = false
+
   fun format saytemp =
-    let
+      let
         fun speak(assem,dst,src,jump) =
             let val saylab = Symbol.name
                 fun f(#"'":: #"s":: i::rest) =
