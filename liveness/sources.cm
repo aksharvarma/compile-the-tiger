@@ -10,6 +10,7 @@ flowgraph.sml
 frame.sig
 graph.sig
 graph.sml
+liveness.sml
 main.sml
 makegraph.sml
 mipsframe.sml
