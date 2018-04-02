@@ -1,0 +1,8 @@
+let
+        var a:=1
+        var aa:=0
+        var b:=a+2
+        var c:=b-4
+in
+        c
+end

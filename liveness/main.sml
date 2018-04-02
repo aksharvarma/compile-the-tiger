@@ -39,23 +39,25 @@ fun createFlowGraph(body, format) =
  * Process and emit all function proc framents, but skip all string fragments
  *)
 fun emitproc out (Frame.PROC{body,frame}) =
-        let val _ = (* print to indicate start of new proc/frame *)
-            print ("emit " ^ Symbol.name(Frame.name(frame)) ^ "\n")
-        (* Call canonicalizer functions to linearize the body of the fragment
-         * into basic blocks*)
-        val stms = Canon.linearize body
-        val stms' = Canon.traceSchedule(Canon.basicBlocks stms)
-        (* Apply codeGen to transform the list of Tree statements into
-         * a list of mips assembly instructions *)
-        val instrs =  List.concat(map (MipsGen.codeGen frame) stms')
-        val instrs' = Frame.procEntryExit2(frame, instrs)
-        val {prolog, body=finalBody, epilog} = Frame.procEntryExit3(frame, instrs')
-        (* Format the resulting assembly instructions to insert correct
-         * temps/registers *)
-        val format0 = Assem.format(modifiedMakeString)
-        val (fg, nodes) = createFlowGraph(finalBody, format0)
-        (* TODO-DEBUG: for debugging purposes only *)
-        val _ = Flow.printFG(fg)
+    let
+      val _ = (* print to indicate start of new proc/frame *)
+          print ("emit " ^ Symbol.name(Frame.name(frame)) ^ "\n")
+      (* Call canonicalizer functions to linearize the body of the fragment
+       * into basic blocks*)
+      val stms = Canon.linearize body
+      val stms' = Canon.traceSchedule(Canon.basicBlocks stms)
+      (* Apply codeGen to transform the list of Tree statements into
+       * a list of mips assembly instructions *)
+      val instrs =  List.concat(map (MipsGen.codeGen frame) stms')
+      val instrs' = Frame.procEntryExit2(frame, instrs)
+      val {prolog, body=finalBody, epilog} = Frame.procEntryExit3(frame, instrs')
+      (* Format the resulting assembly instructions to insert correct
+       * temps/registers *)
+      val format0 = Assem.format(modifiedMakeString)
+      val (fg, nodes) = createFlowGraph(finalBody, format0)
+      (* TODO-DEBUG: for debugging purposes only *)
+      (* val _ = Flow.printFG(fg) *)
+      val yubni = Liveness.interferenceGraph(fg)
     in
       (* Print the prolog, then the final proc body, followed by the epilog *)
       (TextIO.output(out, prolog);

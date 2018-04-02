@@ -47,7 +47,7 @@ fun printFG(FGRAPH{control, def, use, ismove}) =
        * close paren.
        *)
       fun stringTempList([], acc) = acc^")"
-        | stringTempList(t::[], acc) = acc^Temp.makeString(t)
+        | stringTempList(t::[], acc) = acc^Temp.makeString(t)^")"
         | stringTempList(t::ts, acc) =
           stringTempList(ts, acc^Temp.makeString(t)^", ")
 
