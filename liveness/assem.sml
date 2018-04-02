@@ -13,24 +13,47 @@ structure Assem = struct
                             dst: temp,
                             src: temp}
 
+  (* getAssem : instr -> string
+   *
+   * Extracts the assem string from the given instr
+   *)
   fun getAssem(OPER{assem, dst, src, jump}) = assem
     | getAssem(LABEL{assem, lab}) = assem
     | getAssem(MOVE{assem, dst, src}) = assem
 
+  (* getDst: instr -> Temp.temp list
+   *
+   * Extracts the list of destination temps from the given instr
+   *)
   fun getDst(OPER{assem, dst, src, jump}) = dst
     | getDst(LABEL{assem, lab}) = []
     | getDst(MOVE{assem, dst, src}) = [dst]
 
+  (* getSrc: instr -> Temp.temp list
+   *
+   * Extracts the list of source temps from the given instr
+   *)
   fun getSrc(OPER{assem, dst, src, jump}) = src
     | getSrc(LABEL{assem, lab}) = []
     | getSrc(MOVE{assem, dst, src}) = [src]
 
+  (* getJumps: instr -> Temp.label list
+   *
+   * Extracts the list of labels that an instruction
+   * can possibly jump to.
+   * For instructions with no jumps, returns an empty list
+   *)
   fun getJumps(OPER{assem, dst, src, jump}) =
       (case jump
        of NONE => []
         | SOME(l) => l)
+    (* Neither LABELs or MOVEs can have any jumps *)
     | getJumps(_) = []
 
+  (* isMove : instr -> bool
+   *
+   * Returns true if given instruction is a move instruction
+   *)
   fun isMove(MOVE _) = true
     | isMove(_) = false
 
@@ -57,6 +80,5 @@ structure Assem = struct
           | LABEL{assem,...} => assem
           | MOVE{assem,dst,src} => speak(assem,[dst],[src],nil))
      end
-
 end
 

@@ -10,8 +10,20 @@ fun modifiedMakeString(t) =
      of SOME(str) => str
       | NONE => Temp.makeString(t)
 
+(* createFlowGraph : Assem.instr list * (Assem.instr -> string)
+ *                                      -> Flow.flowgraph * Graph.node list
+ *
+ * Creates a control flow graph for the given list of assembly instructions,
+ * after applying the given format instruction to the assembly string in each
+ * instruction.
+ *)
 fun createFlowGraph(body, format) =
       let
+        (* replaceAssem : Assem.instr * string -> Assem.instr
+         *
+         * Replaces the assem string in the given instruction with the given new
+         * assem string and returns a new (updated assem instruction
+         *)
         fun replaceAssem(Assem.OPER{assem, dst, src, jump}, newAssem) =
             Assem.OPER{assem=newAssem, dst=dst, src=src, jump=jump}
           | replaceAssem(Assem.MOVE{assem, dst, src}, newAssem) =
@@ -32,13 +44,7 @@ fun emitproc out (Frame.PROC{body,frame}) =
         (* Call canonicalizer functions to linearize the body of the fragment
          * into basic blocks*)
         val stms = Canon.linearize body
-        (* val _ = (print("----------\n"); *)
-        (*          (app (fn s => Printtree.printtree(TextIO.stdOut, s)) stms); *)
-        (*          print("----------\n")) *)
         val stms' = Canon.traceSchedule(Canon.basicBlocks stms)
-        (* val _ = (print("----------\n"); *)
-        (*          (app (fn s => Printtree.printtree(TextIO.stdOut, s)) stms'); *)
-        (*          print("----------\n")) *)
         (* Apply codeGen to transform the list of Tree statements into
          * a list of mips assembly instructions *)
         val instrs =  List.concat(map (MipsGen.codeGen frame) stms')
@@ -48,6 +54,7 @@ fun emitproc out (Frame.PROC{body,frame}) =
          * temps/registers *)
         val format0 = Assem.format(modifiedMakeString)
         val (fg, nodes) = createFlowGraph(finalBody, format0)
+        (* TODO-DEBUG: for debugging purposes only *)
         val _ = Flow.printFG(fg)
     in
       (* Print the prolog, then the final proc body, followed by the epilog *)

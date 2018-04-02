@@ -495,27 +495,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
         (* Instructions associated with making a function call.
          * Nodes: 2
          *
-         * Precall: Before we jump to the callee, the caller needs
-         * to set up the outgoing arguments at the bottom of its frame.
-         * To do so, we might need to write some outgoing arguments
-         * to the frame (if there are more than 4)
-         * So for this, we need to move the stack pointer down to make space
-         * for all outgoing arguments now, before writing them.
-         * But since we use the SP + fs for calculating the offset to the
-         * frame pointer, we need to also adjust the frame size to
-         * maintain correctness there.
-         * This involves loading the address of the frame size label,
-         * loading the value of the frame size,
-         * adding the correct value to the frame size,
-         * and finally storing the updated value back into the address at the
-         * frame size label.
-         *
          * Call: simple jal to the callee's function label
-         *
-         * Postcall: We need to undo all of the precall setup to return
-         * the caller's state to it's precall size. This way, if the caller
-         * makes another function call it will be cleanly set up to do it
-         * in the same way as the first one.
          *)
         | munchExp(T.CALL(T.NAME(funName), args)) =
           let
@@ -527,16 +507,11 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
                                                     "$t4", "$t5", "$t6", "$t7",
                                                     "$t8", "$t9", "$ra"]
           in
-              (* Pre-call things *)
-              (* Extend the stack pointer to accommate the space for the
-               * outgoing arguments
-               *)
               (* Actual function call *)
               (emit(Assem.OPER{assem="jal "^Symbol.name(funName)^"\n",
                               src=munchArgs(0, args),
                               dst=Frame.RV::trashedByCall,
                               jump=NONE});
-              (* Undo the pre-call things *)
               (* Return the return value *)
               Frame.RV)
           end
