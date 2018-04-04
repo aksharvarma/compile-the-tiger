@@ -54,10 +54,12 @@ fun emitproc out (Frame.PROC{body,frame}) =
       (* Format the resulting assembly instructions to insert correct
        * temps/registers *)
       val format0 = Assem.format(modifiedMakeString)
+      (* Create the control flow graph for the formatted body *)
       val (fg, nodes) = createFlowGraph(finalBody, format0)
       (* TODO-DEBUG: for debugging purposes only *)
       (* val _ = Flow.printFG(fg) *)
-      val yubni = Liveness.interferenceGraph(fg)
+      (* Compute liveness for the CFG and create the interference graph *)
+      val interGraph = Liveness.interferenceGraph(fg)
     in
       (* Print the prolog, then the final proc body, followed by the epilog *)
       (TextIO.output(out, prolog);

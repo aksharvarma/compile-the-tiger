@@ -25,6 +25,4 @@ fun newLabel() = Symbol.symbolize(F.format "L%d" [F.INT(postinc labs)])
  *)
 val namedLabel = (fn s => Symbol.symbolize("tig_"^s))
 end
-
-
 end
