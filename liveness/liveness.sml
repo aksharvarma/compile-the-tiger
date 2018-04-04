@@ -77,21 +77,21 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
        *)
       fun addPhysicalRegs() = ()
 
-      (* getDst : Graph.node -> Temp.temp list
+      (* getDef : Graph.node -> Temp.temp list
        *
        * Gets the list of temps that are in the def set of the given node
        *)
-      fun getDst(n) = (case Graph.Table.look(def, n)
-                        of SOME(dst) => dst
+      fun getDef(n) = (case Graph.Table.look(def, n)
+                        of SOME(def) => def
                          | _ => let exception NoDstFound
                                 in raise NoDstFound end)
 
-      (* getSrc : Graph.node -> Temp.temp list
+      (* getUse : Graph.node -> Temp.temp list
        *
        * Gets the list of temps that are in the use set of the given node
        *)
-      fun getSrc(n) = (case Graph.Table.look(use, n)
-                        of SOME(src) => src
+      fun getUse(n) = (case Graph.Table.look(use, n)
+                        of SOME(use) => use
                          | _ => let exception NoSrcFound
                                 in raise NoSrcFound end)
 
@@ -103,8 +103,12 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
       fun lookUpNode(map, node) =
           (case Graph.Table.look(map, node)
             of SOME(t) => t
-             | NONE => let exception NodeNotFound
-                       in raise NodeNotFound end)
+             | NONE => let
+                          exception NodeNotFound
+                          val _ = print("Invalid node: "^Graph.nodename(node)^"\n")
+                       in
+                         raise NodeNotFound
+                       end)
 
       (* createNodeTempMaps :
        *        Graph.node list * Temp.Table.table * Graph.Table.table
@@ -137,7 +141,7 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
                      end)
 
             (* All of the temps referenced by the given node *)
-            val temps = (getDst node)@(getSrc node)
+            val temps = (getDef node)@(getUse node)
 
             (* Fill the given tables with the list of all of the temps
              * referenced by the given node *)
@@ -190,8 +194,8 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
               let
                 (* Moves should have exactly one dst and one src since this is
                  * how they are constrained in Assem *)
-                val d = hd(getDst(n))
-                val s = hd(getSrc(n))
+                val d = hd(getDef(n))
+                val s = hd(getUse(n))
               in
                 (tnodeFun(d), tnodeFun(s))::computeMoves(ns)
               end
@@ -289,10 +293,10 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
              *)
             val useTable = foldr (fn (elem, tab) =>
                                      Temp.Table.enter(tab, elem, ()))
-                                 Temp.Table.empty (getSrc(b))
+                                 Temp.Table.empty (getUse(b))
             val defTable = foldr (fn (elem, tab) =>
                                      Temp.Table.enter(tab, elem, ()))
-                                 Temp.Table.empty (getDst(b))
+                                 Temp.Table.empty (getDef(b))
 
             (* getLiveTable : liveMap * Graph.node -> Temp.Table.table
              *
@@ -321,12 +325,6 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
              * liveset tables are always unit, this function is trivial *)
             fun dummyF((), ()) = ()
 
-            (* in[n] <- use[n] U (out[n] - def[n]) *)
-            val newInTable =
-                Temp.Table.union dummyF (useTable,
-                                         Temp.Table.difference(bOutTable,
-                                                               defTable))
-
             (* Extract all of the live in tables from the successors of b *)
             val succInTables = map (fn succ => getLiveTable(liveIn, succ))
                                    (Graph.succ(b))
@@ -335,6 +333,12 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
             val newOutTable = foldr (fn (t1, t2) =>
                                         Temp.Table.union dummyF (t1, t2))
                                     Temp.Table.empty (succInTables)
+
+            (* in[n] <- use[n] U (out[n] - def[n]) *)
+            val newInTable =
+                Temp.Table.union dummyF (useTable,
+                                         Temp.Table.difference(newOutTable,
+                                                               defTable))
 
             (* Get the new list of temps corresponding to the new in table *)
             val newInTemps = map (fn (k, elem) => k)
@@ -373,7 +377,7 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
                         (if newInSize > oldInSize
                             (* TODO: The line below shouldn't be needed
                              * according to Shivers' algorithm *)
-                            orelse newOutSize > oldOutSize
+                             (* orelse newOutSize > oldOutSize *)
                          then Graph.pred(b)
                          else [])
 
@@ -436,7 +440,7 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
             fun goThroughDsts([]) = ()
               | goThroughDsts(d::ds) =
                 let
-                  val inTemps = getSrc(n)
+                  val inTemps = getUse(n)
 
                   (* deleteFromList : Temp.temp * Temp.temp list -> Temp.temp list
                    *
@@ -475,7 +479,7 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
                       * TODO: is this true? Might be other things in live out
                       * set that we need to add things to
                       *)
-             else goThroughDsts(getDst(n));
+             else goThroughDsts(getDef(n));
              interfere(ns))
           end
 

@@ -63,18 +63,18 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Nodes: 5
          *)
         | munchStm(T.MOVE(T.MEM(T.BINOP(T.PLUS, e1, T.CONST i)), e2)) =
-          emit(Assem.OPER{assem="sw 's0, "^Int.toString(i)^"('d0)\n",
-                          src=[munchExp e2],
-                          dst=[munchExp e1],
+          emit(Assem.OPER{assem="sw 's0, "^Int.toString(i)^"('s1)\n",
+                          src=[munchExp e2, munchExp e1],
+                          dst=[],
                           jump=NONE})
 
         (* store into an address offset by a constant (left)
          * Nodes: 5
          *)
         | munchStm(T.MOVE(T.MEM(T.BINOP(T.PLUS, T.CONST i, e1)), e2)) =
-          emit(Assem.OPER{assem="sw 's0, "^Int.toString(i)^"('d0)\n",
-                          src=[munchExp e2],
-                          dst=[munchExp e1],
+          emit(Assem.OPER{assem="sw 's0, "^Int.toString(i)^"('s1)\n",
+                          src=[munchExp e2, munchExp e1],
+                          dst=[],
                           jump=NONE})
 
         (* load from an address offset by a constant (right)
@@ -99,9 +99,9 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Nodes: 2
          *)
         | munchStm(T.MOVE(T.MEM(e1), e2)) =
-          emit(Assem.OPER{assem="sw 's0, 0('d0)\n",
-                          src=[(munchExp e2)],
-                          dst=[(munchExp e1)],
+          emit(Assem.OPER{assem="sw 's0, 0('s1)\n",
+                          src=[munchExp e2, munchExp e1],
+                          dst=[],
                           jump=NONE})
 
         (* Load constant into the destination e1
@@ -543,7 +543,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
               end
            else (* Put on the stack frame *)
              (emit(Assem.OPER{assem="sw 's0,"^Int.toString(i*Frame.wordSize)^"($sp)\n",
-                              src=[munchExp arg],
+                              src=[munchExp arg, Frame.SP],
                               dst=[],
                               jump=NONE});
               munchArgs(i+1, args)))
