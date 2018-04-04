@@ -4,9 +4,17 @@
 2. Akshar Varma
 
 ## MakeGraph
-* MakeGraph.instrs2graph creates the control flow graph for the given list of instructions. Each node corrresponds to a single assembly instruction. The def and use sets correspond to the dst and src lists in the assem instructions, respectively. Each time a node is created in the graph, the def, use, and ismove tables in the flowgraph are updated accordingly with the information associated with the new node and its assembly instruction. Note that once we add this information to these three tables in the flowgraph, we no longer need the associated assembly instruction to compute liveness or to accomplish register allocation. All relevant data for the remaining steps is stored in the flowgraph itself.
+One thing to note here is that we may come to know about the existence of a label before we actually see the instruction corresponding to the label. We handle this by keeping a mapping between labels and nodes of the CFG. If we see a label first, we store the node it was assigned, if we see a reference to the label first, we create a node, add the required edge, and remember that that particular label already has a node. 
 
-##Liveness
+Other than this, the algorithm is straightforward.
 
-## Miscellaneous
+## Liveness and Interference Graphs
+For liveness, we use the worklist algorithm discussed in class.
+Note: The order of the In and Out updates as mentioned in class needs to be switched for it to work. This is because LiveIn depends on LiveOut, and you need to update LiveOut before LiveIn.
+
+For interference graphs, we use the algorithm from the book (Pg 221-222).
+
+## Miscellaneous changes to previous code/design
 * Changes were made in the mipsgen module to correct the creation of Assem.OPER and Assem.MOVE instructions. Now, Assem.MOVE instructions are only created for instructions that involve only a transfer of data from one temp to another without any modification. This only occurs when we use the MIPS "move" instruction.
+* The manner in which we handle index bound checks for arrays and dereferencing nil records was changed to make their corresponding code smaller and cleaner. This was also helpful in keeping our CFG makeGraph function simple.
+* The exitTigMain function and hence derefNils and OutofBounds labels/basic blocks are sinks and we never come out of them. However, the canonicalizer adds a jump back from these labels to the place from which we make a call to these things. This jump is never taken, but there is nothing we can do about it without changing the canonicalizer. Plus, it doesn't affect correctness, so leaving the spurious jump is fine.
