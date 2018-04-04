@@ -206,8 +206,8 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
        *)
       val liveIn: liveMap =
           foldr (fn (n, tab) =>
-                    Graph.Table.enter(tab, n, (Temp.Table.empty, [])))
-                Graph.Table.empty (Graph.nodes(interGraph))
+                     Graph.Table.enter(tab, n, (Temp.Table.empty, [])))
+                Graph.Table.empty fgNodes
 
       (* A liveMap mapping nodes to their live out sets
        * Initializes an entry for every node in the graph to be the empty set
@@ -215,7 +215,7 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
       val liveOut: liveMap =
           foldr (fn (n, tab) =>
                     Graph.Table.enter(tab, n, (Temp.Table.empty, [])))
-                Graph.Table.empty (Graph.nodes(interGraph))
+                Graph.Table.empty fgNodes
 
       (* printLiveMaps : liveMap * liveMap -> unit
        *
@@ -224,9 +224,6 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
        *)
       fun printLiveMaps(inMap, outMap) =
           let
-            (* Get all of the nodes from the flow graph *)
-            val nodes = Graph.nodes(control)
-
             (* getTempList : Graph.node * livemap -> Temp.temp list
              *
              * Get the temp list for the given node from the given livemap.
@@ -257,7 +254,7 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
                  print("\n");
                  printNodeLives(ns))
           in
-             printNodeLives(nodes)
+             printNodeLives(fgNodes)
           end
 
       (* TODO-DEBUG: keep track of the number of iterations for debugging
