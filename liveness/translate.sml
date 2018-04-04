@@ -175,18 +175,20 @@ fun simpleVar((l, access), level) = Ex(Frame.exp(access)(followSL(level, l)))
 fun subscriptVar(a, indexExp) =
     let
       val r = Temp.newTemp() val t = Temp.newTemp()
-      val z = Temp.newLabel() and x = Temp.newLabel()
+      val z = Temp.newLabel() and x = Temp.newLabel() and bad = Temp.newLabel()
       val varTree = unEx(a)
       val indexTree = unEx(indexExp)
     in
       Ex(T.ESEQ(T.SEQ(T.MOVE(T.TEMP r, varTree),
                 T.SEQ(T.MOVE(T.TEMP t, indexTree),
                 T.SEQ(T.CJUMP(T.GE, T.TEMP t, T.MEM(T.TEMP r),
-                              outOfBounds, z),
+                              bad, z),
                 T.SEQ(T.LABEL z,
                 T.SEQ(T.CJUMP(T.LT, T.TEMP t, T.CONST 0,
-                              outOfBounds, x),
-                      T.LABEL x))))),
+                              bad, x),
+                T.SEQ(T.LABEL bad,
+                T.SEQ(T.EXP(T.CALL(T.NAME(outOfBounds), [])),
+                      T.LABEL x))))))),
                 T.MEM(T.BINOP(T.PLUS,
                               (* This is the base *)
                               T.TEMP r,
@@ -206,11 +208,13 @@ fun subscriptVar(a, indexExp) =
 fun fieldVar(a, i) =
     let
       val r = Temp.newTemp()
-      val z = Temp.newLabel()
+      val z = Temp.newLabel() and bad = Temp.newLabel()
     in
       Ex(T.ESEQ(T.SEQ(T.MOVE(T.TEMP r, unEx(a)),
-                T.SEQ(T.CJUMP(T.EQ, T.TEMP r, T.CONST 0, derefNil, z),
-                T.LABEL z)),
+                T.SEQ(T.CJUMP(T.EQ, T.TEMP r, T.CONST 0, bad, z),
+                T.SEQ(T.LABEL bad,
+                T.SEQ(T.EXP(T.CALL(T.NAME(derefNil), [])),
+                T.LABEL z)))),
                 T.MEM(T.BINOP(T.PLUS,
                               T.TEMP r,
                               T.CONST(Frame.wordSize * i)))))
@@ -679,24 +683,39 @@ fun procEntryExit({level, body, isProcedure, isMain}) =
     let
 
       (* If Main function, need to append these labels to frag *)
-      fun appendErrorLabels(e) =
-          let
-            val goodExit = 0
-            val badDerefExit = ~1
-            val outOfBoundsExit = ~2
-          in T.SEQ(e,
-             T.SEQ(T.EXP(Frame.externalCall("exit_TigMain", [T.CONST(goodExit)])),
-             T.SEQ(T.LABEL derefNil,
-             T.SEQ(T.EXP(Frame.externalCall("exit_TigMain", [T.CONST(badDerefExit)])),
-             T.SEQ(T.LABEL outOfBounds,
-                   T.EXP(Frame.externalCall("exit_TigMain", [T.CONST(outOfBoundsExit)])))))))
-          end
+      fun appendExitLabel(e) =
+          T.SEQ(e, T.EXP(Frame.externalCall("exit_TigMain", [T.CONST(0)])))
 
       (* Helper function to get the frame from level *)
       fun getFrame(OUTERMOST) = raise OutermostException
         | getFrame(Lev({frame, parent, unique})) = frame
 
       val frame = getFrame(level)
+
+      fun addErrorProcs() =
+          let
+            val badDerefExit = ~1
+            val outOfBoundsExit = ~2
+
+            (* TODO: we don't need a static link here *)
+            val derefNilFrame = Frame.newFrame{name=derefNil, formals=[false]}
+            val outOfBoundsFrame = Frame.newFrame{name=outOfBounds,
+            formals=[false]}
+
+            val derefNilBody = T.SEQ(T.LABEL(Frame.name(derefNilFrame)),
+                                     T.EXP(Frame.externalCall("exit_TigMain",
+                                                        [T.CONST(badDerefExit)])))
+            val outOfBoundsBody = T.SEQ(T.LABEL(Frame.name(outOfBoundsFrame)),
+                                     T.EXP(Frame.externalCall("exit_TigMain",
+                                                        [T.CONST(outOfBoundsExit)])))
+
+
+          in fragList := Frame.PROC{body=derefNilBody, frame=derefNilFrame}
+                         :: Frame.PROC{body=outOfBoundsBody,
+                            frame=outOfBoundsFrame}
+                         :: !fragList
+          end
+
       (* items 6-7: Move result of exp into RV
        * But do that only if it is not a procedure
        *)
@@ -712,7 +731,8 @@ fun procEntryExit({level, body, isProcedure, isMain}) =
 
       (* If isMain, then append runtime error labels to the end *)
       val finalBody = if isMain
-                      then appendErrorLabels(modifiedBody)
+                      then (addErrorProcs();
+                            appendExitLabel(modifiedBody))
                       else modifiedBody
     in
       (* Each function becomes a fragment *)
