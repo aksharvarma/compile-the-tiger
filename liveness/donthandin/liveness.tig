@@ -1,8 +1,13 @@
 let
         var a:=1
+        var r:=a
         var aa:=0
-        var b:=a+2
-        var c:=b-4
+        var d:=22
+        var e:=7
+        var diam:=2*r
+        var pi:= d/e
+        var circumference:=(diam)*pi
+        var area:=(circumference*r)/2
 in
-        c
+        area/circumference
 end

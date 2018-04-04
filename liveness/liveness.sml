@@ -37,6 +37,11 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
       val fgNodes = Graph.nodes(control)
       val interGraph = Graph.newGraph()
 
+      (* Need to write this to create K_{32,32} for physical regs 
+       * This function's output to be used to create initial tnode, gtemp maps
+       *)
+      fun addPhysicalRegs() = ()
+                                     
       fun getDst(n) = (case Graph.Table.look(def, n)
                         of SOME(dst) => dst
                          | _ => let exception NoDstFound
@@ -69,6 +74,7 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
             createNodeTempMaps(nodes, tnode', gtemp')
           end
 
+      (* Call addPhysicalRegs instead of initializing to empty *)
       val emptyTnode = Temp.Table.empty
       val emptyGtemp = Graph.Table.empty
 
@@ -134,10 +140,17 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
           end
 
       val iterationCount = ref 0
-
-      fun livenessWL([], liveIn, liveOut) =
-          (print("IterationCount: "^Int.toString(!iterationCount)^"\n");
-           (liveIn, liveOut))
+      (* Better this way *)
+      val initialWL = rev(Graph.nodes(control))
+      (* For debugging using Appel's algo (livenessChanged) *)
+      val livenessChanged = ref false
+                         
+      fun livenessWL([], liveIn, liveOut) = (liveIn, liveOut)
+        (* For debugging using Appel's algo (livenessChanged) *)
+        (* (if !livenessChanged *)
+        (*  then (livenessChanged:=false; *)
+        (*        livenessWL(initialWL, liveIn, liveOut)) *)
+        (*  else (liveIn, liveOut)) *)
         | livenessWL(b::wl, liveIn, liveOut) =
           let
             val useTable = foldr (fn (elem, tab) =>
@@ -164,6 +177,7 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
             val bInTable = getLiveTable(liveIn, b)
             val bInTemps = getLiveList(liveIn, b)
             val bOutTable = getLiveTable(liveOut, b)
+            val bOutTemps = getLiveList(liveOut, b)
 
             fun dummyF((), ()) = ()
                                    
@@ -189,9 +203,24 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
                 Graph.Table.enter(liveOut,
                                   b, (newOutTable, newOutTemps))
 
-            val newWL = wl@(if List.length(bInTemps) < List.length(newInTemps)
-                            then Graph.pred(b)
-                            else [])
+
+            val oldInSize = List.length(bInTemps)
+            val newInSize = List.length(newInTemps)
+            val oldOutSize = List.length(bOutTemps)
+            val newOutSize = List.length(newOutTemps)
+
+            (* For debugging, to see if we remove anything from live sets *)
+            fun isSubset([], _) = true
+              | isSubset(item::rest:Temp.temp list, l2) = 
+                if List.null(List.filter(fn x => x = item) l2)
+                then false else isSubset(rest, l2)
+
+            val newWL = wl@
+                        (if newInSize > oldInSize
+                            (* The line below shouldn't be needed *)
+                            orelse newOutSize > oldOutSize
+                         then Graph.pred(b)
+                         else [])
 
             (* val _ = (print("----------\nNew Iteration: "^Graph.nodename(b)^"\n"); *)
             (*          (app (fn n => print(Graph.nodename(n)^" ")) newWL); *)
@@ -199,14 +228,28 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
             (*          printLiveMaps(newLiveIn, newLiveOut)) *)
 
           in
-            (iterationCount:= !iterationCount+1;
-             livenessWL(newWL, newLiveIn, newLiveOut))
+            (
+              (* For debugging using Appel's algo (livenessChanged) *)
+              (* if oldInSize < newInSize orelse oldOutSize < newOutSize *)
+              (* then (livenessChanged := true) *)
+              (* else (); *)
+
+              (* Raise an exception if we removed anything from live sets *)
+              if not(isSubset(bInTemps, newInTemps)) orelse
+                 not(isSubset(bOutTemps, newOutTemps))
+              then let exception YouDeletedSomething
+                   in raise YouDeletedSomething end
+              else ();
+              (* Keep track of iteration count *)
+              iterationCount:= !iterationCount+1;
+              livenessWL(newWL, newLiveIn, newLiveOut))
           end
             
-      val (finalLiveIn, finalLiveOut) = livenessWL(rev(Graph.nodes(control)),
+      val (finalLiveIn, finalLiveOut) = livenessWL(initialWL,
                                                    liveIn, liveOut)
 
       val _ = (print("--------\n");
+               print("IterationCount: "^Int.toString(!iterationCount)^"\n");
                printLiveMaps(finalLiveIn, finalLiveOut);
                print("--------\n"))
       (* val _ = (print("--------\nLive-OUT\n"); *)
