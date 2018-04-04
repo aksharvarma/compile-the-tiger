@@ -683,8 +683,8 @@ fun procEntryExit({level, body, isProcedure, isMain}) =
     let
 
       (* If Main function, need to append these labels to frag *)
-      fun appendExitLabel(e) =
-          T.SEQ(e, T.EXP(Frame.externalCall("exit_TigMain", [T.CONST(0)])))
+   (*   fun appendExitLabel(e) =
+          T.SEQ(e, T.EXP(Frame.externalCall("exit_TigMain", [T.CONST(0)]))) *)
 
       (* Helper function to get the frame from level *)
       fun getFrame(OUTERMOST) = raise OutermostException
@@ -729,14 +729,11 @@ fun procEntryExit({level, body, isProcedure, isMain}) =
       (* procEntryExit1 modifies the body to do items 4-8. *)
       val modifiedBody = Frame.procEntryExit1(frame, bodyWithRvAndLabel)
 
-      (* If isMain, then append runtime error labels to the end *)
-      val finalBody = if isMain
-                      then (addErrorProcs();
-                            appendExitLabel(modifiedBody))
-                      else modifiedBody
+      (* If isMain, then append runtime error labels to the end TODO *)
+      val _ = if isMain then (addErrorProcs()) else ()
     in
       (* Each function becomes a fragment *)
-      fragList := Frame.PROC({body=finalBody, frame=frame}):: !fragList
+      fragList := Frame.PROC({body=modifiedBody, frame=frame}):: !fragList
     end
 
 (* getResult : unit -> frag list *)
