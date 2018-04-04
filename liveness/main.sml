@@ -56,12 +56,10 @@ fun emitproc out (Frame.PROC{body,frame}) =
       val format0 = Assem.format(modifiedMakeString)
       (* Create the control flow graph for the formatted body *)
       val (fg, nodes) = createFlowGraph(finalBody, format0)
-      (* TODO-DEBUG: for debugging purposes only *)
-      val _ = Flow.printFG(fg)
       (* Compute liveness for the CFG and create the interference graph *)
-      val interGraph = Liveness.interferenceGraph(fg)
+      val (interGraph, liveOutFn) = Liveness.interferenceGraph(fg)
     in
-      (* Print the prolog, then the final proc body, followed by the epilog *)
+      (* Output the prolog, then the final proc body, followed by the epilog *)
       (TextIO.output(out, prolog);
        (app (fn i => TextIO.output(out,format0 i)) finalBody);
        TextIO.output(out, epilog))
@@ -97,7 +95,8 @@ fun compile filename =
                      Translate.getResult())
     in
       withOpenFile (filename ^ ".s")
-                   (fn out => ((app (emitString out) frags); (app (emitproc out)
-                   frags)))
+                   (fn out => ((app (emitString out) frags);
+                               (app (emitproc out) (tl frags));
+                               (emitproc out) (hd frags)))
     end
 end

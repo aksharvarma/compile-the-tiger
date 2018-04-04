@@ -288,7 +288,7 @@ fun procEntryExit2(frame, body) =
     let
       val liveTemps = map (fn (str, tmp) => tmp) (specialRegs@calleeSaves)
     in
-    body @ [Assem.OPER{assem="procEntryExit2_FOR_DEBUG_ONLY\n",
+    body @ [Assem.OPER{assem="",
                        src=liveTemps, dst=[],
                        jump=SOME[]}]
     end

@@ -53,13 +53,6 @@ type liveSet = unit Temp.Table.table * Temp.temp list
 (* Maps graph nodes to a particular live set *)
 type liveMap = liveSet Graph.Table.table
 
-(* TODO: not used, what is this?
-structure ListSet = ListSetFn (struct
-                                type ord_key = Temp.temp
-                                val compare = Int.compare
-                                end)
-*)
-
 (* interferenceGraph: Flow.flowgraph -> igraph * (Graph.node -> Temp.temp list
  *
  * Constructs an interference graph from the given flow graph
@@ -103,12 +96,8 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
       fun lookUpNode(map, node) =
           (case Graph.Table.look(map, node)
             of SOME(t) => t
-             | NONE => let
-                          exception NodeNotFound
-                          val _ = print("Invalid node: "^Graph.nodename(node)^"\n")
-                       in
-                         raise NodeNotFound
-                       end)
+             | NONE => let exception NodeNotFound
+                       in raise NodeNotFound end)
 
       (* createNodeTempMaps :
        *        Graph.node list * Temp.Table.table * Graph.Table.table
@@ -219,7 +208,7 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
 
       (* printLiveMaps : liveMap * liveMap -> unit
        *
-       * TODO-DEBUG: for debugging only.
+       * For debugging purposes only.
        * Print the live in and live out sets for each node
        *)
       fun printLiveMaps(inMap, outMap) =
@@ -257,17 +246,9 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
              printNodeLives(fgNodes)
           end
 
-      (* TODO-DEBUG: keep track of the number of iterations for debugging
-       * purposes
-       *)
-      val iterationCount = ref 0
-
       (* The algorithm will operate more efficiently if we reverse the list of
        * nodes/instructions *)
       val initialWL = rev(Graph.nodes(control))
-
-      (* TODO-DEBUG: For debugging using Appel's algo (livenessChanged) *)
-      val livenessChanged = ref false
 
       (* livenessWL : Graph.node list * liveMap * liveMap -> liveMap * liveMap
        *
@@ -277,11 +258,6 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
        * worklist as specified by the set operation algorithm in the book.
        *)
       fun livenessWL([], liveIn, liveOut) = (liveIn, liveOut)
-        (* TODO-DEBUG: For debugging using Appel's algo (livenessChanged) *)
-        (* (if !livenessChanged *)
-        (*  then (livenessChanged:=false; *)
-        (*        livenessWL(initialWL, liveIn, liveOut)) *)
-        (*  else (liveIn, liveOut)) *)
         | livenessWL(b::wl, liveIn, liveOut) =
           let
             (* Add all elements in the use and def lists for the given node
@@ -362,58 +338,31 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
             val oldOutSize = List.length(bOutTemps)
             val newOutSize = List.length(newOutTemps)
 
-            (* TODO-DEBUG: For debugging, to see if we remove anything from live sets *)
-            fun isSubset([], _) = true
-              | isSubset(item::rest:Temp.temp list, l2) =
-                if List.null(List.filter(fn x => x = item) l2)
-                then false else isSubset(rest, l2)
-
             val newWL = wl@
                         (* If the live in set for b changed, then we need to add
                          * the predecessors of b to the worklist *)
                         (if newInSize > oldInSize
-                            (* TODO: The line below shouldn't be needed
-                             * according to Shivers' algorithm *)
-                             (* orelse newOutSize > oldOutSize *)
                          then Graph.pred(b)
                          else [])
-
-            (* TODO-DEBUG: *)
-            (* val _ = (print("----------\nNew Iteration: "^Graph.nodename(b)^"\n"); *)
-            (*          (app (fn n => print(Graph.nodename(n)^" ")) newWL); *)
-            (*          print("\n"); *)
-            (*          printLiveMaps(newLiveIn, newLiveOut)) *)
-
           in
-            ( (* TODO-DEBUG *)
-              (* For debugging using Appel's algo (livenessChanged) *)
-              (* if oldInSize < newInSize orelse oldOutSize < newOutSize *)
-              (* then (livenessChanged := true) *)
-              (* else (); *)
-
-              (* TODO-DEBUG: Raise an exception if we removed anything from live sets *)
-              if not(isSubset(bInTemps, newInTemps)) orelse
-                 not(isSubset(bOutTemps, newOutTemps))
-              then let exception YouDeletedSomething
-                   in raise YouDeletedSomething end
-              else ();
-              (* TODO-DEBUG: Keep track of iteration count *)
-              iterationCount:= !iterationCount+1;
-
-              livenessWL(newWL, newLiveIn, newLiveOut))
+              livenessWL(newWL, newLiveIn, newLiveOut)
           end
 
       (* Calculate the final live sets *)
       val (finalLiveIn, finalLiveOut) = livenessWL(initialWL,
                                                    liveIn, liveOut)
 
-      (* TODO-DEBUG *)
-      val _ = (print("--------\n");
-               print("IterationCount: "^Int.toString(!iterationCount)^"\n");
-               printLiveMaps(finalLiveIn, finalLiveOut);
-               print("--------\n"))
-      (* val _ = (print("--------\nLive-OUT\n"); *)
-      (*          printLiveMaps(finalLiveOut)) *)
+      (* liveOutFun : Graph.node -> Temp.temp list
+       *
+       * The function version of the final liveOut map to be return with the igraph.
+       * Returns the live out set associated with the given node in list form.
+       * All valid nodes in the control flow graph should have a live out set
+       * associated with them now. If an invalid node is given, throw
+       * an exception.
+       *)
+      fun liveOutFun(node) =
+        let val (tab, lst) = lookUpNode(finalLiveOut, node)
+        in lst end
 
       (* interfere : Graph.node list -> unit
        *
@@ -437,8 +386,6 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
             fun goThroughDsts([]) = ()
               | goThroughDsts(d::ds) =
                 let
-                  val inTemps = getUse(n)
-
                   (* deleteFromList : Temp.temp * Temp.temp list -> Temp.temp list
                    *
                    * Delete the given temp from the given list
@@ -446,13 +393,18 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
                   fun deleteFromList(item:Temp.temp, list) =
                       List.filter(fn x => x <> item) list
 
-                  (* TODO: what is this? *)
+                  (* Need to delete the current dst temp from the out list if
+                   * it's there *)
+                  val outsWithoutSelf = deleteFromList(d, outTemps)
+
                   val effectiveOuts =
                       if nIsMove
-                      (* TODO: how do we know that the move temp is the first
-                       * one in the inTemps list *)
-                      then deleteFromList(hd(inTemps), outTemps)
-                      else outTemps
+                      (* Need to delete the source of the copy instruction from
+                       * the out list if it was a move. Since it was a move
+                       * instruction, we know that it should have exactly one
+                       * thing in it's use set, so delete it *)
+                      then deleteFromList(hd(getUse(n)), outsWithoutSelf)
+                      else outsWithoutSelf
 
                   (* makeAdj : Graph.node * Graph.node -> unit
                    *
@@ -469,24 +421,17 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
                         effectiveOuts);
                    goThroughDsts(ds))
                 end
-
           in
-            (if nIsMove
-             then () (* No interference if move instruction
-                      * TODO: is this true? Might be other things in live out
-                      * set that we need to add things to
-                      *)
-             else goThroughDsts(getDef(n));
-             interfere(ns))
+             (goThroughDsts(getDef(n));
+              interfere(ns))
           end
-
     in
-      (IGRAPH{graph=interGraph,
+      (interfere(Graph.nodes(control));
+       (IGRAPH{graph=interGraph,
               tnode=tnodeFun,
               gtemp=gtempFun,
               moves=computeMoves(fgNodes)},
-      (* TODO: need to fill in this function *)
-       (fn (n) => []))
+       liveOutFun))
     end
 
 (* show: outstream * igraph -> unit
@@ -495,12 +440,22 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
  *)
 fun show(out, IGRAPH{graph, tnode, gtemp, moves}) =
     let
-      val nodes = Graph.nodes(graph)
+      (* modifiedMakeString: Temp.temp -> string
+       *
+       * Look up the given temp in the tempMap.
+       * If found, return that string, otherwise default to Temp.makeString.
+       *)
+     fun modifiedMakeString(t) =
+         case Temp.Table.look(Frame.tempMap, t)
+          of SOME(str) => str
+           | NONE => Temp.makeString(t)
     in
-      app (fn (node) => (TextIO.output(out, Graph.nodename(node));
+      app (fn (node) => (TextIO.output(out, modifiedMakeString(gtemp(node))^":\n");
                          (app (fn (adj) =>
-                                  TextIO.output(out, Graph.nodename(adj)^" "))
-                              (Graph.adj(node)))))
-          nodes
+                                  TextIO.output(out,
+                                  modifiedMakeString(gtemp(adj))^" "))
+                              (Graph.pred(node)));
+                          print("\n")))
+          (Graph.nodes(graph))
     end
 end

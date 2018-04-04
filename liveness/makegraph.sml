@@ -1,7 +1,5 @@
 signature MAKEGRAPH =
 sig
-  (* TODO-DEBUG: Decide whether to leave this or not *)
-  val debugHelper: string Graph.Table.table ref
 
  (* instrs2graph: Assem.instr list -> Flow.flowgraph * Graph.node list
   *
@@ -15,9 +13,6 @@ end
 structure MakeGraph :> MAKEGRAPH =
 struct
 structure F = Flow
-
-(* TODO-DEBUG: Decide whether to leave this or not *)
-val debugHelper: string Graph.Table.table ref = ref Graph.Table.empty
 
 (* instrs2graph: Assem.instr list -> Flow.flowgraph * Graph.node list
  *
@@ -77,9 +72,9 @@ fun instrs2graph(instrs) =
         | addFallThroughEdge(SOME(fromNode), toNode) =
           Graph.mk_edge{from=fromNode, to=toNode}
 
-      (* TODO-DEBUG: For debugging purposes only *)
       (* debugMe : Graph.node * Assem.instr -> unit
        *
+       * For debugging only.
        * Enters the given node into the debug table mapped to the given assembly
        * instruction.
        *)
@@ -134,6 +129,7 @@ fun instrs2graph(instrs) =
             fun addEdgeToLabel(j) =
                 Graph.mk_edge{from=currNode, to=findLabelNode(j, takeControl(fg))}
           in
+            (* Record debugging information for this node/instruction pair *)
             (debugMe(currNode, instr);
              (* Add the fallthrough edge from the given fromNode to the current
               * node if necessary *)
@@ -154,7 +150,6 @@ fun instrs2graph(instrs) =
                                                              def=Graph.Table.empty,
                                                              use=Graph.Table.empty,
                                                              ismove=Graph.Table.empty}))
-
     in
       (builtGraph, Graph.nodes(takeControl(builtGraph)))
     end

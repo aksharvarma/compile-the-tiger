@@ -681,23 +681,29 @@ fun forExp(level, iAccess:access, brkLabel, lo:exp, hi:exp, body:exp) =
  *)
 fun procEntryExit({level, body, isProcedure, isMain}) =
     let
-
-      (* If Main function, need to append these labels to frag *)
-   (*   fun appendExitLabel(e) =
-          T.SEQ(e, T.EXP(Frame.externalCall("exit_TigMain", [T.CONST(0)]))) *)
-
       (* Helper function to get the frame from level *)
       fun getFrame(OUTERMOST) = raise OutermostException
         | getFrame(Lev({frame, parent, unique})) = frame
 
       val frame = getFrame(level)
 
+      (* addErrorProcs : unit -> unit
+       *
+       * Adds two function fragments to the frag list to account for the two
+       * runtime error cases. We now add them to their own function proc,
+       * cleaning up the code that gets added to main, and avoiding the case
+       * where instructions in other function procs jump to labels in the middle
+       * of another function proc.
+       *)
       fun addErrorProcs() =
           let
             val badDerefExit = ~1
             val outOfBoundsExit = ~2
 
-            (* TODO: we don't need a static link here *)
+            (* Note that we know that don't need a static link here,
+             * because we are not referencing any outside variables and the
+             * external call to the C function exit_TigMain will not require a
+             * static link. *)
             val derefNilFrame = Frame.newFrame{name=derefNil, formals=[false]}
             val outOfBoundsFrame = Frame.newFrame{name=outOfBounds,
             formals=[false]}
@@ -709,10 +715,8 @@ fun procEntryExit({level, body, isProcedure, isMain}) =
                                      T.EXP(Frame.externalCall("exit_TigMain",
                                                         [T.CONST(outOfBoundsExit)])))
 
-
           in fragList := Frame.PROC{body=derefNilBody, frame=derefNilFrame}
-                         :: Frame.PROC{body=outOfBoundsBody,
-                            frame=outOfBoundsFrame}
+                         :: Frame.PROC{body=outOfBoundsBody, frame=outOfBoundsFrame}
                          :: !fragList
           end
 
@@ -729,7 +733,7 @@ fun procEntryExit({level, body, isProcedure, isMain}) =
       (* procEntryExit1 modifies the body to do items 4-8. *)
       val modifiedBody = Frame.procEntryExit1(frame, bodyWithRvAndLabel)
 
-      (* If isMain, then append runtime error labels to the end TODO *)
+      (* If isMain, then append the runtime error procs to the frag list *)
       val _ = if isMain then (addErrorProcs()) else ()
     in
       (* Each function becomes a fragment *)
@@ -738,7 +742,6 @@ fun procEntryExit({level, body, isProcedure, isMain}) =
 
 (* getResult : unit -> frag list *)
 fun getResult() = !fragList
-
 
 (* printInfo: unit -> unit
  *
