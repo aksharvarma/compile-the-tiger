@@ -13,6 +13,7 @@ For liveness, we use the worklist algorithm discussed in class.
 Note: The order of the In and Out updates as mentioned in class needs to be switched for it to work. This is because LiveIn depends on LiveOut, and you need to update LiveOut before LiveIn.
 
 For interference graphs, we use the algorithm from the book (Pg 221-222).
+Note that the edges between the hardware registers are not yet complete. During register allocation, we will need to add edges between all hardware registers to indicate that they will always be separate registers.
 
 ## Miscellaneous changes to previous code/design
 * Changes were made in the mipsgen module to correct the creation of Assem.OPER and Assem.MOVE instructions. Now, Assem.MOVE instructions are only created for instructions that involve only a transfer of data from one temp to another without any modification. This only occurs when we use the MIPS "move" instruction.

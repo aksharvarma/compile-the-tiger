@@ -58,13 +58,19 @@ struct
   fun delete(i,j::rest) = if i=j then rest else j::delete(i,rest)
     | delete(_,nil) = raise GraphEdge
 
-  fun diddle_edge change {from=(g:graph, i),to=(g':graph, j)} =
-      let val _ = check(g,g')
-          val NODE{succ=si,pred=pi} = A.sub(g,i)
-          val _ = A.update(g,i,NODE{succ=change(j,si),pred=pi})
-          val NODE{succ=sj,pred=pj} = A.sub(g,j)
-          val _ = A.update(g,j,NODE{succ=sj,pred=change(i,pj)})
-       in ()
+  fun diddle_edge change {from=fromNode,to=toNode:node} =
+      let
+        val NODE{succ=si,pred=pi} = A.sub(fromNode)
+        val NODE{succ=sj,pred=pj} = A.sub(toNode)
+        val (g, i) = fromNode
+        val (g', j) = toNode
+        val _ = check(g, g')
+      in
+        (* Altered to only add the edge if not already present *)
+        case List.find (fn (el:node) => eq(el, toNode)) (succ(fromNode))
+          of SOME(x) => ()
+           | NONE => (A.update(g,i,NODE{succ=change(j,si),pred=pi});
+                      A.update(g,j,NODE{succ=sj,pred=change(i,pj)}))
       end
 
   val mk_edge = diddle_edge (op ::)
