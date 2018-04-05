@@ -64,12 +64,6 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
       val fgNodes = Graph.nodes(control)
       val interGraph = Graph.newGraph()
 
-      (* TODO: what does K_{32, 32} mean? *)
-      (* Need to write this to create K_{32,32} for physical regs
-       * This function's output to be used to create initial tnode, gtemp maps
-       *)
-      fun addPhysicalRegs() = ()
-
       (* getDef : Graph.node -> Temp.temp list
        *
        * Gets the list of temps that are in the def set of the given node
@@ -139,7 +133,6 @@ fun interferenceGraph(Flow.FGRAPH{control, def, use, ismove}) =
             createNodeTempMaps(nodes, tnode', gtemp')
           end
 
-      (* TODO: Call addPhysicalRegs instead of initializing to empty *)
       val emptyTnode = Temp.Table.empty
       val emptyGtemp = Graph.Table.empty
 
