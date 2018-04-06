@@ -1,0 +1,13 @@
+let
+        var a:=1
+        var r:=a
+        var aa:=0
+        var d:=22
+        var e:=7
+        var diam:=2*r
+        var pi:= d/e
+        var circumference:=(diam)*pi
+        var area:=(circumference*r)/2
+in
+        area/circumference
+end
