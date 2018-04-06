@@ -261,9 +261,10 @@ val reservedRegs:(register * Temp.temp) list = [("$at", Temp.newTemp()),
                                                ("$gp", Temp.newTemp())]
 
 (* Some sugar-coating for the RHS *)
-val allUserRegs = specialRegs@argRegs@calleeSaves@callerSaves@reservedRegs
+val allRegs = specialRegs@argRegs@calleeSaves@callerSaves@reservedRegs
+val allUserRegs = specialRegs@argRegs@calleeSaves@callerSaves
 val physicalRegs = map (fn (s, t) => t) allUserRegs
-
+val K = List.length(physicalRegs)
 (* procEntryExit1: frame * Tree.stm -> Tree.stm
  *
  * This is the function that adds the prologue and epilogue to the code

@@ -18,10 +18,13 @@ signature UGRAPH = sig
   val nodeSet: graph -> S.set
   val nodeList: graph -> node list
 
+  val isEdge: graph -> node * node -> bool
+  val degree: graph -> node -> int
   structure Table : TABLE
   sharing type Table.key = node
 
   val lookUpNode: 'a Table.table * node -> 'a
+
   val compare: node * node -> order
   val pairCompare: (node * node) * (node * node) -> order
 

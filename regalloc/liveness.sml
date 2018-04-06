@@ -13,7 +13,7 @@ sig
            IGRAPH of {graph: UGraph.graph,
                       tnode: tnodeFn,
                       gtemp: gtempFn,
-                      moves: UGraph.S.set UGraph.Table.table}
+                      moves: WL.E.set UGraph.Table.table}
 
 
   (* Maps graph nodes to a particular live set *)
@@ -62,7 +62,7 @@ struct
            IGRAPH of {graph: UGraph.graph,
                       tnode: tnodeFn,
                       gtemp: gtempFn,
-                      moves: UGraph.S.set UGraph.Table.table}
+                      moves: WL.E.set UGraph.Table.table}
 
 
 (* Represents a set of temps that are live at a particular time.
@@ -165,13 +165,19 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
             createNodeTempMaps(nodes, tnode', gtemp')
           end
 
-      val emptyTnode = Temp.Table.empty
-      val emptyGtemp = UGraph.Table.empty
+      val regs = Frame.physicalRegs
+      val initTnode =
+          (foldr (fn (t, tab) => Temp.Table.enter(tab, t,
+                                                  UGraph.newNode(interGraph)))
+                                                Temp.Table.empty regs)
+      val initGtemp = foldr (fn ((t, n), tab) => UGraph.Table.enter(tab, n, t))
+                            UGraph.Table.empty (Temp.Table.listItemsi(initTnode))
 
       (* Create the maps between temps and nodes *)
       val (tnodeMap, gtempMap) =
-          createNodeTempMaps(fgNodes, emptyTnode, emptyGtemp)
+          createNodeTempMaps(fgNodes, initTnode, initGtemp)
 
+                            
       (* tnodeFun : Temp.temp -> Graph.node
        *
        * The function version of the tnodeMap to actually be used in the igraph.
@@ -196,6 +202,12 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
        *)
       fun gtempFun(node) = UGraph.lookUpNode(gtempMap, node)
 
+      fun interferePhysicalRegs([]) = ()
+        | interferePhysicalRegs(r::regs) = 
+          (app (fn t => UGraph.mkEdge interGraph (r, gtempFun(t))) regs)
+
+      val _ = interferePhysicalRegs(Frame.physicalRegs)
+
       (* computeMoves : Graph.node list -> (Graph.node * Graph.node) list
        *
        * Returns a list of the move instructions associated with the given list
@@ -212,12 +224,12 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
                 val s = tnodeFun(hd(getUse(n)))
                 val dMoves = (case UGraph.Table.look(tab, d)
                               of SOME(s) => s
-                               | NONE => UGraph.S.empty)
+                               | NONE => WL.E.empty)
                 val sMoves = (case UGraph.Table.look(tab, s)
                               of SOME(s) => s
-                               | NONE => UGraph.S.empty)
-                val newDMoves = UGraph.S.add(dMoves, s)
-                val newSMoves = UGraph.S.add(sMoves, d)
+                               | NONE => WL.E.empty)
+                val newDMoves = WL.E.add(dMoves, (s, d))
+                val newSMoves = WL.E.add(sMoves, (d, s))
                 val newTab =
                     UGraph.Table.enter(UGraph.Table.enter(tab,s,newSMoves),
                                        d, newDMoves)
@@ -407,6 +419,7 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
       fun interfere([]) = ()
         | interfere(n::ns) =
           let
+            val allDsts = getDef(n)
             (* extract the live out set for the given node in list form *)
             val outTemps =
                 let val (tab, lst) = Graph.lookUpNode(finalLiveOut, n)
@@ -430,16 +443,21 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
                       List.filter(fn x => x <> item) list
 
                   (* Need to delete the current dst temp from the out list if
-                   * it's there *)
-                  val outsWithoutSelf = deleteFromList(d, outTemps)
+                   * it's there 
+                   * allDsts are here because dsts interfere with each other.
+                   *)
+                  val outsWithoutSelf = deleteFromList(d, outTemps@allDsts)
 
+                  val s = tnodeFun(hd(getUse(n)))
+                  val d = tnodeFun(hd(getDef(n)))
                   val effectiveOuts =
                       if nIsMove
                       (* Need to delete the source of the copy instruction from
                        * the out list if it was a move. Since it was a move
                        * instruction, we know that it should have exactly one
                        * thing in it's use set, so delete it *)
-                      then deleteFromList(hd(getUse(n)), outsWithoutSelf)
+                      then (WL.addMove(WL.MOVES, (d, s));
+                            deleteFromList(hd(getUse(n)), outsWithoutSelf))
                       else outsWithoutSelf
 
                   (* makeAdj : Graph.node * Graph.node -> unit

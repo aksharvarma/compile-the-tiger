@@ -54,6 +54,8 @@ structure S = BinarySetFn(type ord_key = int
                               
   fun isEdge g (u, v) = S.member((adjSet g u), v)
 
+  fun degree g i = S.numItems((adjSet g i))
+
   structure Table = IntMapTable(type key = node
                                 fun getInt(n) = n)
 
@@ -64,7 +66,6 @@ structure S = BinarySetFn(type ord_key = int
          | NONE => let exception NodeNotFound
                    in raise NodeNotFound end)
 
-  fun degree g i = S.numItems((adjSet g i))
                              
   fun compare(a, b) = Int.compare(a, b)
 
