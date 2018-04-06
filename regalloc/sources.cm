@@ -3,6 +3,7 @@ Group is
 absyn.sml
 assem.sml
 canon.sml
+color.sml
 errormsg.sml
 env.sml
 findescape.sml
@@ -18,6 +19,7 @@ mipsgen.sml
 parse.sml
 prabsyn.sml
 printtree.sml
+regalloc.sml
 semant.sml
 symbol.sml
 table.sig
@@ -31,6 +33,9 @@ translate.sig
 translate.sml
 tree.sml
 types.sml
+ugraph.sig
+ugraph.sml
+worklists.sml
 $/basis.cm
 $/ml-yacc-lib.cm
 $/smlnj-lib.cm

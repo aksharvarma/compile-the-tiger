@@ -57,7 +57,8 @@ fun emitproc out (Frame.PROC{body,frame}) =
       (* Create the control flow graph for the formatted body *)
       val (fg, nodes) = createFlowGraph(finalBody, format0)
       (* Compute liveness for the CFG and create the interference graph *)
-      val (interGraph, liveOutFn) = Liveness.interferenceGraph(fg)
+      val interGraph = Liveness.computeLivenessAndBuild(fg)
+      val _ = Liveness.show(TextIO.stdOut, interGraph)
     in
       (* Output the prolog, then the final proc body, followed by the epilog *)
       (TextIO.output(out, prolog);

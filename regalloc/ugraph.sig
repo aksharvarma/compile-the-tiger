@@ -1,26 +1,29 @@
 signature UGRAPH = sig
   structure S : ORD_SET
 
-  type node = S.Key.ord_key
+  type node
   
   type graph
-  val succ: graph -> node -> S.set (* gets the set of successors of a node *)
-  val pred: graph -> node -> S.set (* gets the set of predessors of a node *)
-  val adj: graph -> node -> S.set  (*  union(succ, pred)  *)
+
+  val adjSet: graph -> node -> S.set  (*    *)
+  val adjList: graph -> node -> node list  (*    *)
     
   val newGraph: unit -> graph  (* makes a new, empty graph *)
-  
-  val mk_edge: graph -> {from: node, to: node} -> unit
-    (* mk_edge adds a directed edige (from,to) to the graph.
-       If the edge is already there, then the graph doesn't change.
-    *)
+  val newNode: graph -> node
+                          
+  val mkEdge: graph -> node * node -> unit
 
-  val rm_edge: graph -> {from: node, to: node} -> unit
-    (* rm_edge removes the directed edige (from,to) to the graph.
-       If the edge wasn't there, then the graph doesn't change.
-    *)
+  val rmEdge: graph -> node * node -> unit
 
-  val nodes: graph -> S.set  (* gets all the nodes that have ever been
-                                mentioned in any mk_edge, rm_edge, succ, 
-                                pred, or adj operation on this graph*)
+  val nodeSet: graph -> S.set
+  val nodeList: graph -> node list
+
+  structure Table : TABLE
+  sharing type Table.key = node
+
+  val lookUpNode: 'a Table.table * node -> 'a
+  val compare: node * node -> order
+  val pairCompare: (node * node) * (node * node) -> order
+
+  val nodeName: node->string
 end

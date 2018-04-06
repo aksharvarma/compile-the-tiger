@@ -1,7 +1,6 @@
 structure Graph :> GRAPH =
 struct
   type node' = int
-  type temp = Temp.temp
 
   datatype noderep = NODE of {succ: node' list, pred: node' list}
 
@@ -78,6 +77,12 @@ struct
 
   structure Table = IntMapTable(type key = node
                                 fun getInt(g,n) = n)
+
+  fun lookUpNode(map, node) =
+      (case Table.look(map, node)
+        of SOME(t) => t
+         | NONE => let exception NodeNotFound
+                   in raise NodeNotFound end)
 
   fun nodename(g,i:int) = "n" ^ Int.toString(i)
 end

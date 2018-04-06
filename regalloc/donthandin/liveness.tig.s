@@ -1,42 +1,42 @@
 PROCEDURE tig_dereference_NIL
 tig_dereference_NIL:
-li t144, ~1
-move $a0, t144
+li t165, ~1
+move $a0, t165
 jal tig_exit_TigMain
-j L11
-L11:
+j L15
+L15:
 jr $ra
 END tig_dereference_NIL
 PROCEDURE tig_outOfBounds
 tig_outOfBounds:
-li t145, ~2
-move $a0, t145
+li t166, ~2
+move $a0, t166
 jal tig_exit_TigMain
-j L12
-L12:
+j L16
+L16:
 jr $ra
 END tig_outOfBounds
 PROCEDURE tig_MAIN_TIGER_PROG
 tig_MAIN_TIGER_PROG:
-li t133, 1
-move t134, t133
-li t135, 0
-li t136, 22
-li t137, 7
-li t147, 2
-mul t146, t147, t134
-move t138, t146
-div t148, t136, t137
-move t139, t148
-mul t149, t138, t139
-move t140, t149
-mul t151, t140, t134
-li t152, 2
-div t150, t151, t152
-move t141, t150
-div t153, t141, t140
-move $v0, t153
-j L13
-L13:
+li t154, 1
+move t155, t154
+li t156, 0
+li t157, 22
+li t158, 7
+li t168, 2
+mul t167, t168, t155
+move t159, t167
+div t169, t157, t158
+move t160, t169
+mul t170, t159, t160
+move t161, t170
+mul t172, t161, t155
+li t173, 2
+div t171, t172, t173
+move t162, t171
+div t174, t162, t161
+move $v0, t174
+j L17
+L17:
 jr $ra
 END tig_MAIN_TIGER_PROG
