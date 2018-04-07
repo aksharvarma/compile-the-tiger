@@ -165,11 +165,11 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
             createNodeTempMaps(nodes, tnode', gtemp')
           end
 
-      val regs = Frame.physicalRegs
       val initTnode =
-          (foldr (fn (t, tab) => Temp.Table.enter(tab, t,
-                                                  UGraph.newNode(interGraph)))
-                                                Temp.Table.empty regs)
+          (foldr (fn (t, tab) =>
+                     Temp.Table.enter(tab, t, UGraph.newNode(interGraph)))
+                 Temp.Table.empty
+                 Frame.physicalRegs)
       val initGtemp = foldr (fn ((t, n), tab) => UGraph.Table.enter(tab, n, t))
                             UGraph.Table.empty (Temp.Table.listItemsi(initTnode))
 
@@ -202,11 +202,24 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
        *)
       fun gtempFun(node) = UGraph.lookUpNode(gtempMap, node)
 
+      (* val _ = (print(concat(map (fn n => Frame.tempToString(gtempFun(n))^" ") *)
+      (*                           (UGraph.nodeList(interGraph)))); *)
+      (*          print("\n")) *)
+
       fun interferePhysicalRegs([]) = ()
         | interferePhysicalRegs(r::regs) = 
-          (app (fn t => UGraph.mkEdge interGraph (r, gtempFun(t))) regs)
+          ((app (fn t => UGraph.mkEdge interGraph (tnodeFun(r), tnodeFun(t)))
+                regs);
+           interferePhysicalRegs(regs))
 
       val _ = interferePhysicalRegs(Frame.physicalRegs)
+      (* val _ = *)
+      (*     (print(concat(map (fn n => Frame.tempToString(gtempFun(n))^" "^ *)
+      (*                                Int.toString(UGraph.S.numItems(UGraph.adjSet interGraph n))^"\n") *)
+      (*                       (UGraph.nodeList(interGraph)))); *)
+      (*          print("\n")) *)
+                                   
+      (* val _ = (app (fn r => (app (fn t => UGraph.mkEdge interGraph (tnodeFun(r), tnodeFun(t))) Frame.physicalRegs)) Frame.physicalRegs) *)
 
       (* computeMoves : Graph.node list -> (Graph.node * Graph.node) list
        *
@@ -448,16 +461,19 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
                    *)
                   val outsWithoutSelf = deleteFromList(d, outTemps@allDsts)
 
-                  val s = tnodeFun(hd(getUse(n)))
-                  val d = tnodeFun(hd(getDef(n)))
                   val effectiveOuts =
                       if nIsMove
                       (* Need to delete the source of the copy instruction from
                        * the out list if it was a move. Since it was a move
                        * instruction, we know that it should have exactly one
                        * thing in it's use set, so delete it *)
-                      then (WL.addMove(WL.MOVES, (d, s));
+                      then
+                        let
+                          val s = tnodeFun(hd(getUse(n)))
+                          val d = tnodeFun(hd(getDef(n)))
+                        in (WL.addMove(WL.MOVES, (d, s));
                             deleteFromList(hd(getUse(n)), outsWithoutSelf))
+                        end
                       else outsWithoutSelf
 
                   (* makeAdj : Graph.node * Graph.node -> unit
@@ -493,23 +509,12 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
  * graph and a list of all nodes adjacent to it
  *)
 fun show(out, IGRAPH{graph, tnode, gtemp, moves}) =
-    let
-      (* modifiedMakeString: Temp.temp -> string
-       *
-       * Look up the given temp in the tempMap.
-       * If found, return that string, otherwise default to Temp.makeString.
-       *)
-     fun modifiedMakeString(t) =
-         case Temp.Table.look(Frame.tempMap, t)
-          of SOME(str) => str
-           | NONE => Temp.makeString(t)
-    in
-      app (fn (node) => (TextIO.output(out, modifiedMakeString(gtemp(node))^":\n");
-                         (app (fn (adj) =>
-                                  TextIO.output(out,
-                                  modifiedMakeString(gtemp(adj))^" "))
-                              (UGraph.adjList graph  node));
-                          print("\n")))
-          (UGraph.nodeList(graph))
-    end
+    app (fn (node) => (TextIO.output(out, Frame.tempToString(gtemp(node))^":\n");
+                        (app (fn (adj) =>
+                                 TextIO.output(out,
+                                               Frame.tempToString(gtemp(adj))^" "))
+                             (UGraph.adjList graph  node));
+                        print("\n----\n")))
+         (UGraph.nodeList(graph))
+
 end

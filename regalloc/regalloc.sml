@@ -24,7 +24,70 @@ fun alloc(instrs, frame) =
       val (igraph as Liveness.IGRAPH{graph, tnode, gtemp, moves}) =
           Liveness.computeLivenessAndBuild(cfg)
 
+      fun copyIGraph(Liveness.IGRAPH{graph, tnode, gtemp, moves}) =
+          let
+            val graphCopy = UGraph.newGraph()
+            val _ = map (fn _ => UGraph.newNode graphCopy) (UGraph.nodeList(graph))
 
+            fun nodeMap([], [], tab) = tab
+              | nodeMap(newN::newNs, oldN::oldNs, tab) =
+                nodeMap(newNs, oldNs, UGraph.Table.enter(tab, newN, oldN))
+              | nodeMap(_, _, tab) = tab (* Just to satisfy the type-checker
+                                          * will never happen
+                                          *)
+                
+            val newToOldTab = nodeMap(UGraph.nodeList(graphCopy),
+                                      UGraph.nodeList(graph),
+                                      UGraph.Table.empty)
+            val oldToNewTab = nodeMap(UGraph.nodeList(graph),
+                                      UGraph.nodeList(graphCopy),
+                                      UGraph.Table.empty)
+
+            fun findNode(tab, n) =
+                case UGraph.Table.look(tab, n)
+                              of SOME(N) => N
+                               | NONE => let exception wontHappen
+                                         in raise wontHappen end
+
+            fun gtempCopy(n) =
+                gtemp(findNode(newToOldTab, n))
+
+            fun tnodeCopy(t) =
+                findNode(oldToNewTab, tnode(t))
+                
+            fun makeEdges([]) = ()
+              | makeEdges(n::ns) =
+                let
+                  fun copyAdjacency([]) = ()
+                    | copyAdjacency(m::ms) =
+                      (UGraph.mkEdge graphCopy (findNode(oldToNewTab, n),
+                                                findNode(oldToNewTab, m));
+                       copyAdjacency(ms))
+                in
+                (copyAdjacency(UGraph.adjList graph n);
+                 makeEdges(ns))
+                end
+                
+            val _ = makeEdges(UGraph.nodeList(graph))
+
+            val movesCopy =
+                foldr (fn ((oldN, eSet), t) =>
+                          UGraph.Table.enter(t, findNode(oldToNewTab, oldN),
+                                             eSet))
+                      UGraph.Table.empty (UGraph.Table.listItemsi(moves))
+          in
+            Liveness.IGRAPH{graph=graphCopy,
+                            gtemp=gtempCopy,
+                            tnode=tnodeCopy,
+                            moves=movesCopy}
+          end
+
+      val (igraphCopy as Liveness.IGRAPH{graph=graphCopy,
+                                         tnode=tnodeCopy,
+                                         gtemp=gtempCopy,
+                                         moves=movesCopy}) =
+          copyIGraph(igraph)
+            
       fun nodeMoves(n) =
           WL.E.intersection(UGraph.lookUpNode(moves, n),
                             WL.E.union(WL.getMoveSet(WL.ACTIVE),

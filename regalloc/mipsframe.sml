@@ -212,13 +212,13 @@ and a0 = Temp.newTemp()
 and a1 = Temp.newTemp()
 and a2 = Temp.newTemp()
 and a3 = Temp.newTemp()
-
+and ra = Temp.newTemp()
 (* Includes return value ($v0), zero reg ($zero), return address ($ra), and
  * stack pointer ($sp)
  *)
 val specialRegs:(register * Temp.temp) list = [("$v0", RV),
                                                ("$zero", Temp.newTemp()),
-                                               ("$ra", Temp.newTemp()),
+                                               ("$ra", ra),
                                                ("$sp", SP)]
 (* Argument registers: $a0-$a3 *)
 val argRegs:(register * Temp.temp) list = [("$a0", a0),
@@ -265,6 +265,33 @@ val allRegs = specialRegs@argRegs@calleeSaves@callerSaves@reservedRegs
 val allUserRegs = specialRegs@argRegs@calleeSaves@callerSaves
 val physicalRegs = map (fn (s, t) => t) allUserRegs
 val K = List.length(physicalRegs)
+
+(* tempMap: register Temp.Table.table
+ *
+ * Maps temp numbers to their string names if they correspond to a special
+ * register
+ *)
+val tempMap:register Temp.Table.table =
+    foldr (fn ((str, n), table) => Temp.Table.enter(table, n, str))
+          Temp.Table.empty allUserRegs
+
+(* findTemp: string -> Temp.temp
+ *
+ * Given a string representation of a register, find corresponding temp
+ *)
+fun findTemp(queryStr) =
+    case List.find (fn (str, t) => str=queryStr) allUserRegs
+     of SOME((s,t)) => t
+     | _ => Temp.newTemp()
+
+
+(* Nice printing of temps
+ *)
+fun tempToString(t) =
+    case Temp.Table.look(tempMap, t)
+     of SOME(str) => str
+      | NONE => Temp.makeString(t)
+                        
 (* procEntryExit1: frame * Tree.stm -> Tree.stm
  *
  * This is the function that adds the prologue and epilogue to the code
@@ -278,7 +305,23 @@ val K = List.length(physicalRegs)
  * - restoreCalleeSaves: restore the callee-saves registers from frame
  * - combine: combine prologue+body+epilogue
  *)
-fun procEntryExit1(frame, body) = body
+fun procEntryExit1(frame, body) = (* body *)
+    let
+      (* TODO: WHICH ones are these? *)
+      val regsToSave = ra::(map (fn (s, t) => t) calleeSaves)
+      (* Temp, reg pairs for everything we want to put in prolog *)
+      val tempTemps = map (fn reg => (Temp.newTemp(), reg)) regsToSave
+      val prolog = (* T.EXP(T.CONST(0)) *)
+          (foldr (fn ((t, r), stm) => T.SEQ(T.MOVE(T.TEMP(t),
+                                              T.TEMP(r)), stm))
+                 (T.EXP(T.CONST(0))) tempTemps)
+      val epilog = (* T.EXP(T.CONST(0)) *)
+          (foldr (fn ((t, r), stm) => T.SEQ(T.MOVE(T.TEMP(r),
+                                              T.TEMP(t)), stm))
+                 (T.EXP(T.CONST(0))) tempTemps)
+    in
+      T.SEQ(T.LABEL(name(frame)), T.SEQ(prolog, T.SEQ(body, epilog)))
+    end
 
 (* procEntryExit2: frame * Assem.instr list -> Assem.instr list
  *
@@ -305,23 +348,8 @@ fun procEntryExit3({name, formals, locals}, body: Assem.instr list) =
      body=body,
      epilog="jr $ra\nEND "^Symbol.name(name)^"\n"}
 
-(* tempMap: register Temp.Table.table
- *
- * Maps temp numbers to their string names if they correspond to a special
- * register
- *)
-val tempMap:register Temp.Table.table =
-    foldr (fn ((str, n), table) => Temp.Table.enter(table, n, str))
-          Temp.Table.empty allUserRegs
-
-(* findTemp: string -> Temp.temp
- *
- * Given a string representation of a register, find corresponding temp
- *)
-fun findTemp(queryStr) =
-    case List.find (fn (str, t) => str=queryStr) allUserRegs
-     of SOME((s,t)) => t
-     | _ => Temp.newTemp()
+      
 end
 
+  
 structure Frame:>FRAME = MipsFrame

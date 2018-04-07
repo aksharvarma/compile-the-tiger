@@ -20,6 +20,7 @@ sig
   val externalCall: string * Tree.exp list -> Tree.exp
   val exp: access -> Tree.exp -> Tree.exp
   val findTemp: string -> Temp.temp
+  val tempToString: Temp.temp -> string
   val physicalRegs: Temp.temp list
   val K: int
 

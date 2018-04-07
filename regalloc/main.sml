@@ -5,10 +5,10 @@ structure Main = struct
  * Look up the given temp in the tempMap.
  * If found, return that string, otherwise default to Temp.makeString.
  *)
-fun modifiedMakeString(t) =
-    case Temp.Table.look(Frame.tempMap, t)
-     of SOME(str) => str
-      | NONE => Temp.makeString(t)
+(* fun modifiedMakeString(t) = *)
+(*     case Temp.Table.look(Frame.tempMap, t) *)
+(*      of SOME(str) => str *)
+(*       | NONE => Temp.makeString(t) *)
 
 (* createFlowGraph : Assem.instr list * (Assem.instr -> string)
  *                                      -> Flow.flowgraph * Graph.node list
@@ -41,7 +41,7 @@ fun createFlowGraph(body, format) =
 fun emitproc out (Frame.PROC{body,frame}) =
     let
       val _ = (* print to indicate start of new proc/frame *)
-          print ("emit " ^ Symbol.name(Frame.name(frame)) ^ "\n")
+          print ("####################\nemit " ^ Symbol.name(Frame.name(frame)) ^ "\n")
       (* Call canonicalizer functions to linearize the body of the fragment
        * into basic blocks*)
       val stms = Canon.linearize body
@@ -53,7 +53,7 @@ fun emitproc out (Frame.PROC{body,frame}) =
       val {prolog, body=finalBody, epilog} = Frame.procEntryExit3(frame, instrs')
       (* Format the resulting assembly instructions to insert correct
        * temps/registers *)
-      val format0 = Assem.format(modifiedMakeString)
+      val format0 = Assem.format(Frame.tempToString)
       (* Create the control flow graph for the formatted body *)
       val (fg, nodes) = createFlowGraph(finalBody, format0)
       (* Compute liveness for the CFG and create the interference graph *)

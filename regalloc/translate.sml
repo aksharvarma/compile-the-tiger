@@ -708,10 +708,12 @@ fun procEntryExit({level, body, isProcedure, isMain}) =
             val outOfBoundsFrame = Frame.newFrame{name=outOfBounds,
             formals=[false]}
 
-            val derefNilBody = T.SEQ(T.LABEL(Frame.name(derefNilFrame)),
+            val derefNilBody =
+                Frame.procEntryExit1(derefNilFrame,
                                      T.EXP(Frame.externalCall("exit_TigMain",
                                                         [T.CONST(badDerefExit)])))
-            val outOfBoundsBody = T.SEQ(T.LABEL(Frame.name(outOfBoundsFrame)),
+            val outOfBoundsBody =
+                Frame.procEntryExit1(outOfBoundsFrame,
                                      T.EXP(Frame.externalCall("exit_TigMain",
                                                         [T.CONST(outOfBoundsExit)])))
 
@@ -731,7 +733,7 @@ fun procEntryExit({level, body, isProcedure, isMain}) =
       val bodyWithRvAndLabel = T.SEQ(T.LABEL(Frame.name(frame)), bodyWithRV)
 
       (* procEntryExit1 modifies the body to do items 4-8. *)
-      val modifiedBody = Frame.procEntryExit1(frame, bodyWithRvAndLabel)
+      val modifiedBody = Frame.procEntryExit1(frame, bodyWithRV)
 
       (* If isMain, then append the runtime error procs to the frag list *)
       val _ = if isMain then (addErrorProcs()) else ()
