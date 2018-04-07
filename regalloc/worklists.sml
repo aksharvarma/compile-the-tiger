@@ -28,6 +28,8 @@ sig
 
   val getNode: nodeWL -> UGraph.node
   val getMove: moveWL -> UGraph.node * UGraph.node
+  val getAndRemoveNode: nodeWL -> UGraph.node
+  val getAndRemoveMove: moveWL -> UGraph.node * UGraph.node
 
   val isNin: nodeWL * UGraph.node -> bool
   val isEin: moveWL * (UGraph.node * UGraph.node) -> bool
@@ -41,6 +43,19 @@ sig
   val stackNull: unit -> bool                         
   val getStackSet: unit -> N.set
                            (* TODO: DO the rest *)
+
+  (* Set of (register) strings *)
+  structure C: ORD_SET
+  (* OkColors *)
+  val initOkColors: unit -> unit
+  val hasFreeColor: unit -> bool
+  val getAvailableColor: unit -> string
+  val removeColors: C.set -> unit
+
+  val getAlias: UGraph.node -> UGraph.node
+                               
+  val getColor: UGraph.node -> string
+  val setColor: UGraph.node * string -> unit
 end
 
 structure WL:WL =
@@ -63,7 +78,6 @@ val spillWL: N.set ref = ref N.empty
 val spilledNodes: N.set ref = ref N.empty
 val coalescedNodes: N.set ref = ref N.empty
 val coloredNodes: N.set ref = ref N.empty
-val selectStack: UGraph.node list ref = ref []
 
 (* Set of edges *)
 structure E = BinarySetFn(type ord_key = UGraph.node * UGraph.node
@@ -76,8 +90,10 @@ val frozenMoves: E.set ref = ref E.empty
 val movesWL: E.set ref = ref E.empty
 val activeMoves: E.set ref = ref E.empty
 
-val alias: UGraph.node UGraph.Table.table ref = ref UGraph.Table.empty
-val color: string UGraph.Table.table ref = ref UGraph.Table.empty
+                                 
+structure C = BinarySetFn(type ord_key = string
+                          fun compare(s1, s2) = String.compare(s1, s2))
+
 
 fun getNRef(PRECOLORED) = (precolored)
   | getNRef(INITIAL) = (initial)
@@ -129,7 +145,7 @@ fun chooseE(wl) =
       | NONE => let exception emptyMoveWL
                 in raise emptyMoveWL end
                   
-fun getNode(wl) =
+fun getAndRemoveNode(wl) =
     let
       val n = chooseN(getNWL(wl))
     in
@@ -137,14 +153,17 @@ fun getNode(wl) =
       n
     end
 
-fun getMove(wl) =
+fun getAndRemoveMove(wl) =
     let
       val m = chooseE(getEWL(wl))
     in
       removeMove(wl, m);
       m
     end
-      
+
+fun getNode(wl) = chooseN(getNWL(wl))
+fun getMove(wl) = chooseE(getEWL(wl))
+
 fun isNin(wl, n) = N.member(getNWL(wl), n)
 fun isEin(wl, e) = E.member(getEWL(wl), e)
 
@@ -155,6 +174,8 @@ fun getNodeSet(wl) = getNWL(wl)
 fun getMoveSet(wl) = getEWL(wl)
     
 
+(* Stack *)
+val selectStack: UGraph.node list ref = ref []
 fun pushStack(n) = selectStack := n::(!selectStack)
 fun popStack() =
     let
@@ -166,5 +187,41 @@ fun popStack() =
 fun stackNull() = List.null(!selectStack)
 
 fun getStackSet() = N.addList(N.empty, !selectStack)
-                             
+
+(* Ok Colors *)
+val okColors: C.set ref = ref C.empty
+
+fun initOkColors() =
+    okColors := C.addList(C.empty,
+                          map Frame.tempToString Frame.physicalRegs)
+                         
+fun hasFreeColor() = not(C.isEmpty(!okColors))
+
+fun getAvailableColor() =
+    case C.find (fn _ => true) (!okColors)
+     of SOME(n) => n
+      | NONE => let exception emptyMoveWL
+                in raise emptyMoveWL end
+
+fun removeColors(badColors) = okColors := C.difference(!okColors, badColors)
+
+
+val alias: UGraph.node UGraph.Table.table ref = ref UGraph.Table.empty
+fun getAlias(n) =
+    if isNin(COALESCED_N, n)
+    then case UGraph.Table.look(!alias, n)
+          of SOME(n') => getAlias(n')
+           | NONE => let exception ourCodeHasABug
+                     in raise ourCodeHasABug end
+    else n
+
+val color: string UGraph.Table.table ref = ref UGraph.Table.empty
+                                               
+fun getColor(n) =
+    case UGraph.Table.look(!color, n)
+     of SOME(s) => s
+      | NONE => let exception unColoredNode
+                in raise unColoredNode end
+    
+fun setColor(n, s) = color := UGraph.Table.enter(!color, n, s)                                               
 end

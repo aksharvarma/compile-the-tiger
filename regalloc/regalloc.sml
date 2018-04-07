@@ -98,15 +98,10 @@ fun alloc(instrs, frame) =
       fun makeWLs() =
           let
             val nodes = UGraph.nodeSet(graph)
-            fun getNode() =
-                (case UGraph.S.find (fn _ => true) nodes
-                  of SOME(i) => i
-                   | NONE => let exception SetEmpty
-                             in raise SetEmpty end)
           in
-            while not(UGraph.S.isEmpty(nodes)) do
+            UGraph.S.app
+              (fn n => 
                   let
-                    val n = getNode()
                     val t = gtemp(n)
                   in
                     if List.exists (fn t' => t=t') Frame.physicalRegs
@@ -116,7 +111,8 @@ fun alloc(instrs, frame) =
                     else if moveRelated(n)
                     then WL.addNode(WL.FREEZE, n)
                     else WL.addNode(WL.SIMPLIFY, n)
-                  end
+                  end)
+              nodes
           end
 
       val _ = makeWLs()
@@ -128,20 +124,16 @@ fun alloc(instrs, frame) =
 
 
       fun enableMoves(nodes) =
-          while not(WL.N.isEmpty(nodes)) do
-                let
-                  val n = WL.chooseN(nodes)
-                  val nMoves = nodeMoves(n)
-                in
-                  while not(WL.E.isEmpty(nMoves)) do
-                        let val m = WL.chooseE(nMoves)
-                        in
-                          if WL.isEin(WL.ACTIVE, m)
-                          then (WL.removeMove(WL.ACTIVE, m);
-                                WL.addMove(WL.MOVES, m))
-                          else ()
-                        end
-                end
+          WL.N.app
+            (fn n =>
+                WL.E.app
+                  (fn m =>
+                      if WL.isEin(WL.ACTIVE, m)
+                      then (WL.removeMove(WL.ACTIVE, m);
+                            WL.addMove(WL.MOVES, m))
+                      else ())
+                  (nodeMoves(n)))
+            nodes
                 
           
       fun processNeighbours(n, []) = ()
@@ -158,18 +150,43 @@ fun alloc(instrs, frame) =
           )
           
       fun simplify() =
-          let
-            val n = WL.getNode(WL.SIMPLIFY)
-          in
-            (WL.pushStack(n);
-             processNeighbours(n, UGraph.adjList graph (n))
-            )
-          end
+          while WL.isNotNullN(WL.SIMPLIFY) do
+                let
+                  val n = WL.getAndRemoveNode(WL.SIMPLIFY)
+                in
+                  (WL.pushStack(n);
+                   processNeighbours(n, UGraph.adjList graph (n)))
+                end
                          
       fun coalesce() = ()
       fun freeze() = ()
       fun selectSpill() = ()
-      fun assignColors() = ()
+
+      fun assignColors() =
+          (while not(WL.stackNull()) do
+                let
+                  val n = WL.popStack()
+                  val adjN = UGraph.adjSet graph (n)
+                in
+                  (WL.initOkColors();
+                   (UGraph.S.app
+                     (fn w => 
+                         if WL.N.member(WL.N.union(WL.getNodeSet(WL.COLORED),
+                                                   WL.getNodeSet(WL.PRECOLORED)),
+                                        WL.getAlias(w))
+                         then WL.removeColors(WL.C.singleton(WL.getColor(WL.getAlias(w))))
+                         else ())
+                     adjN);
+                   if not(WL.hasFreeColor())
+                   then WL.addNode(WL.SPILLED, n)
+                   else (WL.addNode(WL.COLORED, n);
+                         WL.setColor(n, WL.getAvailableColor())))
+                end;
+           WL.N.app
+             (fn m => WL.setColor(m, WL.getColor(WL.getAlias(m))))
+             (WL.getNodeSet(WL.COALESCED_N)))
+                
+          
       (* UGraph.node list *)
       fun rewriteProgram(l) = []
                       
