@@ -53,16 +53,17 @@ fun emitproc out (Frame.PROC{body,frame}) =
       val {prolog, body=finalBody, epilog} = Frame.procEntryExit3(frame, instrs')
       (* Format the resulting assembly instructions to insert correct
        * temps/registers *)
-      val format0 = Assem.format(Frame.tempToString)
       (* Create the control flow graph for the formatted body *)
-      val (fg, nodes) = createFlowGraph(finalBody, format0)
+      (* val (fg, nodes) = createFlowGraph(finalBody, format0) *)
       (* Compute liveness for the CFG and create the interference graph *)
-      val interGraph = Liveness.computeLivenessAndBuild(fg)
-      val _ = Liveness.show(TextIO.stdOut, interGraph)
+      (* val interGraph = Liveness.computeLivenessAndBuild(fg) *)
+      (* val _ = Liveness.show(TextIO.stdOut, interGraph) *)
+      val (almostReggedInstrs, allocMap) = RegAlloc.alloc(finalBody, frame)
+      val format0 = Assem.format(Frame.tempToString allocMap)
     in
       (* Output the prolog, then the final proc body, followed by the epilog *)
       (TextIO.output(out, prolog);
-       (app (fn i => TextIO.output(out,format0 i)) finalBody);
+       (app (fn i => TextIO.output(out,format0 i)) almostReggedInstrs);
        TextIO.output(out, epilog))
     end
   (* Skip all string fragments in this pass *)

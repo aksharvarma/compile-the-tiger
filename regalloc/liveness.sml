@@ -169,7 +169,7 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
           (foldr (fn (t, tab) =>
                      Temp.Table.enter(tab, t, UGraph.newNode(interGraph)))
                  Temp.Table.empty
-                 Frame.physicalRegs)
+                 Frame.physicalRegsT)
       val initGtemp = foldr (fn ((t, n), tab) => UGraph.Table.enter(tab, n, t))
                             UGraph.Table.empty (Temp.Table.listItemsi(initTnode))
 
@@ -212,7 +212,7 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
                 regs);
            interferePhysicalRegs(regs))
 
-      val _ = interferePhysicalRegs(Frame.physicalRegs)
+      val _ = interferePhysicalRegs(Frame.physicalRegsT)
       (* val _ = *)
       (*     (print(concat(map (fn n => Frame.tempToString(gtempFun(n))^" "^ *)
       (*                                Int.toString(UGraph.S.numItems(UGraph.adjSet interGraph n))^"\n") *)
@@ -509,10 +509,12 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
  * graph and a list of all nodes adjacent to it
  *)
 fun show(out, IGRAPH{graph, tnode, gtemp, moves}) =
-    app (fn (node) => (TextIO.output(out, Frame.tempToString(gtemp(node))^":\n");
+    app (fn (node) => (TextIO.output(out, (Frame.tempToString Frame.tempMap
+                                                             (gtemp(node)))^":\n");
                         (app (fn (adj) =>
                                  TextIO.output(out,
-                                               Frame.tempToString(gtemp(adj))^" "))
+                                               (Frame.tempToString Frame.tempMap
+                                                                  (gtemp(adj)))^" "))
                              (UGraph.adjList graph  node));
                         print("\n----\n")))
          (UGraph.nodeList(graph))

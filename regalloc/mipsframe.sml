@@ -263,8 +263,9 @@ val reservedRegs:(register * Temp.temp) list = [("$at", Temp.newTemp()),
 (* Some sugar-coating for the RHS *)
 val allRegs = specialRegs@argRegs@calleeSaves@callerSaves@reservedRegs
 val allUserRegs = specialRegs@argRegs@calleeSaves@callerSaves
-val physicalRegs = map (fn (s, t) => t) allUserRegs
-val K = List.length(physicalRegs)
+val physicalRegsT = map (fn (s, t) => t) allUserRegs
+val registers = map (fn (s, t) => s) allUserRegs
+val K = List.length(allUserRegs)
 
 (* tempMap: register Temp.Table.table
  *
@@ -287,10 +288,10 @@ fun findTemp(queryStr) =
 
 (* Nice printing of temps
  *)
-fun tempToString(t) =
-    case Temp.Table.look(tempMap, t)
-     of SOME(str) => str
-      | NONE => Temp.makeString(t)
+fun tempToString map =
+    (fn t => case Temp.Table.look(map, t)
+              of SOME(str) => str
+               | NONE => (print(".");Temp.makeString(t)))
                         
 (* procEntryExit1: frame * Tree.stm -> Tree.stm
  *

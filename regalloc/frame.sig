@@ -9,7 +9,6 @@ sig
   val SP: Temp.temp
 
   val wordSize: int
-  val tempMap: register Temp.Table.table
 
   val newFrame: {name: Temp.label, formals: bool list} -> frame
   val formals: frame -> access list
@@ -19,9 +18,12 @@ sig
   val string: Temp.label * string -> string
   val externalCall: string * Tree.exp list -> Tree.exp
   val exp: access -> Tree.exp -> Tree.exp
+
+  val tempMap: register Temp.Table.table
   val findTemp: string -> Temp.temp
-  val tempToString: Temp.temp -> string
-  val physicalRegs: Temp.temp list
+  val tempToString: register Temp.Table.table -> Temp.temp -> string
+  val physicalRegsT: Temp.temp list
+  val registers: register list
   val K: int
 
   val procEntryExit1: frame * Tree.stm -> Tree.stm

@@ -33,7 +33,7 @@ sig
 
   val isNin: nodeWL * UGraph.node -> bool
   val isEin: moveWL * (UGraph.node * UGraph.node) -> bool
-                                       
+                                                       
   val getNodeSet: nodeWL -> N.set
   val getMoveSet: moveWL -> E.set
 
@@ -42,7 +42,7 @@ sig
   val popStack: unit -> UGraph.node
   val stackNull: unit -> bool                         
   val getStackSet: unit -> N.set
-                           (* TODO: DO the rest *)
+  (* TODO: DO the rest *)
 
   (* Set of (register) strings *)
   structure C: ORD_SET
@@ -53,9 +53,13 @@ sig
   val removeColors: C.set -> unit
 
   val getAlias: UGraph.node -> UGraph.node
-                               
-  val getColor: UGraph.node -> string
-  val setColor: UGraph.node * string -> unit
+                                 
+  type allocation = Frame.register Temp.Table.table
+  val precolor: (UGraph.node -> Temp.temp) -> unit
+  val getColor: Temp.temp -> Frame.register
+  val setColor: Temp.temp * Frame.register -> unit
+  val updateSafeColors: unit -> unit
+  val getAllocation: unit -> allocation
 end
 
 structure WL:WL =
@@ -113,11 +117,7 @@ fun getERef(COALESCED_E) = (coalescedMoves)
   | getERef(ACTIVE) = (activeMoves)
 
 fun getEWL(wl) = !(getERef(wl))
-                  
-fun reset() = ()
-fun initialize() = (reset();())
-fun initializeWL(wl) = ()
-(* fun makeWLs(igraph) = () *)
+                   
 
 fun isNullN(wl) = N.isEmpty(getNWL(wl))
 fun isNullE(wl) = E.isEmpty(getEWL(wl))
@@ -168,11 +168,11 @@ fun isNin(wl, n) = N.member(getNWL(wl), n)
 fun isEin(wl, e) = E.member(getEWL(wl), e)
 
 
-      
+                           
 fun getNodeSet(wl) = getNWL(wl)
 
 fun getMoveSet(wl) = getEWL(wl)
-    
+                           
 
 (* Stack *)
 val selectStack: UGraph.node list ref = ref []
@@ -192,8 +192,7 @@ fun getStackSet() = N.addList(N.empty, !selectStack)
 val okColors: C.set ref = ref C.empty
 
 fun initOkColors() =
-    okColors := C.addList(C.empty,
-                          map Frame.tempToString Frame.physicalRegs)
+    okColors := C.addList(C.empty, Frame.registers)
                          
 fun hasFreeColor() = not(C.isEmpty(!okColors))
 
@@ -215,13 +214,68 @@ fun getAlias(n) =
                      in raise ourCodeHasABug end
     else n
 
-val color: string UGraph.Table.table ref = ref UGraph.Table.empty
-                                               
-fun getColor(n) =
-    case UGraph.Table.look(!color, n)
+type allocation = Frame.register Temp.Table.table
+
+val color: allocation ref = ref Temp.Table.empty
+
+                                
+val safeColor: allocation ref = ref Temp.Table.empty
+
+fun updateSafeColors() = safeColor := !color
+                                        
+(* Call only after precolored list has been initialized properly *)
+fun precolor(gtemp) =
+    (color :=
+    (N.foldr
+      (fn (n, tab) =>
+          let
+            val t = gtemp(n)
+            val regStr = (case Temp.Table.look(Frame.tempMap, t)
+                           of SOME(s) => s
+                            | NONE => let exception unknownTemp
+                                      in raise unknownTemp end)
+          in
+            Temp.Table.enter(tab, t, regStr)
+          end)
+      Temp.Table.empty
+      (getNWL(PRECOLORED)));
+    updateSafeColors())
+      
+      
+fun getColor(t) =
+    case Temp.Table.look(!color, t)
      of SOME(s) => s
       | NONE => let exception unColoredNode
                 in raise unColoredNode end
-    
-fun setColor(n, s) = color := UGraph.Table.enter(!color, n, s)                                               
+                  
+fun setColor(t, s) = color := Temp.Table.enter(!color, t, s)
+
+fun getAllocation() = !safeColor
+
+
+
+fun reset() =
+    (precolored := N.empty;
+    initial := N.empty;
+    simplifyWL := N.empty;
+    freezeWL := N.empty;
+    spillWL := N.empty;
+    spilledNodes := N.empty;
+    coalescedNodes := N.empty;
+    coloredNodes := N.empty;
+    coalescedMoves := E.empty;
+    constrainedMoves := E.empty;
+    frozenMoves := E.empty;
+    movesWL := E.empty;
+    activeMoves := E.empty;
+    selectStack := [];
+    okColors := C.empty;
+    alias := UGraph.Table.empty;
+    color := Temp.Table.empty;
+    safeColor := Temp.Table.empty
+    )
+fun initialize() = (reset();())
+fun initializeWL(wl) = ()
+(* fun makeWLs(igraph) = () *)
+
 end

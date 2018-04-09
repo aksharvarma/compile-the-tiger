@@ -1,13 +1,13 @@
 signature REG_ALLOC =
 sig
-  type allocation = Frame.register Temp.Table.table
-  val alloc: Assem.instr list *Frame.frame -> Assem.instr list * allocation
+  (* type allocation = Frame.register Temp.Table.table *)
+  val alloc: Assem.instr list *Frame.frame -> Assem.instr list * WL.allocation
 end
 
 structure RegAlloc: REG_ALLOC =
 struct
 
-type allocation = Frame.register Temp.Table.table
+(* type allocation = Frame.register Temp.Table.table *)
 
 
 (* alloc: Assem.instr list *Frame.frame -> Assem.instr list * allocation
@@ -104,7 +104,7 @@ fun alloc(instrs, frame) =
                   let
                     val t = gtemp(n)
                   in
-                    if List.exists (fn t' => t=t') Frame.physicalRegs
+                    if List.exists (fn t' => t=t') Frame.physicalRegsT
                     then (WL.addNode(WL.PRECOLORED, n))
                     else if (UGraph.degree graph (n)) >= Frame.K
                     then WL.addNode(WL.TOSPILL, n)
@@ -116,7 +116,8 @@ fun alloc(instrs, frame) =
           end
 
       val _ = makeWLs()
-
+      val _ = WL.precolor(gtemp)
+                         
       fun adjacent(n) =
             WL.N.difference(UGraph.adjSet graph n,
                             WL.N.union(WL.getStackSet(),
@@ -140,11 +141,13 @@ fun alloc(instrs, frame) =
         | processNeighbours(n, m::ms) =
           (UGraph.rmEdge graph (n,m);
            if UGraph.degree graph (m) = Frame.K-1
-           then (enableMoves(WL.N.union(WL.N.singleton m, adjacent(m)));
-                 WL.removeNode(WL.TOSPILL, m);
-                 if moveRelated(m)
-                 then WL.addNode(WL.FREEZE, m)
-                 else WL.addNode(WL.SIMPLIFY, m))
+           then (
+                 (* enableMoves(WL.N.union(WL.N.singleton m, adjacent(m))); *)
+                 (* WL.removeNode(WL.TOSPILL, m); *)
+                 (* if moveRelated(m) *)
+                 (* then WL.addNode(WL.FREEZE, m) *)
+                 (* else *)
+                   WL.addNode(WL.SIMPLIFY, m))
            else ();
            processNeighbours(n, ms)
           )
@@ -160,57 +163,43 @@ fun alloc(instrs, frame) =
                          
       fun coalesce() = ()
       fun freeze() = ()
-      fun selectSpill() = ()
-
-      fun assignColors() =
-          (while not(WL.stackNull()) do
-                let
-                  val n = WL.popStack()
-                  val adjN = UGraph.adjSet graph (n)
-                in
-                  (WL.initOkColors();
-                   (UGraph.S.app
-                     (fn w => 
-                         if WL.N.member(WL.N.union(WL.getNodeSet(WL.COLORED),
-                                                   WL.getNodeSet(WL.PRECOLORED)),
-                                        WL.getAlias(w))
-                         then WL.removeColors(WL.C.singleton(WL.getColor(WL.getAlias(w))))
-                         else ())
-                     adjN);
-                   if not(WL.hasFreeColor())
-                   then WL.addNode(WL.SPILLED, n)
-                   else (WL.addNode(WL.COLORED, n);
-                         WL.setColor(n, WL.getAvailableColor())))
-                end;
-           WL.N.app
-             (fn m => WL.setColor(m, WL.getColor(WL.getAlias(m))))
-             (WL.getNodeSet(WL.COALESCED_N)))
-                
+      fun selectSpill() = ()                
           
       (* UGraph.node list *)
       fun rewriteProgram(l) = []
                       
 
-      val spilledNodes: UGraph.node list ref= ref []
+      (* val spilledNodes: UGraph.node list ref= ref [] *)
     in
-      while not(WL.isNullN(WL.SIMPLIFY) andalso
-                WL.isNullN(WL.FREEZE) andalso
-                WL.isNullN(WL.TOSPILL) andalso
-                WL.isNullE(WL.MOVES)) do
+      while not(WL.isNullN(WL.SIMPLIFY)) do
+      (* while not(WL.isNullN(WL.SIMPLIFY) andalso *)
+      (*           WL.isNullN(WL.FREEZE) andalso *)
+      (*           WL.isNullN(WL.TOSPILL) andalso *)
+      (*           WL.isNullE(WL.MOVES)) do *)
             (if WL.isNotNullN(WL.SIMPLIFY)
-             then simplify()
-             else if WL.isNotNullE(WL.MOVES)
-             then coalesce()
-             else if WL.isNotNullN(WL.FREEZE)
-             then freeze()
-             else if WL.isNotNullN(WL.TOSPILL)
-             then selectSpill()
+             then (print("simplify-start\n");simplify();print("simplify-over\n"))
+             (* else if WL.isNotNullE(WL.MOVES) *)
+             (* then (coalesce();print("coalesce\n")) *)
+             (* else if WL.isNotNullN(WL.FREEZE) *)
+             (* then (freeze();print("coalesce\n")) *)
+             (* else if WL.isNotNullN(WL.TOSPILL) *)
+             (* then (selectSpill();print("coalesce\n")) *)
              else ());
-      assignColors();
-      if not(List.null(!spilledNodes))
-      then (alloc(rewriteProgram(!spilledNodes), frame))
-      else (instrs, Temp.Table.empty)
-      (* ([],Temp.Table.empty) *)
+      let
+        val _ = print("starting color\n")
+        val (colorAlloc, spilledList) =
+            Color.color{interference=igraph,
+                        spillCost=(fn n:UGraph.node => 1),
+                        registers=Frame.registers}
+        val _ = print("ending color\n")
+                       
+      in
+        if not(List.null(spilledList))
+        then
+          (let exception cannotAlloc in raise cannotAlloc end)
+           (* alloc(rewriteProgram(!spilledNodes), frame)) *)
+        else (instrs, colorAlloc)
+      end
     end
 
 end
