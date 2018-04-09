@@ -24,6 +24,9 @@ fun alloc(instrs, frame) =
       val (igraph as Liveness.IGRAPH{graph, tnode, gtemp, moves}) =
           Liveness.computeLivenessAndBuild(cfg)
 
+      (* val _ = (app (fn n => print(Temp.makeString(gtemp(n))^": "^ *)
+      (*                             Int.toString((UGraph.degree graph n))^"\n")) *)
+      (*              (UGraph.nodeList(graph))) *)
       fun copyIGraph(Liveness.IGRAPH{graph, tnode, gtemp, moves}) =
           let
             val graphCopy = UGraph.newGraph()
@@ -87,7 +90,7 @@ fun alloc(instrs, frame) =
                                          gtemp=gtempCopy,
                                          moves=movesCopy}) =
           copyIGraph(igraph)
-            
+      
       fun nodeMoves(n) =
           WL.E.intersection(UGraph.lookUpNode(moves, n),
                             WL.E.union(WL.getMoveSet(WL.ACTIVE),
@@ -163,7 +166,17 @@ fun alloc(instrs, frame) =
                          
       fun coalesce() = ()
       fun freeze() = ()
-      fun selectSpill() = ()                
+
+      fun freezeMoves(m:UGraph.node) = ()
+
+      fun selectSpill() =
+          let
+            val m = WL.getAndRemoveNode(WL.TOSPILL)
+          in
+            (WL.addNode(WL.SIMPLIFY, m);
+             (* TODO: Implement freezeMoves *)
+             freezeMoves(m))
+          end
           
       (* UGraph.node list *)
       fun rewriteProgram(l) = []
@@ -171,27 +184,28 @@ fun alloc(instrs, frame) =
 
       (* val spilledNodes: UGraph.node list ref= ref [] *)
     in
-      while not(WL.isNullN(WL.SIMPLIFY)) do
+      while not(WL.isNullN(WL.SIMPLIFY) andalso
+                WL.isNullN(WL.TOSPILL)) do
       (* while not(WL.isNullN(WL.SIMPLIFY) andalso *)
       (*           WL.isNullN(WL.FREEZE) andalso *)
       (*           WL.isNullN(WL.TOSPILL) andalso *)
       (*           WL.isNullE(WL.MOVES)) do *)
             (if WL.isNotNullN(WL.SIMPLIFY)
-             then (print("simplify-start\n");simplify();print("simplify-over\n"))
+             then (simplify())
              (* else if WL.isNotNullE(WL.MOVES) *)
              (* then (coalesce();print("coalesce\n")) *)
              (* else if WL.isNotNullN(WL.FREEZE) *)
              (* then (freeze();print("coalesce\n")) *)
-             (* else if WL.isNotNullN(WL.TOSPILL) *)
-             (* then (selectSpill();print("coalesce\n")) *)
+             else if WL.isNotNullN(WL.TOSPILL)
+             then (selectSpill())
              else ());
       let
-        val _ = print("starting color\n")
+        (* val _ = print("starting color\n") *)
         val (colorAlloc, spilledList) =
             Color.color{interference=igraph,
                         spillCost=(fn n:UGraph.node => 1),
                         registers=Frame.registers}
-        val _ = print("ending color\n")
+        (* val _ = print("ending color\n") *)
                        
       in
         if not(List.null(spilledList))

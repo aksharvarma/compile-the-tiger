@@ -291,7 +291,7 @@ fun findTemp(queryStr) =
 fun tempToString map =
     (fn t => case Temp.Table.look(map, t)
               of SOME(str) => str
-               | NONE => (print(".");Temp.makeString(t)))
+               | NONE => (Temp.makeString(t)))
                         
 (* procEntryExit1: frame * Tree.stm -> Tree.stm
  *
