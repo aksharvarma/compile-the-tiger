@@ -503,13 +503,16 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
              * to be trashed by a function call:
              * caller-saves, return address, return value
              *)
+            (* NOTE: RA was there in this list, we removed it.
+             * and added it to the src list along with munchArg's output.
+             *)
             val trashedByCall = map Frame.findTemp ["$t0", "$t1", "$t2", "$t3",
                                                     "$t4", "$t5", "$t6", "$t7",
-                                                    "$t8", "$t9", "$ra"]
+                                                    "$t8", "$t9"]
           in
               (* Actual function call *)
               (emit(Assem.OPER{assem="jal "^Symbol.name(funName)^"\n",
-                              src=munchArgs(0, args),
+                              src=Frame.findTemp("$ra")::munchArgs(0, args),
                               dst=Frame.RV::trashedByCall,
                               jump=NONE});
               (* Return the return value *)

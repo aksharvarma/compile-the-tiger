@@ -214,11 +214,11 @@ fun getAlias(n) =
                      in raise ourCodeHasABug end
     else n
 
+
+(* Coloring related *)
 type allocation = Frame.register Temp.Table.table
 
 val color: allocation ref = ref Temp.Table.empty
-
-                                
 val safeColor: allocation ref = ref Temp.Table.empty
 
 fun updateSafeColors() = safeColor := !color
@@ -226,20 +226,20 @@ fun updateSafeColors() = safeColor := !color
 (* Call only after precolored list has been initialized properly *)
 fun precolor(gtemp) =
     (color :=
-    (N.foldr
-      (fn (n, tab) =>
-          let
-            val t = gtemp(n)
-            val regStr = (case Temp.Table.look(Frame.tempMap, t)
-                           of SOME(s) => s
-                            | NONE => let exception unknownTemp
-                                      in raise unknownTemp end)
-          in
-            Temp.Table.enter(tab, t, regStr)
-          end)
-      Temp.Table.empty
-      (getNWL(PRECOLORED)));
-    updateSafeColors())
+     (N.foldr
+        (fn (n, tab) =>
+            let
+              val t = gtemp(n)
+              val regStr = (case Temp.Table.look(Frame.tempMap, t)
+                             of SOME(s) => s
+                              | NONE => let exception unknownTemp
+                                        in raise unknownTemp end)
+            in
+              Temp.Table.enter(tab, t, regStr)
+            end)
+        Temp.Table.empty
+        (getNWL(PRECOLORED)));
+     updateSafeColors())
       
       
 fun getColor(t) =
@@ -256,26 +256,26 @@ fun getAllocation() = !safeColor
 
 fun reset() =
     (precolored := N.empty;
-    initial := N.empty;
-    simplifyWL := N.empty;
-    freezeWL := N.empty;
-    spillWL := N.empty;
-    spilledNodes := N.empty;
-    coalescedNodes := N.empty;
-    coloredNodes := N.empty;
-    coalescedMoves := E.empty;
-    constrainedMoves := E.empty;
-    frozenMoves := E.empty;
-    movesWL := E.empty;
-    activeMoves := E.empty;
-    selectStack := [];
-    okColors := C.empty;
-    alias := UGraph.Table.empty;
-    color := Temp.Table.empty;
-    safeColor := Temp.Table.empty
+     initial := N.empty;
+     simplifyWL := N.empty;
+     freezeWL := N.empty;
+     spillWL := N.empty;
+     spilledNodes := N.empty;
+     coalescedNodes := N.empty;
+     coloredNodes := N.empty;
+     coalescedMoves := E.empty;
+     constrainedMoves := E.empty;
+     frozenMoves := E.empty;
+     movesWL := E.empty;
+     activeMoves := E.empty;
+     selectStack := [];
+     okColors := C.empty;
+     alias := UGraph.Table.empty;
+     color := Temp.Table.empty;
+     safeColor := Temp.Table.empty
     )
 fun initialize() = (reset();())
 fun initializeWL(wl) = ()
-(* fun makeWLs(igraph) = () *)
+                         (* fun makeWLs(igraph) = () *)
 
 end

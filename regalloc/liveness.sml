@@ -448,22 +448,18 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
             fun goThroughDsts([]) = ()
               | goThroughDsts(d::ds) =
                 let
-                  (* deleteFromList : Temp.temp * Temp.temp list -> Temp.temp list
-                   *
-                   * Delete the given temp from the given list
-                   *)
+                  (* deleteFromList: Temp.temp * Temp.temp list -> Temp.temp list*)
                   fun deleteFromList(item:Temp.temp, list) =
                       List.filter(fn x => x <> item) list
 
-                  (* Need to delete the current dst temp from the out list if
-                   * it's there 
+                  (* Delete the current dst temp from the out list if present
                    * allDsts are here because dsts interfere with each other.
                    *)
                   val outsWithoutSelf = deleteFromList(d, outTemps@allDsts)
 
                   val effectiveOuts =
                       if nIsMove
-                      (* Need to delete the source of the copy instruction from
+                      (* Delete the source of the copy instruction from
                        * the out list if it was a move. Since it was a move
                        * instruction, we know that it should have exactly one
                        * thing in it's use set, so delete it *)
@@ -471,33 +467,32 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
                         let
                           val s = tnodeFun(hd(getUse(n)))
                           val d = tnodeFun(hd(getDef(n)))
-                        in (WL.addMove(WL.MOVES, (d, s));
+                        in ((* WL.addMove(WL.MOVES, (d, s)); *)
                             deleteFromList(hd(getUse(n)), outsWithoutSelf))
                         end
                       else outsWithoutSelf
 
-                  (* makeAdj : Graph.node * Graph.node -> unit
-                   *
-                   * Add an undirected edge from a to b
-                   * (directed edges a->b and b->a)
-                   *)
-                  (* fun makeAdj(a, b) = *)
-                  (*   (UGraph.mk_edge(a,b); *)
-                  (*    UGraph.mk_edge{from=b, to=a}) *)
                 in
                   (* Add edges between the nodes associated with the dst temps
                    * and the nodes in the live out set *)
-                  ((app (fn out => UGraph.mkEdge interGraph
-                                                  (tnodeFun d, tnodeFun out))
+                  ((* print("d: "^(Frame.tempToString Frame.tempMap (d))^"\n"); *)
+                   (* (app (fn out => *)
+                   (*          print((Frame.tempToString Frame.tempMap (out))^" ")) *)
+                   (*      effectiveOuts); *)
+                   (* print("\n"); *)
+                   (app (fn out => UGraph.mkEdge interGraph
+                                                 (tnodeFun d, tnodeFun out))
                         effectiveOuts);
                    goThroughDsts(ds))
                 end
           in
-             (goThroughDsts(getDef(n));
-              interfere(ns))
+            (goThroughDsts(getDef(n));
+             (* print("----\n"); *)
+             interfere(ns))
           end
     in
-      (interfere(Graph.nodes(control));
+      (print("uncomment-before-coalescing (liveness(EOF)\n");
+       interfere(Graph.nodes(control));
        (IGRAPH{graph=interGraph,
                tnode=tnodeFun,
                gtemp=gtempFun,

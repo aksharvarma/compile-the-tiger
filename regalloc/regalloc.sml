@@ -23,79 +23,27 @@ fun alloc(instrs, frame) =
       (* Also builds the interference graph *)
       val (igraph as Liveness.IGRAPH{graph, tnode, gtemp, moves}) =
           Liveness.computeLivenessAndBuild(cfg)
+      (* val _ = Liveness.show(TextIO.stdOut, igraph) *)
 
-      (* val _ = (app (fn n => print(Temp.makeString(gtemp(n))^": "^ *)
-      (*                             Int.toString((UGraph.degree graph n))^"\n")) *)
-      (*              (UGraph.nodeList(graph))) *)
-      fun copyIGraph(Liveness.IGRAPH{graph, tnode, gtemp, moves}) =
-          let
-            val graphCopy = UGraph.newGraph()
-            val _ = map (fn _ => UGraph.newNode graphCopy) (UGraph.nodeList(graph))
+      fun copyAdjList(Liveness.IGRAPH{graph, tnode, gtemp, moves}) =
+          (foldr (fn ((n, adjSet), tab) =>
+                    UGraph.Table.enter(tab, n, adjSet))
+                UGraph.Table.empty
+                (map (fn n => (n, UGraph.adjSet graph (n)))
+                     (UGraph.nodeList(graph))))
 
-            fun nodeMap([], [], tab) = tab
-              | nodeMap(newN::newNs, oldN::oldNs, tab) =
-                nodeMap(newNs, oldNs, UGraph.Table.enter(tab, newN, oldN))
-              | nodeMap(_, _, tab) = tab (* Just to satisfy the type-checker
-                                          * will never happen
-                                          *)
-                
-            val newToOldTab = nodeMap(UGraph.nodeList(graphCopy),
-                                      UGraph.nodeList(graph),
-                                      UGraph.Table.empty)
-            val oldToNewTab = nodeMap(UGraph.nodeList(graph),
-                                      UGraph.nodeList(graphCopy),
-                                      UGraph.Table.empty)
-
-            fun findNode(tab, n) =
-                case UGraph.Table.look(tab, n)
-                              of SOME(N) => N
-                               | NONE => let exception wontHappen
-                                         in raise wontHappen end
-
-            fun gtempCopy(n) =
-                gtemp(findNode(newToOldTab, n))
-
-            fun tnodeCopy(t) =
-                findNode(oldToNewTab, tnode(t))
-                
-            fun makeEdges([]) = ()
-              | makeEdges(n::ns) =
-                let
-                  fun copyAdjacency([]) = ()
-                    | copyAdjacency(m::ms) =
-                      (UGraph.mkEdge graphCopy (findNode(oldToNewTab, n),
-                                                findNode(oldToNewTab, m));
-                       copyAdjacency(ms))
-                in
-                (copyAdjacency(UGraph.adjList graph n);
-                 makeEdges(ns))
-                end
-                
-            val _ = makeEdges(UGraph.nodeList(graph))
-
-            val movesCopy =
-                foldr (fn ((oldN, eSet), t) =>
-                          UGraph.Table.enter(t, findNode(oldToNewTab, oldN),
-                                             eSet))
-                      UGraph.Table.empty (UGraph.Table.listItemsi(moves))
-          in
-            Liveness.IGRAPH{graph=graphCopy,
-                            gtemp=gtempCopy,
-                            tnode=tnodeCopy,
-                            moves=movesCopy}
-          end
-
-      val (igraphCopy as Liveness.IGRAPH{graph=graphCopy,
-                                         tnode=tnodeCopy,
-                                         gtemp=gtempCopy,
-                                         moves=movesCopy}) =
-          copyIGraph(igraph)
+      val adjTab = copyAdjList(igraph)
       
       fun nodeMoves(n) =
-          WL.E.intersection(UGraph.lookUpNode(moves, n),
-                            WL.E.union(WL.getMoveSet(WL.ACTIVE),
-                                       WL.getMoveSet(WL.MOVES)))
-
+          let
+            val movesTab = (case UGraph.Table.look(moves, n)
+                         of SOME(t) => t
+                          | NONE => WL.E.empty)
+          in
+          WL.E.intersection(movesTab, WL.E.union(WL.getMoveSet(WL.ACTIVE),
+                                                 WL.getMoveSet(WL.MOVES)))
+          end
+                           
       fun moveRelated(n) = WL.E.isEmpty(nodeMoves(n))
                            
       fun makeWLs() =
@@ -111,13 +59,14 @@ fun alloc(instrs, frame) =
                     then (WL.addNode(WL.PRECOLORED, n))
                     else if (UGraph.degree graph (n)) >= Frame.K
                     then WL.addNode(WL.TOSPILL, n)
-                    else if moveRelated(n)
-                    then WL.addNode(WL.FREEZE, n)
+                    (* else if moveRelated(n) *)
+                    (* then WL.addNode(WL.FREEZE, n) *)
                     else WL.addNode(WL.SIMPLIFY, n)
                   end)
               nodes
           end
 
+      val _ = print("uncomment-for-freeze (regalloc(makeWL))\n")
       val _ = makeWLs()
       val _ = WL.precolor(gtemp)
                          
@@ -191,20 +140,21 @@ fun alloc(instrs, frame) =
       (*           WL.isNullN(WL.TOSPILL) andalso *)
       (*           WL.isNullE(WL.MOVES)) do *)
             (if WL.isNotNullN(WL.SIMPLIFY)
-             then (simplify())
-             (* else if WL.isNotNullE(WL.MOVES) *)
-             (* then (coalesce();print("coalesce\n")) *)
-             (* else if WL.isNotNullN(WL.FREEZE) *)
-             (* then (freeze();print("coalesce\n")) *)
+             then (simplify();print(""))
+             else if WL.isNotNullE(WL.MOVES)
+             then (print("coalesce\n");coalesce())
+             else if WL.isNotNullN(WL.FREEZE)
+             then (print("freeze\n");freeze())
              else if WL.isNotNullN(WL.TOSPILL)
-             then (selectSpill())
+             then (selectSpill();print(""))
              else ());
       let
         (* val _ = print("starting color\n") *)
         val (colorAlloc, spilledList) =
-            Color.color{interference=igraph,
-                        spillCost=(fn n:UGraph.node => 1),
-                        registers=Frame.registers}
+            (Color.color{interference=igraph,
+                         adjTab=adjTab,
+                         spillCost=(fn n:UGraph.node => 1),
+                         registers=Frame.registers})
         (* val _ = print("ending color\n") *)
                        
       in
