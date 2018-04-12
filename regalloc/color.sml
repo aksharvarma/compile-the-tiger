@@ -5,7 +5,7 @@ sig
               spillCost: UGraph.node -> int,
               adjTab: UGraph.S.set UGraph.Table.table,
               registers: Frame.register list}
-             -> WL.allocation * Temp.temp list
+             -> WL.allocation
 end
 
 structure Color: COLOR =
@@ -47,7 +47,7 @@ fun color{interference=(Liveness.IGRAPH{graph, tnode, gtemp, moves}),
      (* (app (fn (t, s) => print((Frame.tempToString Frame.tempMap t)^": "^s^"\n")) *)
      (*      (Temp.Table.listItemsi(WL.getAllocation()))); *)
      (* print("~~~~Table done~~~~\n"); *)
-     (WL.getAllocation(), []))
+     (WL.getAllocation()))
 
 
 end

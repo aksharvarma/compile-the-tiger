@@ -76,6 +76,9 @@ datatype frag = PROC of {body: Tree.stm, frame: frame}
 fun exp(InFrame(k)) = (fn(ex) => T.MEM(T.BINOP(T.PLUS, ex, T.CONST(k))))
   | exp(InReg(t)) = (fn (ex) => T.TEMP t)
 
+fun getOffset(InFrame(k)) = k
+  | getOffset(InReg(t)) = let exception offSetOfReg in raise offSetOfReg end
+
 
 (* Printing functions for debugging *)
 (* printExp: string * Tree.exp -> unit *)
@@ -232,15 +235,15 @@ val argRegs:(register * Temp.temp) list = [("$a0", a0),
  * special purposes
  *)
 val calleeSaves:(register * Temp.temp) list = [("$s0", Temp.newTemp()),
-                                               ("$s1", Temp.newTemp()),
-                                               ("$s2", Temp.newTemp()),
-                                               ("$s3", Temp.newTemp()),
-                                               ("$s4", Temp.newTemp()),
-                                               ("$s5", Temp.newTemp()),
-                                               ("$s6", Temp.newTemp()),
-                                               ("$s7", Temp.newTemp()),
-                                               ("$r30", Temp.newTemp()),
-                                               ("$v1", v1)]
+                                               ("$s1", Temp.newTemp())]
+                                               (* ("$s2", Temp.newTemp()), *)
+                                               (* ("$s3", Temp.newTemp()), *)
+                                               (* ("$s4", Temp.newTemp()), *)
+                                               (* ("$s5", Temp.newTemp()), *)
+                                               (* ("$s6", Temp.newTemp()), *)
+                                               (* ("$s7", Temp.newTemp()), *)
+                                               (* ("$r30", Temp.newTemp()), *)
+                                               (* ("$v1", v1)] *)
 
 (* Caller saved registers: $t0-$t9 *)
 val callerSaves:(register * Temp.temp) list = [("$t0", Temp.newTemp()),
@@ -266,7 +269,8 @@ val allUserRegs = specialRegs@argRegs@calleeSaves@callerSaves
 val physicalRegsT = map (fn (s, t) => t) allUserRegs
 val registers = map (fn (s, t) => s) allUserRegs
 val K = List.length(allUserRegs)
-
+val trashedByCall = RV::(map (fn (s, t) => t) callerSaves)
+                   
 (* tempMap: register Temp.Table.table
  *
  * Maps temp numbers to their string names if they correspond to a special

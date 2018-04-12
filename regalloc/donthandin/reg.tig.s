@@ -1,91 +1,37 @@
 PROCEDURE tig_dereference_NIL
 tig_dereference_NIL:
-move $ra, $ra
-move $s0, $s0
-move $s1, $s1
-move $s2, $s2
-move $s3, $s3
-move $s4, $s4
-move $s5, $s5
-move $s6, $s6
-move $a3, $s7
-move $a2, $r30
-move $a1, $v1
-li $a0, ~1
-move $a0, $a0
+move t272, t108
+move t273, t110
+li t285, ~1
+move $a0, t285
 jal tig_exit_TigMain
-move $ra, $ra
-move $s0, $s0
-move $s1, $s1
-move $s2, $s2
-move $s3, $s3
-move $s4, $s4
-move $s5, $s5
-move $s6, $s6
-move $s7, $a3
-move $r30, $a2
-move $v1, $a1
-j L159
-L159:
+move t108, t272
+move t110, t273
+j L19
+L19:
 jr $ra
 END tig_dereference_NIL
 PROCEDURE tig_outOfBounds
 tig_outOfBounds:
-move $ra, $ra
-move $s0, $s0
-move $s1, $s1
-move $s2, $s2
-move $s3, $s3
-move $s4, $s4
-move $s5, $s5
-move $s6, $s6
-move $a3, $s7
-move $a2, $r30
-move $a1, $v1
-li $a0, ~2
-move $a0, $a0
+move t274, t108
+move t275, t110
+li t319, ~2
+move $a0, t319
 jal tig_exit_TigMain
-move $ra, $ra
-move $s0, $s0
-move $s1, $s1
-move $s2, $s2
-move $s3, $s3
-move $s4, $s4
-move $s5, $s5
-move $s6, $s6
-move $s7, $a3
-move $r30, $a2
-move $v1, $a1
-j L160
-L160:
+move t108, t274
+move t110, t275
+j L20
+L20:
 jr $ra
 END tig_outOfBounds
 PROCEDURE tig_MAIN_TIGER_PROG
 tig_MAIN_TIGER_PROG:
-move $ra, $ra
-move $s0, $s0
-move $s1, $s1
-move $s2, $s2
-move $s3, $s3
-move $s4, $s4
-move $s5, $s5
-move $a3, $s6
-move $a2, $s7
-move $a1, $r30
-move $a0, $v1
+move $a1, $ra
+move $a0, $s0
 li $v0, 0
-move $ra, $ra
-move $s0, $s0
-move $s1, $s1
-move $s2, $s2
-move $s3, $s3
-move $s4, $s4
-move $s5, $s5
-move $s6, $a3
-move $s7, $a2
-move $r30, $a1
-move $v1, $a0
-j L161
-L161:
+move $ra, $a1
+move $s0, $a0
+j L21
+L21:
 jr $ra
 END tig_MAIN_TIGER_PROG

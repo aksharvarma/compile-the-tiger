@@ -18,12 +18,14 @@ sig
   val string: Temp.label * string -> string
   val externalCall: string * Tree.exp list -> Tree.exp
   val exp: access -> Tree.exp -> Tree.exp
+  val getOffset: access -> int
 
   val tempMap: register Temp.Table.table
   val findTemp: string -> Temp.temp
   val tempToString: register Temp.Table.table -> Temp.temp -> string
   val physicalRegsT: Temp.temp list
   val registers: register list
+  val trashedByCall: Temp.temp list
   val K: int
 
   val procEntryExit1: frame * Tree.stm -> Tree.stm
