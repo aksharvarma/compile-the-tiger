@@ -10,10 +10,10 @@
  * - Has the fragments datatype which is used later to finish compiling
  * - procEntryExit is used to add prologue and epilogue to functions.
  *)
-structure T = Tree
-
 structure MipsFrame :> FRAME =
 struct
+
+structure T = Tree
 
 (* The wordSize of the machine in bytes *)
 val wordSize = 4
@@ -197,36 +197,8 @@ fun externalCall(s, args) = T.CALL(T.NAME(Temp.namedLabel(s)), args)
  * This is the function that adds the prologue and epilogue to the code
  * of the function. Currently it is quite barren and will be filled in
  * at a later stage when we have more details of MIPS (esp. registers)
- *
- * The required code will come in the following helper functions:
- * - moveArgs: will move escaping args (including SL) into frame
-   and others into fresh temporary registers.
- * - storeCalleeSaves: store the callee-saves registers in frame
- * - restoreCalleeSaves: restore the callee-saves registers from frame
- * - combine: combine prologue+body+epilogue
  *)
-fun procEntryExit1(frame, body) =
-    let
-      (* will move escaping args (including SL) into frame
-       * and others into fresh temporary registers. *)
-      fun moveArgs() =
-          T.LABEL(Temp.namedLabel("entryExit1::moveArgs(step-4)"))
-
-      (* store the callee-saves registers in frame *)
-      fun storeCalleeSaves() =
-          T.LABEL(Temp.namedLabel("entryExit1::storeCalleeSaves(step-5)"))
-      (* restore the callee-saves registers from frame *)
-      fun restoreCalleeSaves() =
-          T.LABEL(Temp.namedLabel("entryExit1::restoreCalleeSaves(step-8)"))
-      (* combine prologue+body+epilogue *)
-      fun combine(moveArgsStm, storeRegsStm, bodyStm, restoreRegsStm) =
-          T.SEQ(moveArgsStm,
-                T.SEQ(storeRegsStm,
-                      T.SEQ(bodyStm, restoreRegsStm)))
-    in
-      combine(moveArgs(),
-              storeCalleeSaves(),
-              body,
-              restoreCalleeSaves())
-    end
+fun procEntryExit1(frame, body) = body
 end
+
+structure Frame:>FRAME = MipsFrame

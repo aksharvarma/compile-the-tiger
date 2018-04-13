@@ -32,11 +32,7 @@ sig
        and relop = EQ | NE | LT | GT | LE | GE
                    | ULT | ULE | UGT | UGE
 
-(* The following two functions are absent from the structure below.
- * Commented out for now although the canonicalizer seems to need them
- *)
-(* val notRel : relop -> relop *)
-(* val commute: relop -> relop *)
+  val notRel : relop -> relop
 end
 
 structure Tree : TREE =
@@ -65,5 +61,15 @@ datatype stm = SEQ of stm * stm
      and relop = EQ | NE | LT | GT | LE | GE
                  | ULT | ULE | UGT | UGE
 
-end
 
+fun notRel(EQ) = NE
+  | notRel(NE) = EQ
+  | notRel(LT) = GE
+  | notRel(GT) = LE
+  | notRel(LE) = GT
+  | notRel(GE) = LT
+  | notRel(ULT) = UGE
+  | notRel(ULE) = UGT
+  | notRel(UGT) = ULE
+  | notRel(UGE) = ULT
+end

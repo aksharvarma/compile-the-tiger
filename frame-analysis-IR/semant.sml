@@ -32,7 +32,7 @@ sig
   type expty = {exp: Translate.exp, ty: Ty.ty}
 
   (* main semantic analysis entry point for a tiger program *)
-  val transProg : A.exp -> Translate.frag list
+  val transProg : A.exp -> unit
 end
 
 structure Semant :> SEMANT =
@@ -872,7 +872,8 @@ fun transExp(venv:venv, tenv:tenv, level:Translate.level, brkLabel) : (A.exp -> 
  * - Call Translate.getResult() to get list of frags at the end.
 *)
 fun transProg(e) =
-    (errorExists := false;      (* No errors at the start *)
+    (Translate.reset();         (* resets certain refs in Translate *)
+     errorExists := false;      (* No errors at the start *)
      FindEscape.findEscape(e);  (* Escape analysis *)
      let
        (* Used to create a frag for the whole program *)
@@ -899,28 +900,22 @@ fun transProg(e) =
         Translate.procEntryExit({level=mainLevel, body=(#exp result),
                                  isProcedure=istype(#ty result,
                                                     Ty.UNIT),
-                                 isMain=true});
-        (* Two debugging prints *)
-        (* Printtree.printtree(TextIO.stdOut, Translate.unNx(#exp result));         *)
-
-        (* return the list of all the frags *)
-        Translate.getResult())
+                                 isMain=true}))
      end)
 end
 
-signature MAIN =
+signature RUNNER =
 sig
-  val run: string -> Translate.frag list
+  val run: string -> unit
   val printAST: string -> unit
   val printFrags: string -> unit
 end
 
-structure Main :> MAIN =
+structure Runner :> RUNNER =
 struct
 (* Runs the type-checker *)
 fun run(filename:string) =
-    (Translate.reset();         (* resets certain refs in Translate *)
-     Semant.transProg(Parse.parse(filename)))
+    (Semant.transProg(Parse.parse(filename)))
 
 (* Prints the AST. Mainly debugging *)
 fun printAST(filename:string) = PrintAbsyn.print(TextIO.stdOut,

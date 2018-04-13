@@ -10,14 +10,6 @@ struct
 structure T = Tree
 structure A = Absyn
 
-(* We are only supporting an implementation for the MIPS architecture.
- * Hence our Frame module is just the MipsFrame module.
- *)
-structure Frame :> FRAME = MipsFrame
-
-(* Just a renaming because Semant shouldn't know anything about Frame *)
-type frag = Frame.frag
-
 (* These are wrappers around Tree stms and exps. *)
 datatype exp = Ex of Tree.exp
              | Nx of Tree.stm
@@ -83,7 +75,7 @@ val derefNil = Temp.namedLabel("dereference_NIL")
 val outOfBounds = Temp.namedLabel("outOfBounds")
 
 (* The list of Frame.frag (=Translate.frag) *)
-val fragList: frag list ref = ref []
+val fragList: Frame.frag list ref = ref []
 
 (* Keeps a hash table of strings encountered until now
  * This is used to ensure that the same string doesn't get two labels
@@ -183,18 +175,20 @@ fun simpleVar((l, access), level) = Ex(Frame.exp(access)(followSL(level, l)))
 fun subscriptVar(a, indexExp) =
     let
       val r = Temp.newTemp() val t = Temp.newTemp()
-      val z = Temp.newLabel() and x = Temp.newLabel()
+      val z = Temp.newLabel() and x = Temp.newLabel() and bad = Temp.newLabel()
       val varTree = unEx(a)
       val indexTree = unEx(indexExp)
     in
       Ex(T.ESEQ(T.SEQ(T.MOVE(T.TEMP r, varTree),
                 T.SEQ(T.MOVE(T.TEMP t, indexTree),
                 T.SEQ(T.CJUMP(T.GE, T.TEMP t, T.MEM(T.TEMP r),
-                              outOfBounds, z),
+                              bad, z),
                 T.SEQ(T.LABEL z,
                 T.SEQ(T.CJUMP(T.LT, T.TEMP t, T.CONST 0,
-                              outOfBounds, x),
-                      T.LABEL x))))),
+                              bad, x),
+                T.SEQ(T.LABEL bad,
+                T.SEQ(T.EXP(T.CALL(T.NAME(outOfBounds), [])),
+                      T.LABEL x))))))),
                 T.MEM(T.BINOP(T.PLUS,
                               (* This is the base *)
                               T.TEMP r,
@@ -214,16 +208,16 @@ fun subscriptVar(a, indexExp) =
 fun fieldVar(a, i) =
     let
       val r = Temp.newTemp()
-      val z = Temp.newLabel()
+      val z = Temp.newLabel() and bad = Temp.newLabel()
     in
       Ex(T.ESEQ(T.SEQ(T.MOVE(T.TEMP r, unEx(a)),
-                T.SEQ(T.CJUMP(T.EQ, T.TEMP r, T.CONST 0, derefNil, z),
-                T.LABEL z)),
+                T.SEQ(T.CJUMP(T.EQ, T.TEMP r, T.CONST 0, bad, z),
+                T.SEQ(T.LABEL bad,
+                T.SEQ(T.EXP(T.CALL(T.NAME(derefNil), [])),
+                T.LABEL z)))),
                 T.MEM(T.BINOP(T.PLUS,
                               T.TEMP r,
-                              T.BINOP(T.MUL,
-                                      T.CONST Frame.wordSize,
-                                      T.CONST i)))))
+                              T.CONST(Frame.wordSize * i)))))
     end
 
 (* arithOp : Absyn.oper * exp * exp -> exp *)
@@ -679,7 +673,7 @@ fun forExp(level, iAccess:access, brkLabel, lo:exp, hi:exp, body:exp) =
 
 (* procEntryExit: {level:level, body:exp, isProcedure:bool, isMain:bool} -> unit
  *
- * This is the function that calls the Frame.procEntryExit1 function
+ * This is the function that calls the Frame.procEntryExit1
  * Based on the list of items from the book, we don't do these yet:
  * 1-3, 9-11,
  * This functions combines 6 and 7 (move result to RV)
@@ -687,28 +681,47 @@ fun forExp(level, iAccess:access, brkLabel, lo:exp, hi:exp, body:exp) =
  *)
 fun procEntryExit({level, body, isProcedure, isMain}) =
     let
-
-      (* If Main function, need to append these labels to frag *)
-      fun appendErrorLabels(e) =
-          let
-            val done = Temp.namedLabel("DONE")
-          in T.SEQ(e,
-             T.SEQ(T.JUMP(T.NAME done, [done]),
-             T.SEQ(T.LABEL derefNil,
-             T.SEQ(unNx(libCall(Symbol.symbolize("print"),
-                   [stringExp("Attempted to deref a nil record")], true)),
-             T.SEQ(T.JUMP(T.NAME done, [done]),
-             T.SEQ(T.LABEL outOfBounds,
-             T.SEQ(unNx(libCall(Symbol.symbolize("print"),
-                   [stringExp("Index out of bounds exception")], true)),
-             T.LABEL done)))))))
-          end
-
       (* Helper function to get the frame from level *)
       fun getFrame(OUTERMOST) = raise OutermostException
         | getFrame(Lev({frame, parent, unique})) = frame
 
       val frame = getFrame(level)
+
+      (* addErrorProcs : unit -> unit
+       *
+       * Adds two function fragments to the frag list to account for the two
+       * runtime error cases. We now add them to their own function proc,
+       * cleaning up the code that gets added to main, and avoiding the case
+       * where instructions in other function procs jump to labels in the middle
+       * of another function proc.
+       *)
+      fun addErrorProcs() =
+          let
+            val badDerefExit = ~1
+            val outOfBoundsExit = ~2
+
+            (* Note that we know that don't need a static link here,
+             * because we are not referencing any outside variables and the
+             * external call to the C function exit_TigMain will not require a
+             * static link. *)
+            val derefNilFrame = Frame.newFrame{name=derefNil, formals=[false]}
+            val outOfBoundsFrame = Frame.newFrame{name=outOfBounds,
+            formals=[false]}
+
+            val derefNilBody =
+                Frame.procEntryExit1(derefNilFrame,
+                                     T.EXP(Frame.externalCall("exit_TigMain",
+                                                        [T.CONST(badDerefExit)])))
+            val outOfBoundsBody =
+                Frame.procEntryExit1(outOfBoundsFrame,
+                                     T.EXP(Frame.externalCall("exit_TigMain",
+                                                        [T.CONST(outOfBoundsExit)])))
+
+          in fragList := Frame.PROC{body=derefNilBody, frame=derefNilFrame}
+                         :: Frame.PROC{body=outOfBoundsBody, frame=outOfBoundsFrame}
+                         :: !fragList
+          end
+
       (* items 6-7: Move result of exp into RV
        * But do that only if it is not a procedure
        *)
@@ -716,21 +729,21 @@ fun procEntryExit({level, body, isProcedure, isMain}) =
                        then unNx(body)
                        else T.MOVE(T.TEMP Frame.RV, unEx(body))
 
+      (* Add in the function label to the start of the body *)
+      val bodyWithRvAndLabel = T.SEQ(T.LABEL(Frame.name(frame)), bodyWithRV)
+
       (* procEntryExit1 modifies the body to do items 4-8. *)
       val modifiedBody = Frame.procEntryExit1(frame, bodyWithRV)
 
-      (* If isMain, then append runtime error labels to the end *)
-      val finalBody = if isMain
-                      then appendErrorLabels(modifiedBody)
-                      else modifiedBody
+      (* If isMain, then append the runtime error procs to the frag list *)
+      val _ = if isMain then (addErrorProcs()) else ()
     in
       (* Each function becomes a fragment *)
-      fragList := Frame.PROC({body=finalBody, frame=frame}):: !fragList
+      fragList := Frame.PROC({body=modifiedBody, frame=frame}):: !fragList
     end
 
 (* getResult : unit -> frag list *)
 fun getResult() = !fragList
-
 
 (* printInfo: unit -> unit
  *

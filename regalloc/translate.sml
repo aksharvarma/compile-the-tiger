@@ -673,7 +673,7 @@ fun forExp(level, iAccess:access, brkLabel, lo:exp, hi:exp, body:exp) =
 
 (* procEntryExit: {level:level, body:exp, isProcedure:bool, isMain:bool} -> unit
  *
- * This is the function that calls the Frame.procEntryExit1-3 functions
+ * This is the function that calls the Frame.procEntryExit1
  * Based on the list of items from the book, we don't do these yet:
  * 1-3, 9-11,
  * This functions combines 6 and 7 (move result to RV)

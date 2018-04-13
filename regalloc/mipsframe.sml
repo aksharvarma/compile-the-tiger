@@ -300,33 +300,30 @@ fun tempToString map =
 (* procEntryExit1: frame * Tree.stm -> Tree.stm
  *
  * This is the function that adds the prologue and epilogue to the code
- * of the function. Currently it is quite barren and will be filled in
- * at a later stage when we have more details of MIPS (esp. registers)
- *
- * The required code will come in the following helper functions:
- * - moveArgs: will move escaping args (including SL) into frame
-   and others into fresh temporary registers.
- * - storeCalleeSaves: store the callee-saves registers in frame
- * - restoreCalleeSaves: restore the callee-saves registers from frame
- * - combine: combine prologue+body+epilogue
+ * of the function. Currently it includes only part of the prologue and
+ * epilogue. The parts related to moving the arguments/view shift are not yet
+ * implemented.
+ * The tree statements needed to save/restore the callee save registers are
+ * added to the body here.
  *)
-fun procEntryExit1(frame, body) = (* body *)
-    let
-      (* TODO: WHICH ones are these? *)
-      val regsToSave = ra::(map (fn (s, t) => t) calleeSaves)
-      (* Temp, reg pairs for everything we want to put in prolog *)
-      val tempTemps = map (fn reg => (Temp.newTemp(), reg)) regsToSave
-      val prolog = (* T.EXP(T.CONST(0)) *)
-          (foldr (fn ((t, r), stm) => T.SEQ(T.MOVE(T.TEMP(t),
-                                              T.TEMP(r)), stm))
-                 (T.EXP(T.CONST(0))) tempTemps)
-      val epilog = (* T.EXP(T.CONST(0)) *)
-          (foldr (fn ((t, r), stm) => T.SEQ(T.MOVE(T.TEMP(r),
-                                              T.TEMP(t)), stm))
-                 (T.EXP(T.CONST(0))) tempTemps)
-    in
-      T.SEQ(T.LABEL(name(frame)), T.SEQ(prolog, T.SEQ(body, epilog)))
-    end
+fun procEntryExit1(frame, body) =
+  let
+    val regsToSave = ra::(map (fn (s, t) => t) calleeSaves)
+    (* Temp, reg pairs for everything we want to put in prolog *)
+    val tempTemps = map (fn reg => (Temp.newTemp(), reg)) regsToSave
+    (* Generate the tree statements to save the callee save registers in new
+     * temps *)
+    val prolog = (foldr (fn ((t, r), stm) => T.SEQ(T.MOVE(T.TEMP(t),
+                                                     T.TEMP(r)), stm))
+                        (T.EXP(T.CONST(0))) tempTemps)
+    (* Generate the tree statements to restore the callee save registers *)
+    val epilog = (foldr (fn ((t, r), stm) => T.SEQ(T.MOVE(T.TEMP(r),
+                                                     T.TEMP(t)), stm))
+                        (T.EXP(T.CONST(0))) tempTemps)
+  in
+    (* Surround the body in the prolog and epilog *)
+    T.SEQ(T.LABEL(name(frame)), T.SEQ(prolog, T.SEQ(body, epilog)))
+  end
 
 (* procEntryExit2: frame * Assem.instr list -> Assem.instr list
  *
@@ -356,5 +353,4 @@ fun procEntryExit3({name, formals, locals}, body: Assem.instr list) =
       
 end
 
-  
 structure Frame:>FRAME = MipsFrame

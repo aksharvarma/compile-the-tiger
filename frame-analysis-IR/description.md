@@ -3,6 +3,13 @@
 1. Caitlin Matuszak
 2. Akshar Varma
 
+# Changes since previous submission
+* Simplified dummy code for procEntryExit1 since it was mostly useless anyways
+* Changed Semant.transProg to return unit since we determined in later assignments that this was the most convenient thing to do, since the frags are held in an easily accessible ref in Translate anyways.
+* Changed the way we handle error cases. Previously we were appending statements on to the main fragment. Now we have changed to adding a separate proc fragment for each error case. This makes the main fragment code much cleaner/less confusing.
+* Replaced dummy implementation of notRel in Tree.sml with a real implementation since this will be used in the canonicalizer in the next step
+
+# Previous description:
 The static semantic analysis phase did type type checking using the Semant module. In the Frame analysis and Translation to IR assignments, this module is heavily augmented using various other modules to get frame analysis done as well as to translate AST into IR tree.
 
 # High level description of new modules
