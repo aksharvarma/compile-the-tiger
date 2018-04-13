@@ -29,7 +29,7 @@ fun color{interference=(Liveness.IGRAPH{graph, tnode, gtemp, moves}),
                      else ())
                  adjN);
               if not(WL.hasFreeColor())
-              then (print("need-spilling.\n");WL.addNode(WL.SPILLED, n))
+              then WL.addNode(WL.SPILLED, n)
               else
                (let
                   val chosenColor = WL.getAvailableColor()

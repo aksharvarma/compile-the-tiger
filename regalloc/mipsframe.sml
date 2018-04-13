@@ -235,15 +235,15 @@ val argRegs:(register * Temp.temp) list = [("$a0", a0),
  * special purposes
  *)
 val calleeSaves:(register * Temp.temp) list = [("$s0", Temp.newTemp()),
-                                               ("$s1", Temp.newTemp())]
-                                               (* ("$s2", Temp.newTemp()), *)
-                                               (* ("$s3", Temp.newTemp()), *)
-                                               (* ("$s4", Temp.newTemp()), *)
-                                               (* ("$s5", Temp.newTemp()), *)
-                                               (* ("$s6", Temp.newTemp()), *)
-                                               (* ("$s7", Temp.newTemp()), *)
-                                               (* ("$r30", Temp.newTemp()), *)
-                                               (* ("$v1", v1)] *)
+                                               ("$s1", Temp.newTemp()),
+                                               ("$s2", Temp.newTemp()),
+                                               ("$s3", Temp.newTemp()),
+                                               ("$s4", Temp.newTemp()),
+                                               ("$s5", Temp.newTemp()),
+                                               ("$s6", Temp.newTemp()),
+                                               ("$s7", Temp.newTemp()),
+                                               ("$r30", Temp.newTemp()),
+                                               ("$v1", v1)]
 
 (* Caller saved registers: $t0-$t9 *)
 val callerSaves:(register * Temp.temp) list = [("$t0", Temp.newTemp()),

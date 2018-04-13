@@ -18,21 +18,28 @@ sig
   val isNotNullE: moveWL -> bool
 
   val addNode: nodeWL * UGraph.node -> unit
-  val addMove: moveWL * (UGraph.node * UGraph.node) -> unit
+  val addMove: moveWL * E.item -> unit
 
   val removeNode: nodeWL * UGraph.node -> unit
-  val removeMove: moveWL * (UGraph.node * UGraph.node) -> unit
+  val removeMove: moveWL * E.item -> unit
 
   val chooseN: N.set -> N.item
   val chooseE: E.set -> E.item
 
   val getNode: nodeWL -> UGraph.node
-  val getMove: moveWL -> UGraph.node * UGraph.node
+  val getMove: moveWL -> E.item
+  val getMoveContents: E.item -> UGraph.node * UGraph.node
+
   val getAndRemoveNode: nodeWL -> UGraph.node
-  val getAndRemoveMove: moveWL -> UGraph.node * UGraph.node
+  val getAndRemoveMove: moveWL -> E.item
 
   val isNin: nodeWL * UGraph.node -> bool
-  val isEin: moveWL * (UGraph.node * UGraph.node) -> bool
+  val isEin: moveWL * E.item -> bool
+  val whichNWL: UGraph.node -> nodeWL option
+  val printNWL: UGraph.node -> unit
+  (* val getEWL: UGraph.move -> nodeWL *)
+  (* val NWLtoString: nodeWL -> string *)
+  (* val EWLtoString: moveWL -> string *)
                                                        
   val getNodeSet: nodeWL -> N.set
   val getMoveSet: moveWL -> E.set
@@ -53,6 +60,7 @@ sig
   val removeColors: C.set -> unit
 
   val getAlias: UGraph.node -> UGraph.node
+  val setAlias: UGraph.node * UGraph.node -> unit
                                  
   type allocation = Frame.register Temp.Table.table
   val precolor: (UGraph.node -> Temp.temp) -> unit
@@ -84,8 +92,8 @@ val coalescedNodes: N.set ref = ref N.empty
 val coloredNodes: N.set ref = ref N.empty
 
 (* Set of edges *)
-structure E = BinarySetFn(type ord_key = UGraph.node * UGraph.node
-                          fun compare(e1, e2) = UGraph.pairCompare(e1, e2))
+structure E = BinarySetFn(type ord_key = N.set
+                          fun compare(e1, e2) = N.compare(e1, e2))
                          
                          
 val coalescedMoves: E.set ref = ref E.empty
@@ -141,7 +149,7 @@ fun chooseN(wl) =
 
 fun chooseE(wl) =
     case E.find (fn _ => true) (wl)
-     of SOME(n) => n
+     of SOME(nSet) => nSet
       | NONE => let exception emptyMoveWL
                 in raise emptyMoveWL end
                   
@@ -164,11 +172,24 @@ fun getAndRemoveMove(wl) =
 fun getNode(wl) = chooseN(getNWL(wl))
 fun getMove(wl) = chooseE(getEWL(wl))
 
+fun getMoveContents(m) =
+    let
+      val mList = N.listItems(m)
+      val nItems = List.length(mList)
+    in
+      if nItems = 2
+      then ((hd mList), hd(tl mList))
+      else if nItems = 1
+      then  ((hd mList), (hd mList))
+      else
+         let exception edgeInvariantViolated
+         in (print(Int.toString(nItems));
+             raise edgeInvariantViolated) end
+    end                 
+
 fun isNin(wl, n) = N.member(getNWL(wl), n)
 fun isEin(wl, e) = E.member(getEWL(wl), e)
 
-
-                           
 fun getNodeSet(wl) = getNWL(wl)
 
 fun getMoveSet(wl) = getEWL(wl)
@@ -188,6 +209,32 @@ fun stackNull() = List.null(!selectStack)
 
 fun getStackSet() = N.addList(N.empty, !selectStack)
 
+                             
+fun whichNWL(n) =
+    if isNin(PRECOLORED, n) then SOME(PRECOLORED)
+    else if isNin(INITIAL, n) then SOME(INITIAL)
+    else if isNin(SIMPLIFY, n) then SOME(SIMPLIFY)
+    else if isNin(FREEZE, n) then SOME(FREEZE)
+    else if isNin(TOSPILL, n) then SOME(TOSPILL)
+    else if isNin(SPILLED, n) then SOME(SPILLED)
+    else if isNin(COALESCED_N, n) then SOME(COALESCED_N)
+    else if isNin(COLORED, n) then SOME(COLORED)
+    else if List.exists (fn stackN => n=stackN) (!selectStack) then NONE
+    else let exception NotInAnyNWL in raise NotInAnyNWL end
+
+fun printNWL(n) =
+    if isNin(PRECOLORED, n) then print("PRECOLORED\n")
+    else if isNin(INITIAL, n) then print("INITIAL\n")
+    else if isNin(SIMPLIFY, n) then print("SIMPLIFY\n")
+    else if isNin(FREEZE, n) then print("FREEZE\n")
+    else if isNin(TOSPILL, n) then print("TOSPILL\n")
+    else if isNin(SPILLED, n) then print("SPILLED\n")
+    else if isNin(COALESCED_N, n) then print("COALESCED_N\n")
+    else if isNin(COLORED, n) then print("COLORED\n")
+    else if List.exists (fn stackN => n=stackN) (!selectStack)
+    then print("STACK\n")
+    else let exception NotInAnyNWL in raise NotInAnyNWL end
+    
 (* Ok Colors *)
 val okColors: C.set ref = ref C.empty
 
@@ -214,6 +261,9 @@ fun getAlias(n) =
                      in raise ourCodeHasABug end
     else n
 
+fun setAlias(n, aliasN) =
+    alias := UGraph.Table.enter(!alias, n, aliasN)
+           
 
 (* Coloring related *)
 type allocation = Frame.register Temp.Table.table

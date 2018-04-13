@@ -235,14 +235,20 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
                  * how they are constrained in Assem *)
                 val d = tnodeFun(hd(getDef(n)))
                 val s = tnodeFun(hd(getUse(n)))
+                (* Take current moveSet and add this new edge to it, for both
+                 * source and dest temps.
+                 *)
                 val dMoves = (case UGraph.Table.look(tab, d)
                               of SOME(s) => s
                                | NONE => WL.E.empty)
                 val sMoves = (case UGraph.Table.look(tab, s)
                               of SOME(s) => s
                                | NONE => WL.E.empty)
-                val newDMoves = WL.E.add(dMoves, (s, d))
-                val newSMoves = WL.E.add(sMoves, (d, s))
+                val newDMoves = WL.E.add(dMoves,
+                                         WL.N.addList(WL.N.empty, [s, d]))
+                val newSMoves = WL.E.add(sMoves,
+                                         WL.N.addList(WL.N.empty, [s, d]))
+                (* Add the new sets to the table *)
                 val newTab =
                     UGraph.Table.enter(UGraph.Table.enter(tab,s,newSMoves),
                                        d, newDMoves)
@@ -467,7 +473,9 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
                         let
                           val s = tnodeFun(hd(getUse(n)))
                           val d = tnodeFun(hd(getDef(n)))
-                        in ((* WL.addMove(WL.MOVES, (d, s)); *)
+                          val _ = if s=d
+                                  then print("OOPS!!\n") else ()
+                        in (WL.addMove(WL.MOVES, WL.N.addList(WL.N.empty, [d, s]));
                             deleteFromList(hd(getUse(n)), outsWithoutSelf))
                         end
                       else outsWithoutSelf
@@ -491,8 +499,8 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
              interfere(ns))
           end
     in
-      (print("uncomment-before-coalescing (liveness(EOF)\n");
-       interfere(Graph.nodes(control));
+      (* (print("uncomment-before-coalescing (liveness(EOF)\n"); *)
+      (interfere(Graph.nodes(control));
        (IGRAPH{graph=interGraph,
                tnode=tnodeFun,
                gtemp=gtempFun,

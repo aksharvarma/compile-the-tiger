@@ -41,7 +41,7 @@ fun createFlowGraph(body, format) =
 fun emitproc out (Frame.PROC{body,frame}) =
     let
       val _ = (* print to indicate start of new proc/frame *)
-          print ("####################\nemit " ^ Symbol.name(Frame.name(frame)) ^ "\n")
+          print ("####\nemit " ^ Symbol.name(Frame.name(frame)) ^ "\n")
       (* Call canonicalizer functions to linearize the body of the fragment
        * into basic blocks*)
       val stms = Canon.linearize body
