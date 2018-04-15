@@ -243,7 +243,7 @@ val calleeSaves:(register * Temp.temp) list = [("$s0", Temp.newTemp()),
                                                ("$s6", Temp.newTemp()),
                                                ("$s7", Temp.newTemp()),
                                                ("$r30", Temp.newTemp()),
-                                               ("$v1", v1)]
+                                               ("$r3", v1)]
 
 (* Caller saved registers: $t0-$t9 *)
 val callerSaves:(register * Temp.temp) list = [("$t0", Temp.newTemp()),
@@ -269,8 +269,70 @@ val allUserRegs = specialRegs@argRegs@calleeSaves@callerSaves
 val physicalRegsT = map (fn (s, t) => t) allUserRegs
 val registers = map (fn (s, t) => s) allUserRegs
 val K = List.length(allUserRegs)
-val trashedByCall = RV::(map (fn (s, t) => t) callerSaves)
-                   
+val trashedByCall = ra::RV::(map (fn (s, t) => t) callerSaves)
+(*
+fun registerCompare("$ra", "$ra") = EQUAL
+  | registerCompare("$ra", _) = GREATER
+  | registerCompare(_, "$ra") = LESS
+  | registerCompare("$sp", "$sp") = EQUAL
+  | registerCompare("$sp", _) = GREATER
+  | registerCompare(_, "$sp") = LESS
+  | registerCompare("$zero", "$zero") = EQUAL
+  | registerCompare("$zero", _) = GREATER
+  | registerCompare(_, "$zero") = LESS
+  | registerCompare("$v0", "$v0") = EQUAL
+  | registerCompare("$v0", _) = GREATER
+  | registerCompare(_, "$v0") = LESS
+  | registerCompare(a, b) =
+  let
+    fun contains(l, item:string) = List.exists (fn (r,t) => r = item) l
+    (* val dontPrefer = ["$r3", "$ra", "$v0", "$r30"]
+    val a' = if (List.exists (fn r => r = a) dontPrefer)
+             then "zz"^a else a
+    val b' = if (List.exists (fn r => r = b) dontPrefer)
+             then "zz"^b else b *)
+  in
+    if a = b
+    then EQUAL
+    else if contains(callerSaves, a) andalso contains(calleeSaves, b)
+    then LESS
+    else if contains(calleeSaves, a) andalso contains(callerSaves, b)
+    then GREATER
+    else if contains(calleeSaves, a) andalso contains(calleeSaves, b)
+    then (if a = b
+          then EQUAL
+          else if a = "$r3" orelse a = "$r30"
+          then GREATER
+          else if b = "$r3" orelse b = "$r30"
+          then LESS
+          else String.compare(a, b))
+    else if contains(argRegs, b)
+    then LESS
+    else if contains(argRegs, a)
+    then String.compare(b, a)
+    else String.compare(a, b)
+  end
+     *)
+
+fun registerCompare() =
+  let
+    val preferredOrder =
+      map (fn (r, t) => r) (callerSaves@calleeSaves@rev(argRegs)@specialRegs)
+    val i = ref 0
+    val indexTab = foldl (fn (r, tab) =>
+                             (i := !i + 1;
+                              Symbol.enter(tab, Symbol.symbolize(r), !i)))
+                          Symbol.empty
+                          preferredOrder
+    fun getIndex(r) =
+        case Symbol.look(indexTab, Symbol.symbolize r)
+          of SOME(i) => i
+           | NONE => let exception unknownRegister in raise unknownRegister end
+  in
+      fn(a, b) =>
+        Int.compare(getIndex(a), getIndex(b))
+  end
+
 (* tempMap: register Temp.Table.table
  *
  * Maps temp numbers to their string names if they correspond to a special
@@ -296,7 +358,7 @@ fun tempToString map =
     (fn t => case Temp.Table.look(map, t)
               of SOME(str) => str
                | NONE => (Temp.makeString(t)))
-                        
+
 (* procEntryExit1: frame * Tree.stm -> Tree.stm
  *
  * This is the function that adds the prologue and epilogue to the code
@@ -350,7 +412,7 @@ fun procEntryExit3({name, formals, locals}, body: Assem.instr list) =
      body=body,
      epilog="jr $ra\nEND "^Symbol.name(name)^"\n"}
 
-      
+
 end
 
 structure Frame:>FRAME = MipsFrame

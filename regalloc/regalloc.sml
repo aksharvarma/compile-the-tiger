@@ -11,7 +11,7 @@ struct
 
 
 (* alloc: Assem.instr list *Frame.frame -> Assem.instr list * allocation
- * 
+ *
  *)
 fun alloc(instrs, frame) =
     let
@@ -33,7 +33,7 @@ fun alloc(instrs, frame) =
                       (UGraph.nodeList(graph))))
 
       val adjTab = copyAdjList(igraph)
-                              
+
       fun nodeMoves(n) =
           let
             val movesTab = (case UGraph.Table.look(moves, n)
@@ -43,18 +43,18 @@ fun alloc(instrs, frame) =
             WL.E.intersection(movesTab, WL.E.union(WL.getMoveSet(WL.ACTIVE),
                                                    WL.getMoveSet(WL.MOVES)))
           end
-            
+
       fun moveRelated(n) = not(WL.E.isEmpty(nodeMoves(n)))
-                                       
+
       fun ourDegree graph =
           (fn n =>
               if WL.isNin(WL.PRECOLORED, n)
               then Frame.K*List.length(UGraph.nodeList graph)
               else UGraph.degree graph n)
-            
+
       fun makeWLs() =
           UGraph.S.app
-            (fn n => 
+            (fn n =>
                 let
                   val t = gtemp(n)
                 in
@@ -97,8 +97,8 @@ fun alloc(instrs, frame) =
                                         WL.addMove(WL.MOVES, m))
                                   else ())
                               (nodeMoves(n))) nodes
-            
-            
+
+
       fun processNeighbours(n, []) = ()
         | processNeighbours(n, m::ms) =
           (UGraph.rmEdge graph (n,m);
@@ -111,7 +111,7 @@ fun alloc(instrs, frame) =
              else WL.addNode(WL.SIMPLIFY, m))
            else ();
            processNeighbours(n, ms))
-            
+
       fun simplify() =
           while WL.isNotNullN(WL.SIMPLIFY) do
                 let
@@ -120,7 +120,7 @@ fun alloc(instrs, frame) =
                   (WL.pushStack(n);
                    processNeighbours(n, WL.N.listItems(adjacent n)))
                 end
-                
+
       fun coalesce() =
           let
             fun OK(t, r) =
@@ -158,7 +158,7 @@ fun alloc(instrs, frame) =
                     else ()
                   end
                 else ()
-                
+
             fun combine(u, v) =
                 (if WL.isNin(WL.FREEZE, v)
                  then WL.removeNode(WL.FREEZE, v)
@@ -185,7 +185,7 @@ fun alloc(instrs, frame) =
 
             fun coalesceBriggs(u, v) =
                 conservative(WL.N.union(adjacent(u), adjacent(v)))
-                            
+
           in
             while WL.isNotNullE(WL.MOVES) do
                   let
@@ -210,12 +210,12 @@ fun alloc(instrs, frame) =
                              andalso coalesceBriggs(u, v))
                     then (WL.addMove(WL.COALESCED_E, m);
                           combine(u, v);
-                          addWorkList(u))                           
+                          addWorkList(u))
                     else WL.addMove(WL.ACTIVE, m)
                   end
           end
 
-            
+
       fun freezeMoves(u:UGraph.node) =
           (WL.E.app (fn m =>
                         (let
@@ -241,12 +241,17 @@ fun alloc(instrs, frame) =
 
       fun selectSpill() =
           let
-            val m = WL.getAndRemoveNode(WL.TOSPILL)
+            val m = WL.N.foldr (fn (n, max) =>
+                                if (ourDegree graph n) > (ourDegree graph max)
+                                then n else max)
+                               (WL.getNode(WL.TOSPILL))
+                               (WL.getNodeSet(WL.TOSPILL))
           in
-            (WL.addNode(WL.SIMPLIFY, m);
+            (WL.removeNode(WL.TOSPILL, m);
+             WL.addNode(WL.SIMPLIFY, m);
              freezeMoves(m))
           end
-            
+
       fun rewriteProgram() =
           let
             val accessTab =
@@ -264,7 +269,7 @@ fun alloc(instrs, frame) =
             (*                        ^Int.toString(nt)^") ")) *)
             (*              (Temp.Table.listItemsi(accessTab))) *)
             (* val _ = print("\n~~~~\n") *)
-                         
+
             fun rewriteInstr(instr as Assem.LABEL{assem, lab}) = [instr]
               | rewriteInstr(instr) =
                 let
@@ -285,7 +290,7 @@ fun alloc(instrs, frame) =
                   fun replaceTemp([], newTempList, tempMap, replaced) =
                       (rev(newTempList), tempMap, replaced)
                     | replaceTemp(temp::tempList,
-                                  newTempList, tempMap, replaced) = 
+                                  newTempList, tempMap, replaced) =
                       if WL.isNin(WL.SPILLED, tnode temp)
                       then
                         let val newT = Temp.newTemp() in
@@ -330,7 +335,7 @@ fun alloc(instrs, frame) =
                                     src=[Frame.SP, fpTemp], dst=[fpTemp],
                                     jump=NONE}]
                       end
-                        
+
                   (* findVarOffset: Temp.temp -> string
                    * Find the offset from FP, given a spilling temp *)
                   fun findVarOffset(t) =
@@ -356,9 +361,9 @@ fun alloc(instrs, frame) =
                       else [] (* [Assem.OPER({assem="EMPTY-FOO--\n", *)
                   (*                      src=[], jump=NONE, *)
                   (*                      dst=[]})] *)
-                             
+
                   (* Add instrs to handle spilling temps in dsts *)
-                  val nextInstr = 
+                  val nextInstr =
                       if dstSpills
                       then
                         let val fpTemp = Temp.newTemp() in
@@ -382,9 +387,9 @@ fun alloc(instrs, frame) =
                       else [Assem.MOVE{assem=assem,
                                        dst=hd(newDst), src=hd(newSrc)}]
                 in
-                  (* Replaced list of instructions 
+                  (* Replaced list of instructions
                    * This needs to be reversed, because when the overall rewrite
-                   * is reversed, we want this whole chunk to be considered as 
+                   * is reversed, we want this whole chunk to be considered as
                    * one instr, conceptually. Hence, we pre-reverse it to balance
                    * the parity of reverses.
                    *)
@@ -405,7 +410,7 @@ fun alloc(instrs, frame) =
                              of SOME(t') => t'
                               | NONE => let exception uncoloredTemp
                                         in raise uncoloredTemp end
-                                          
+
             (* Actual removal happens here. *)
             fun dropMove([], newInstrs) = rev(newInstrs)
               | dropMove((instr as Assem.MOVE{assem, src, dst})::instrs,
@@ -444,7 +449,7 @@ fun alloc(instrs, frame) =
                          spillCost=
                          (fn n:UGraph.node => ~(ourDegree graph (n))),
                          registers=Frame.registers})
-              
+
       in
         if WL.isNotNullN(WL.SPILLED)
         then (print("spilled\n");alloc(rewriteProgram(), frame))

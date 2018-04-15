@@ -27,6 +27,7 @@ sig
   val registers: register list
   val trashedByCall: Temp.temp list
   val K: int
+  val registerCompare: unit -> string * string -> order
 
   val procEntryExit1: frame * Tree.stm -> Tree.stm
   val procEntryExit2: frame * Assem.instr list -> Assem.instr list

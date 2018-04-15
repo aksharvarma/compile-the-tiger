@@ -6,7 +6,7 @@ sig
   datatype moveWL = COALESCED_E | CONSTRAINED | FROZEN | MOVES | ACTIVE
 
   structure N : ORD_SET
-  structure E : ORD_SET                                                      
+  structure E : ORD_SET
 
   val reset: unit -> unit
   val initialize: unit -> unit
@@ -40,14 +40,14 @@ sig
   (* val getEWL: UGraph.move -> nodeWL *)
   (* val NWLtoString: nodeWL -> string *)
   (* val EWLtoString: moveWL -> string *)
-                                                       
+
   val getNodeSet: nodeWL -> N.set
   val getMoveSet: moveWL -> E.set
 
 
   val pushStack: UGraph.node -> unit
   val popStack: unit -> UGraph.node
-  val stackNull: unit -> bool                         
+  val stackNull: unit -> bool
   val getStackSet: unit -> N.set
   (* TODO: DO the rest *)
 
@@ -61,7 +61,7 @@ sig
 
   val getAlias: UGraph.node -> UGraph.node
   val setAlias: UGraph.node * UGraph.node -> unit
-                                 
+
   type allocation = Frame.register Temp.Table.table
   val precolor: (UGraph.node -> Temp.temp) -> unit
   val getColor: Temp.temp -> Frame.register
@@ -76,12 +76,12 @@ datatype nodeWL = PRECOLORED | INITIAL | SIMPLIFY | FREEZE | TOSPILL | SPILLED
                   | COALESCED_N | COLORED
 
 datatype moveWL = COALESCED_E | CONSTRAINED | FROZEN | MOVES | ACTIVE
-                                                                 
+
 (* Set of nodes *)
 structure N = UGraph.S
 (* BinarySetFn(type ord_key = UGraph.node *)
 (*         fun compare(a,b) = UGraph.compare(a,b)) *)
-                
+
 val precolored: N.set ref = ref N.empty
 val initial: N.set ref = ref N.empty
 val simplifyWL: N.set ref = ref N.empty
@@ -94,17 +94,13 @@ val coloredNodes: N.set ref = ref N.empty
 (* Set of edges *)
 structure E = BinarySetFn(type ord_key = N.set
                           fun compare(e1, e2) = N.compare(e1, e2))
-                         
-                         
+
+
 val coalescedMoves: E.set ref = ref E.empty
 val constrainedMoves: E.set ref = ref E.empty
 val frozenMoves: E.set ref = ref E.empty
 val movesWL: E.set ref = ref E.empty
 val activeMoves: E.set ref = ref E.empty
-
-                                 
-structure C = BinarySetFn(type ord_key = string
-                          fun compare(s1, s2) = String.compare(s1, s2))
 
 
 fun getNRef(PRECOLORED) = (precolored)
@@ -125,13 +121,13 @@ fun getERef(COALESCED_E) = (coalescedMoves)
   | getERef(ACTIVE) = (activeMoves)
 
 fun getEWL(wl) = !(getERef(wl))
-                   
+
 
 fun isNullN(wl) = N.isEmpty(getNWL(wl))
 fun isNullE(wl) = E.isEmpty(getEWL(wl))
 fun isNotNullN(wl) = not(isNullN(wl))
 fun isNotNullE(wl) = not(isNullE(wl))
-                        
+
 
 fun addNode(wl, item) = getNRef(wl) := N.add(getNWL(wl), item)
 
@@ -152,7 +148,7 @@ fun chooseE(wl) =
      of SOME(nSet) => nSet
       | NONE => let exception emptyMoveWL
                 in raise emptyMoveWL end
-                  
+
 fun getAndRemoveNode(wl) =
     let
       val n = chooseN(getNWL(wl))
@@ -185,7 +181,7 @@ fun getMoveContents(m) =
          let exception edgeInvariantViolated
          in (print(Int.toString(nItems));
              raise edgeInvariantViolated) end
-    end                 
+    end
 
 fun isNin(wl, n) = N.member(getNWL(wl), n)
 fun isEin(wl, e) = E.member(getEWL(wl), e)
@@ -193,7 +189,7 @@ fun isEin(wl, e) = E.member(getEWL(wl), e)
 fun getNodeSet(wl) = getNWL(wl)
 
 fun getMoveSet(wl) = getEWL(wl)
-                           
+
 
 (* Stack *)
 val selectStack: UGraph.node list ref = ref []
@@ -204,12 +200,12 @@ fun popStack() =
     in
       selectStack := tl(!selectStack);
       n
-    end 
+    end
 fun stackNull() = List.null(!selectStack)
 
 fun getStackSet() = N.addList(N.empty, !selectStack)
 
-                             
+
 fun whichNWL(n) =
     if isNin(PRECOLORED, n) then SOME(PRECOLORED)
     else if isNin(INITIAL, n) then SOME(INITIAL)
@@ -234,13 +230,17 @@ fun printNWL(n) =
     else if List.exists (fn stackN => n=stackN) (!selectStack)
     then print("STACK\n")
     else let exception NotInAnyNWL in raise NotInAnyNWL end
-    
+
+structure C = BinarySetFn(type ord_key = string
+                          fun compare(s1, s2) = Frame.registerCompare() (s1, s2))
+
 (* Ok Colors *)
 val okColors: C.set ref = ref C.empty
 
 fun initOkColors() =
     okColors := C.addList(C.empty, Frame.registers)
-                         
+     (* app (fn c => print(c^" ")) (C.listItems(!okColors))) *)
+
 fun hasFreeColor() = not(C.isEmpty(!okColors))
 
 fun getAvailableColor() =
@@ -263,7 +263,7 @@ fun getAlias(n) =
 
 fun setAlias(n, aliasN) =
     alias := UGraph.Table.enter(!alias, n, aliasN)
-           
+
 
 (* Coloring related *)
 type allocation = Frame.register Temp.Table.table
@@ -272,7 +272,7 @@ val color: allocation ref = ref Temp.Table.empty
 val safeColor: allocation ref = ref Temp.Table.empty
 
 fun updateSafeColors() = safeColor := !color
-                                        
+
 (* Call only after precolored list has been initialized properly *)
 fun precolor(gtemp) =
     (color :=
@@ -290,19 +290,16 @@ fun precolor(gtemp) =
         Temp.Table.empty
         (getNWL(PRECOLORED)));
      updateSafeColors())
-      
-      
+
 fun getColor(t) =
     case Temp.Table.look(!color, t)
      of SOME(s) => s
       | NONE => let exception unColoredNode
                 in raise unColoredNode end
-                  
+
 fun setColor(t, s) = color := Temp.Table.enter(!color, t, s)
 
 fun getAllocation() = !safeColor
-
-
 
 fun reset() =
     (precolored := N.empty;

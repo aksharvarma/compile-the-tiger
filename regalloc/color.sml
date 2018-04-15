@@ -21,7 +21,7 @@ fun color{interference=(Liveness.IGRAPH{graph, tnode, gtemp, moves}),
            in
              (WL.initOkColors();
               (UGraph.S.app
-                 (fn w => 
+                 (fn w =>
                      if WL.N.member(WL.N.union(WL.getNodeSet(WL.COLORED),
                                                WL.getNodeSet(WL.PRECOLORED)),
                                     WL.getAlias(w))

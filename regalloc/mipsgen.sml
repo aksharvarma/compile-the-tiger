@@ -512,7 +512,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
           in
               (* Actual function call *)
               (emit(Assem.OPER{assem="jal "^Symbol.name(funName)^"\n",
-                              src=Frame.findTemp("$ra")::munchArgs(0, args),
+                              src=munchArgs(0, args),
                               dst=Frame.trashedByCall,
                               jump=NONE});
               (* Return the return value *)
