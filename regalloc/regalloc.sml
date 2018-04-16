@@ -16,7 +16,7 @@ struct
 fun alloc(instrs, frame) =
     let
       (* Flow.flowgraph * Graph.node list *)
-      val _ = print("Available Registers: "^Int.toString(Frame.K)^"\n");
+      val _ = print("Available Registers: "^Assem.ourIntToString(Frame.K)^"\n");
       val (cfg, fgNodes) = MakeGraph.instrs2graph(instrs)
       val _ = WL.initialize()
 
@@ -434,7 +434,7 @@ fun alloc(instrs, frame) =
             print("Coloring\n");
             (app
                (fn (t, offset) =>
-                   print(Temp.makeString(t)^":"^Int.toString(offset)^"\n"))
+                   print(Temp.makeString(t)^":"^Assem.ourIntToString(offset)^"\n"))
                (Temp.Table.listItemsi(!accessTab)));
             print("%%%%\n");
             (WL.N.app (fn n =>
@@ -467,7 +467,7 @@ fun alloc(instrs, frame) =
             val _ = print("~~~~\nSpilling temp, offset\n")
             val _ = (app (fn (t, nt) =>
                              print("("^Temp.makeString(t)^", "
-                                   ^Int.toString(nt)^") "))
+                                   ^Assem.ourIntToString(nt)^") "))
                          (Temp.Table.listItemsi(accessTab)))
             val _ = print("\n~~~~\n")
 
@@ -541,7 +541,7 @@ fun alloc(instrs, frame) =
                    * Find the offset from FP, given a spilling temp *)
                   fun findVarOffset(t) =
                       case Temp.Table.look(accessTab, t)
-                       of SOME(offset) => Int.toString(offset)
+                       of SOME(offset) => Assem.ourIntToString(offset)
                         | NONE => (print(Temp.makeString(t)^"\n");
                                    let exception accessNotFound
                                    in raise accessNotFound end)
@@ -654,7 +654,7 @@ fun alloc(instrs, frame) =
            * false will remove them from the list of instrs.
            * eventually the second argument to this can be removed.
            *)
-          (removeRedundantMoves(colorAlloc, true, instrs, []), colorAlloc)
+          (removeRedundantMoves(colorAlloc, false, instrs, []), colorAlloc)
       end
     end
 

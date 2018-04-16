@@ -273,7 +273,7 @@ val allUserRegs = specialRegs@argRegs@calleeSaves@callerSaves
 val physicalRegsT = map (fn (s, t) => t) allUserRegs
 val registers = map (fn (s, t) => s) allUserRegs
 val K = List.length(allUserRegs)
-val trashedByCall = ra::RV::(map (fn (s, t) => t) callerSaves)
+val trashedByCall = ra::RV::(map (fn (s, t) => t) (argRegs@callerSaves))
 
 (* registerCompare : unit -> string * string -> order *)
 fun registerCompare() =

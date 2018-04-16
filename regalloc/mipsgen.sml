@@ -63,7 +63,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Nodes: 5
          *)
         | munchStm(T.MOVE(T.MEM(T.BINOP(T.PLUS, e1, T.CONST i)), e2)) =
-          emit(Assem.OPER{assem="sw 's0, "^Int.toString(i)^"('s1)\n",
+          emit(Assem.OPER{assem="sw 's0, "^Assem.ourIntToString(i)^"('s1)\n",
                           src=[munchExp e2, munchExp e1],
                           dst=[],
                           jump=NONE})
@@ -72,7 +72,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Nodes: 5
          *)
         | munchStm(T.MOVE(T.MEM(T.BINOP(T.PLUS, T.CONST i, e1)), e2)) =
-          emit(Assem.OPER{assem="sw 's0, "^Int.toString(i)^"('s1)\n",
+          emit(Assem.OPER{assem="sw 's0, "^Assem.ourIntToString(i)^"('s1)\n",
                           src=[munchExp e2, munchExp e1],
                           dst=[],
                           jump=NONE})
@@ -81,7 +81,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Nodes: 5
          *)
         | munchStm(T.MOVE(e1, T.MEM(T.BINOP(T.PLUS, e2, T.CONST i)))) =
-          emit(Assem.OPER{assem="lw 'd0, "^Int.toString(i)^"('s0)\n",
+          emit(Assem.OPER{assem="lw 'd0, "^Assem.ourIntToString(i)^"('s0)\n",
                           src=[munchExp e2],
                           dst=[munchExp e1],
                           jump=NONE})
@@ -90,7 +90,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Nodes: 5
          *)
         | munchStm(T.MOVE(e1, T.MEM(T.BINOP(T.PLUS, T.CONST i, e2)))) =
-          emit(Assem.OPER{assem="lw 'd0, "^Int.toString(i)^"('s0)\n",
+          emit(Assem.OPER{assem="lw 'd0, "^Assem.ourIntToString(i)^"('s0)\n",
                           src=[munchExp e2],
                           dst=[munchExp e1],
                           jump=NONE})
@@ -108,7 +108,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Nodes: 2
          *)
         | munchStm(T.MOVE(e1, T.CONST i)) =
-          emit(Assem.OPER({assem="li 'd0, "^Int.toString(i)^"\n",
+          emit(Assem.OPER({assem="li 'd0, "^Assem.ourIntToString(i)^"\n",
                            src=[],
                            dst=[munchExp e1],
                            jump=NONE}))
@@ -396,7 +396,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Nodes: 4
          *)
         | munchExp(T.MEM(T.BINOP(T.PLUS, e1, T.CONST i))) =
-          (result(fn r => emit(Assem.OPER{assem="lw 'd0, "^Int.toString(i)^"('s0)\n",
+          (result(fn r => emit(Assem.OPER{assem="lw 'd0, "^Assem.ourIntToString(i)^"('s0)\n",
                                           src=[munchExp e1], dst=[r],
                                           jump=NONE})))
 
@@ -404,7 +404,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Nodes: 4
          *)
         | munchExp(T.MEM(T.BINOP(T.PLUS, T.CONST i, e1))) =
-          (result(fn r => emit(Assem.OPER{assem="lw 'd0, "^Int.toString(i)^"('s0)\n",
+          (result(fn r => emit(Assem.OPER{assem="lw 'd0, "^Assem.ourIntToString(i)^"('s0)\n",
                                           src=[munchExp e1], dst=[r],
                                           jump=NONE})))
 
@@ -422,7 +422,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Nodes: 3
          *)
         | munchExp(T.BINOP(T.PLUS, e, T.CONST i)) =
-          (result(fn r => emit(Assem.OPER{assem="addi 'd0, 's0, "^Int.toString(i)^"\n",
+          (result(fn r => emit(Assem.OPER{assem="addi 'd0, 's0, "^Assem.ourIntToString(i)^"\n",
                                           src=[munchExp e], dst=[r],
                                           jump=NONE})))
 
@@ -430,7 +430,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Nodes: 3
          *)
         | munchExp(T.BINOP(T.PLUS, T.CONST i, e)) =
-          (result(fn r => emit(Assem.OPER{assem="addi 'd0, 's0, "^Int.toString(i)^"\n",
+          (result(fn r => emit(Assem.OPER{assem="addi 'd0, 's0, "^Assem.ourIntToString(i)^"\n",
                                           src=[munchExp e], dst=[r],
                                           jump=NONE})))
 
@@ -486,7 +486,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Nodes: 1
          *)
         | munchExp(T.CONST(i)) =
-          (result(fn r => emit(Assem.OPER{assem="li 'd0, "^Int.toString(i)^"\n",
+          (result(fn r => emit(Assem.OPER{assem="li 'd0, "^Assem.ourIntToString(i)^"\n",
                                           src=[], dst=[r],
                                           jump=NONE})))
 
@@ -531,15 +531,16 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
            (if i<4
            then (* Pass in $a0--$a3 *)
              let
-               val argTemp = Frame.findTemp("$a"^Int.toString(i))
+               val argTemp = Frame.findTemp("$a"^Assem.ourIntToString(i))
              in
-               (emit(Assem.MOVE{assem="move $a"^Int.toString(i)^", 's0\n",
+               (emit(Assem.MOVE{assem="move $a"^Assem.ourIntToString(i)^", 's0\n",
                                 src=(munchExp arg),
                                 dst=argTemp});
                 argTemp::munchArgs(i+1, args))
               end
            else (* Put on the stack frame *)
-             (emit(Assem.OPER{assem="sw 's0,"^Int.toString(i*Frame.wordSize)^"($sp)\n",
+             (emit(Assem.OPER{assem="sw 's0,"^Assem.ourIntToString(i*Frame.wordSize)
+                                     ^"($sp)\n",
                               src=[munchExp arg, Frame.SP],
                               dst=[],
                               jump=NONE});
