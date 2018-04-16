@@ -238,8 +238,8 @@ val argRegs:(register * Temp.temp) list = [("$a0", a0),
  * return value register ($v1=$r3) as they will not be used for their
  * special purposes
  *)
-val calleeSaves:(register * Temp.temp) list = [("$s0", Temp.newTemp())
-                                              (* ("$s1", Temp.newTemp()),
+val calleeSaves:(register * Temp.temp) list = [("$s0", Temp.newTemp()),
+                                               ("$s1", Temp.newTemp()),
                                                ("$s2", Temp.newTemp()),
                                                ("$s3", Temp.newTemp()),
                                                ("$s4", Temp.newTemp()),
@@ -247,11 +247,11 @@ val calleeSaves:(register * Temp.temp) list = [("$s0", Temp.newTemp())
                                                ("$s6", Temp.newTemp()),
                                                ("$s7", Temp.newTemp()),
                                                ("$r30", Temp.newTemp()),
-                                               ("$r3", Temp.newTemp()) *)]
+                                               ("$r3", Temp.newTemp())]
 
 (* Caller saved registers: $t0-$t9 *)
-val callerSaves:(register * Temp.temp) list = [("$t0", Temp.newTemp())
-                                               (*("$t1", Temp.newTemp()),
+val callerSaves:(register * Temp.temp) list = [("$t0", Temp.newTemp()),
+                                               ("$t1", Temp.newTemp()),
                                                ("$t2", Temp.newTemp()),
                                                ("$t3", Temp.newTemp()),
                                                ("$t4", Temp.newTemp()),
@@ -259,7 +259,7 @@ val callerSaves:(register * Temp.temp) list = [("$t0", Temp.newTemp())
                                                ("$t6", Temp.newTemp()),
                                                ("$t7", Temp.newTemp()),
                                                ("$t8", Temp.newTemp()),
-                                               ("$t9", Temp.newTemp()) *)]
+                                               ("$t9", Temp.newTemp())]
 
 (* These are reserved registers that cannot be used by the program  *)
 val reservedRegs:(register * Temp.temp) list = [("$at", Temp.newTemp()),
