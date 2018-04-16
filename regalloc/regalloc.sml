@@ -26,14 +26,14 @@ fun alloc(instrs, frame) =
 
       (* val _ = Liveness.show(TextIO.stdOut, igraph) *)
 
-      fun copyAdjList(Liveness.IGRAPH{graph, tnode, gtemp, moves}) =
+      fun copyAdjList(graph) =
           (foldr (fn ((n, adjSet), tab) =>
                      UGraph.Table.enter(tab, n, adjSet))
                  UGraph.Table.empty
                  (map (fn n => (n, UGraph.adjSet graph (n)))
                       (UGraph.nodeList(graph))))
 
-      val adjTab = copyAdjList(igraph)
+      val adjTab = copyAdjList(graph)
 
       fun nodeMoves(n) =
           let
@@ -256,39 +256,52 @@ fun alloc(instrs, frame) =
 
       fun colorSpilled() =
           let
+
             val _ = print("spill-to-spill-edges\n")
             val _ =
                 WL.N.app (fn n =>
                              UGraph.S.app
                                (fn m =>
                                    if WL.isNin(WL.SPILLED, m)
-                                   then print(Temp.makeString(gtemp n)^", "^
-                                              Temp.makeString(gtemp m)^"\n")
-                                   else ())
-                               (UGraph.adjSet graph n))
-                         (WL.getNodeSet(WL.SPILLED))
-
-            (* Remove edges containing non-spilling nodes *)
+                                   then (print(Temp.makeString(gtemp n)^", "^
+                                               Temp.makeString(gtemp m)^"\n"))
+                                   else ()
+                               ) (UGraph.lookUpNode(adjTab, n))
+                         ) (WL.getNodeSet(WL.SPILLED))
+            (* Remove edges containing non-spilling nodes
+             * and add edges containing spilling nodes
+             * These are necessary to get the correct interference graph
+             * and remove any effects of the simplify/coalesce phases earlier
+             *)
             val _ =
-                UGraph.S.app (fn n => if not(WL.isNin(WL.SPILLED, n))
-                                      then (UGraph.S.app
-                                              (fn m => UGraph.rmEdge graph (n,m))
-                                              (UGraph.adjSet graph n))
-                                      else ()) (UGraph.nodeSet graph)
+                UGraph.S.app
+                  (fn n => if not(WL.isNin(WL.SPILLED, n))
+                           then (UGraph.S.app
+                                   (fn m => UGraph.rmEdge graph (n,m)
+                                   ) (UGraph.adjSet graph n))
+                           else (UGraph.S.app
+                                   (fn m => if WL.isNin(WL.SPILLED, m)
+                                            then UGraph.mkEdge graph (n,m)
+                                            else ()
+                                   ) (UGraph.lookUpNode(adjTab, n)))
+                  ) (UGraph.nodeSet graph)
 
-            val _ = print("\nremaining-edges-in-the-new-graph\n")
+            val _ = print("\nremaining-edges-in-the-new-graph\n");
             val _ =
                 (UGraph.S.app
                    (fn n =>
                        if not(UGraph.S.isEmpty((UGraph.adjSet graph n)))
                        then
-                       (print(Temp.makeString(gtemp n)^":\n");
-                        (UGraph.S.app (fn n => print(Temp.makeString(gtemp n)^" "))
-                                      (UGraph.adjSet graph n)))
+                         (print(Temp.makeString(gtemp n)^": ");
+                          WL.printNWL(n);
+                          (UGraph.S.app (fn n =>
+                                            print(Temp.makeString(gtemp n)^" "))
+                                        (UGraph.adjSet graph n));
+                          print("\n"))
                        else ())
                    (UGraph.nodeSet graph))
-            val _ = print("\n")
-
+            val spillAdjTab = copyAdjList(graph)
+                  
             (* Drop move table entries unless it's for a SPILLED node *)
             val moves' =
                 foldr (fn ((n, eSet), set) =>
@@ -360,35 +373,59 @@ fun alloc(instrs, frame) =
                 end
 
             val accessTab = ref Temp.Table.empty
-            fun color([], accessTab) = accessTab
-              | color(n::ns, accessTab) =
+
+            fun color([], accessTab, graph) = accessTab
+              | color(n::ns, accessTab, graph) =
                 let
+                  val _ = print("["^Temp.makeString(gtemp n)^"] ")
                   (* Table of used offsets, try to use these. *)
                   val okColors = (foldr (fn ((_, offset), set) =>
                                            WL.I.add(set, offset))
                                        WL.I.empty
                                        (Temp.Table.listItemsi accessTab))
+                  val _ = print("okColors: ");
+                  val _ = WL.I.app (fn i => print(Int.toString(i)^" "))
+                                   okColors
+
+                  val _ = print(" available:\n")
+                  val _ = print("Juadsfinaomids\n")
+                  val _ =
+                      UGraph.S.app
+                        (fn m =>
+                            (print(Temp.makeString(gtemp n)^", "^
+                                   Temp.makeString(gtemp m)^"\n"))
+                        ) (UGraph.lookUpNode(spillAdjTab, n))
+                  val _ = print("edrtfiyhunjm\n")
+
+
                   (* Remove offsets of any neighbours *)
                   val availableColors =
                       (WL.N.foldr (fn (w, availableColors) =>
+                                      (print("neighbour:"^Temp.makeString(w)^"<-");
                                       case Temp.Table.look(accessTab,
                                                            gtemp(getAlias(w)))
                                        of SOME(offset) =>
-                                          WL.I.delete(availableColors, offset)
-                                        | NONE => availableColors)
-                                  okColors (UGraph.adjSet graph n))
+                                          (print(Int.toString(offset)^"\n");
+                                           WL.I.delete(availableColors, offset))
+                                        | NONE => (print("\n");
+                                                   availableColors))
+                                  ) okColors (UGraph.lookUpNode(spillAdjTab, n)))
+
+                  val _ = WL.I.app (fn i => print(Int.toString(i)^" "))
+                                   availableColors
                   (* Choose from availableColors, or ask for new stack slot *)
                   val chosenColor =
                       case (WL.I.find (fn _ => true) availableColors)
                        of SOME(offset) => offset
                         | NONE => Frame.getOffset(Frame.allocLocal
                                                     frame true)
+                  val _ = print("\nchosen: "^Int.toString(chosenColor)^"\n")
                 in
                   (* Recursively color the rest *)
-                  color(ns, Temp.Table.enter(accessTab, gtemp n, chosenColor))
+                  color(ns, Temp.Table.enter(accessTab, gtemp n, chosenColor), graph)
                 end
           in
-            print("SPILLED\n");
+            print("\nSPILLED\n");
             (WL.N.app (fn n => print(Temp.makeString(gtemp n)^" "))
                       (WL.getNodeSet(WL.SPILLED)));
             (* The coalescing loop *)
@@ -415,7 +452,7 @@ fun alloc(instrs, frame) =
                   end;
             (* Get set of nodes to be simplified  *)
             simplify := WL.N.filter (fn n => if WL.N.exists (fn m => m=n)
-                                                           (!coalescedSet)
+                                                            (!coalescedSet)
                                              then false else true)
                                     (WL.getNodeSet(WL.SPILLED));
             print("\nSimplifyWL\n");
@@ -429,9 +466,9 @@ fun alloc(instrs, frame) =
 
             while not(WL.N.isEmpty(!simplify)) do doSimplify();
 
-            accessTab := color(!colorOrder, !accessTab);
+            accessTab := color(!colorOrder, !accessTab, graph);
 
-            print("Coloring\n");
+            print("Colored\n");
             (app
                (fn (t, offset) =>
                    print(Temp.makeString(t)^":"^Assem.ourIntToString(offset)^"\n"))
