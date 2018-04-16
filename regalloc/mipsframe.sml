@@ -231,7 +231,7 @@ val argRegs:(register * Temp.temp) list = [("$a0", a0),
 
 (* Callee saved registers: $s0-$s7.
  * This list also includes the frame pointer register ($r30) and the second
- * return value register ($v1) because they will not otherwise be used for their
+ * return value register ($v1=$r3) as they will not be used for their
  * special purposes
  *)
 val calleeSaves:(register * Temp.temp) list = [("$s0", Temp.newTemp()),
@@ -270,49 +270,6 @@ val physicalRegsT = map (fn (s, t) => t) allUserRegs
 val registers = map (fn (s, t) => s) allUserRegs
 val K = List.length(allUserRegs)
 val trashedByCall = ra::RV::(map (fn (s, t) => t) callerSaves)
-(*
-fun registerCompare("$ra", "$ra") = EQUAL
-  | registerCompare("$ra", _) = GREATER
-  | registerCompare(_, "$ra") = LESS
-  | registerCompare("$sp", "$sp") = EQUAL
-  | registerCompare("$sp", _) = GREATER
-  | registerCompare(_, "$sp") = LESS
-  | registerCompare("$zero", "$zero") = EQUAL
-  | registerCompare("$zero", _) = GREATER
-  | registerCompare(_, "$zero") = LESS
-  | registerCompare("$v0", "$v0") = EQUAL
-  | registerCompare("$v0", _) = GREATER
-  | registerCompare(_, "$v0") = LESS
-  | registerCompare(a, b) =
-  let
-    fun contains(l, item:string) = List.exists (fn (r,t) => r = item) l
-    (* val dontPrefer = ["$r3", "$ra", "$v0", "$r30"]
-    val a' = if (List.exists (fn r => r = a) dontPrefer)
-             then "zz"^a else a
-    val b' = if (List.exists (fn r => r = b) dontPrefer)
-             then "zz"^b else b *)
-  in
-    if a = b
-    then EQUAL
-    else if contains(callerSaves, a) andalso contains(calleeSaves, b)
-    then LESS
-    else if contains(calleeSaves, a) andalso contains(callerSaves, b)
-    then GREATER
-    else if contains(calleeSaves, a) andalso contains(calleeSaves, b)
-    then (if a = b
-          then EQUAL
-          else if a = "$r3" orelse a = "$r30"
-          then GREATER
-          else if b = "$r3" orelse b = "$r30"
-          then LESS
-          else String.compare(a, b))
-    else if contains(argRegs, b)
-    then LESS
-    else if contains(argRegs, a)
-    then String.compare(b, a)
-    else String.compare(a, b)
-  end
-     *)
 
 fun registerCompare() =
   let

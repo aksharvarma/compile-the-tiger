@@ -16,6 +16,7 @@ struct
 fun alloc(instrs, frame) =
     let
       (* Flow.flowgraph * Graph.node list *)
+      val _ = print("Available Registers: "^Int.toString(Frame.K)^"\n");
       val (cfg, fgNodes) = MakeGraph.instrs2graph(instrs)
       val _ = WL.initialize()
 
@@ -69,11 +70,6 @@ fun alloc(instrs, frame) =
             (UGraph.nodeSet(graph))
 
       val _ = makeWLs()
-      (* val _ = print("FREEZE\n"); *)
-      (* val _ = WL.N.app *)
-      (*           (fn n => print((Frame.tempToString Frame.tempMap (gtemp(n)))^" ")) *)
-      (*             (WL.getNodeSet(WL.FREEZE)) *)
-      (* val _ = print("\n"); *)
 
       val _ = WL.precolor(gtemp)
 
@@ -140,7 +136,13 @@ fun alloc(instrs, frame) =
                 if (not(WL.isNin(WL.PRECOLORED, u))
                     andalso not(moveRelated(u))
                     andalso (ourDegree graph u) < Frame.K)
-                then (WL.removeNode(WL.FREEZE, u);
+                then ((case WL.whichNWL(u)
+                       of SOME(WL.FREEZE) => ()
+                        | _ => (print("WL before removal attempt: ");
+                                WL.printNWL(u);
+                                let exception notInFreezeWhenRemoving
+                                in raise notInFreezeWhenRemoving end));
+                      WL.removeNode(WL.FREEZE, u);
                       WL.addNode(WL.SIMPLIFY, u))
                 else ()
 
@@ -195,7 +197,6 @@ fun alloc(instrs, frame) =
                     and y =  WL.getAlias(y')
                     val (u, v) = if WL.isNin(WL.PRECOLORED, y)
                                  then (y, x) else (x, y)
-
                   in
                     if u=v
                     then (WL.addMove(WL.COALESCED_E, m);
@@ -203,7 +204,8 @@ fun alloc(instrs, frame) =
                     else if WL.isNin(WL.PRECOLORED, v)
                             orelse UGraph.S.member(UGraph.lookUpNode(adjTab, u), v)
                     then (WL.addMove(WL.CONSTRAINED, m);
-                          addWorkList(u); addWorkList(v))
+                          addWorkList(u);
+                          addWorkList(v))
                     else if (WL.isNin(WL.PRECOLORED, u)
                              andalso coalesceGeorge(u, v)) orelse
                             (not(WL.isNin(WL.PRECOLORED, u))
@@ -211,7 +213,7 @@ fun alloc(instrs, frame) =
                     then (WL.addMove(WL.COALESCED_E, m);
                           combine(u, v);
                           addWorkList(u))
-                    else WL.addMove(WL.ACTIVE, m)
+                    else (WL.addMove(WL.ACTIVE, m))
                   end
           end
 
@@ -252,23 +254,222 @@ fun alloc(instrs, frame) =
              freezeMoves(m))
           end
 
+      fun colorSpilled() =
+          let
+            val _ = print("spill-to-spill-edges\n")
+            val _ =
+                WL.N.app (fn n =>
+                             UGraph.S.app
+                               (fn m =>
+                                   if WL.isNin(WL.SPILLED, m)
+                                   then print(Temp.makeString(gtemp n)^", "^
+                                              Temp.makeString(gtemp m)^"\n")
+                                   else ())
+                               (UGraph.adjSet graph n))
+                         (WL.getNodeSet(WL.SPILLED))
+
+            (* Remove edges containing non-spilling nodes *)
+            val _ =
+                UGraph.S.app (fn n => if not(WL.isNin(WL.SPILLED, n))
+                                      then (UGraph.S.app
+                                              (fn m => UGraph.rmEdge graph (n,m))
+                                              (UGraph.adjSet graph n))
+                                      else ()) (UGraph.nodeSet graph)
+
+            val _ = print("\nremaining-edges-in-the-new-graph\n")
+            val _ =
+                (UGraph.S.app
+                   (fn n =>
+                       if not(UGraph.S.isEmpty((UGraph.adjSet graph n)))
+                       then 
+                       (print(Temp.makeString(gtemp n)^":\n");
+                        (UGraph.S.app (fn n => print(Temp.makeString(gtemp n)^" "))
+                                      (UGraph.adjSet graph n)))
+                       else ())
+                   (UGraph.nodeSet graph))
+            val _ = print("\n")
+
+            (* Drop move table entries unless it's for a SPILLED node *)
+            val moves' =
+                foldr (fn ((n, eSet), set) =>
+                          if not(WL.isNin(WL.SPILLED, n))
+                          then set
+                          else WL.E.union(set, eSet))
+                      WL.E.empty
+                      (UGraph.Table.listItemsi(moves))
+
+            (* Now remove any moves containing unspilled node on either side,
+             * from remaining move edges; they are not eligible moves anymore.
+             *)
+            val newMoves =
+                ref (WL.E.foldr
+                       (fn (nSet, newESet) =>
+                           if (WL.N.exists (fn n =>
+                                               not(WL.isNin(WL.SPILLED, n)))
+                                           nSet)
+                           then newESet else WL.E.add(newESet, nSet))
+                       WL.E.empty
+                       moves')
+
+            (* Not using the NONE mechanism to keep track of coalesced
+             * vs. simplify anymore.
+             *)
+            val aliasTab =
+                ref (WL.N.foldr (fn (n, tab) => UGraph.Table.enter(tab, n, n))
+                                UGraph.Table.empty (WL.getNodeSet(WL.SPILLED)))
+            fun getAlias(n) = case UGraph.Table.look(!aliasTab, n)
+                               of SOME(m) => if n=m
+                                             then n else getAlias(m)
+                                | NONE => let exception unInitAlias
+                                          in raise unInitAlias end
+            fun setAlias(n, aliasN) =
+                aliasTab := UGraph.Table.enter(!aliasTab, n, aliasN)
+
+            (* Using an explicit coalescedSet now. Easier to debug. *)
+            val coalescedSet = ref WL.N.empty
+            fun combine(u, v) =
+                (setAlias(v, u);
+                 (* Add to the coalescedSet *)
+                 coalescedSet := WL.N.add(!coalescedSet, v);
+                 newMoves :=
+                 (WL.E.foldr (fn (nSet, newESet) =>
+                                 WL.E.add(newESet,
+                                          (WL.N.map
+                                             (fn x => if x=v then u else x)
+                                             nSet)))
+                        WL.E.empty (!newMoves));
+                 (WL.N.app (fn t => (UGraph.mkEdge graph (t, u);
+                                     UGraph.rmEdge graph (t, v)))
+                                      (UGraph.adjSet graph v)))
+
+            val simplify = ref WL.N.empty
+            val colorOrder = ref []
+            fun doSimplify() =
+                let
+                  val n =       (* Pick min-degree node to simplify *)
+                      (WL.N.foldr (fn (n, minDeg) =>
+                                      if (UGraph.degree graph n) <
+                                         (UGraph.degree graph minDeg)
+                                      then n else minDeg)
+                                  (WL.chooseN(!simplify)) (!simplify))
+                in
+                  simplify := WL.N.delete(!simplify, n);
+                  colorOrder := n::(!colorOrder);
+                  UGraph.S.app (fn t => UGraph.rmEdge graph (n, t))
+                               (UGraph.adjSet graph n)
+                end
+
+            val accessTab = ref Temp.Table.empty
+            fun color([], accessTab) = accessTab
+              | color(n::ns, accessTab) = 
+                let
+                  (* Table of used offsets, try to use these. *)
+                  val okColors = (foldr (fn ((_, offset), set) =>
+                                           WL.I.add(set, offset))
+                                       WL.I.empty
+                                       (Temp.Table.listItemsi accessTab))
+                  (* Remove offsets of any neighbours *)
+                  val availableColors =
+                      (WL.N.foldr (fn (w, availableColors) =>
+                                      case Temp.Table.look(accessTab,
+                                                           gtemp(getAlias(w)))
+                                       of SOME(offset) =>
+                                          WL.I.delete(availableColors, offset)
+                                        | NONE => availableColors)
+                                  okColors (UGraph.adjSet graph n))
+                  (* Choose from availableColors, or ask for new stack slot *)
+                  val chosenColor =
+                      case (WL.I.find (fn _ => true) availableColors)
+                       of SOME(offset) => offset
+                        | NONE => Frame.getOffset(Frame.allocLocal
+                                                    frame true)
+                in
+                  (* Recursively color the rest *)
+                  color(ns, Temp.Table.enter(accessTab, gtemp n, chosenColor))
+                end
+          in
+            print("SPILLED\n");
+            (WL.N.app (fn n => print(Temp.makeString(gtemp n)^" "))
+                      (WL.getNodeSet(WL.SPILLED)));
+            (* The coalescing loop *)
+            while not(WL.E.isEmpty(!newMoves)) do
+                  let
+                    val m = case WL.E.find (fn _ => true) (!newMoves)
+                             of SOME(m') => m'
+                              | NONE => let exception WontHappen
+                                        in raise WontHappen end
+                    val _ = (newMoves := WL.E.delete(!newMoves, m))
+                    val (x', y') = WL.getMoveContents(m)
+                    val _ = print("x':"^Temp.makeString(gtemp x')^", "^
+                                  "y':"^Temp.makeString(gtemp y')^"\n");
+                    val u = getAlias(x')
+                    and v = getAlias(y')
+                    val _ = print("u:"^Temp.makeString(gtemp u)^", "^
+                                  "v:"^Temp.makeString(gtemp v)^"\n");
+                  in
+                    if u=v
+                    then (print("should you reach here?\n");
+                          coalescedSet := WL.N.add(!coalescedSet, v))
+                    else if not(UGraph.S.member(UGraph.adjSet graph u, v))
+                    then combine(u, v) else ()
+                  end;
+            (* Get set of nodes to be simplified  *)
+            simplify := WL.N.filter (fn n => if WL.N.exists (fn m => m=n)
+                                                           (!coalescedSet)
+                                             then false else true)
+                                    (WL.getNodeSet(WL.SPILLED));
+            print("\nSimplifyWL\n");
+            (WL.N.app (fn n => print(Temp.makeString(gtemp n)^" "))
+                      (!simplify));
+            print("\nCoalescedWL\n");
+            (WL.N.app
+               (fn n => print(Temp.makeString(gtemp n)^"->"^
+                              Temp.makeString(gtemp(getAlias n))^"\n"))
+               (!coalescedSet));
+
+            while not(WL.N.isEmpty(!simplify)) do doSimplify();
+
+            accessTab := color(!colorOrder, !accessTab);
+
+            print("Coloring\n");
+            (app
+               (fn (t, offset) =>
+                   print(Temp.makeString(t)^":"^Int.toString(offset)^"\n"))
+               (Temp.Table.listItemsi(!accessTab)));
+            print("%%%%\n");
+            (WL.N.app (fn n =>
+                          let
+                            val aliasN = getAlias(n)
+                            val _ = print(Temp.makeString(gtemp n)^": "^
+                                          Temp.makeString(gtemp aliasN)^"\n")
+                            val _ = if n = aliasN
+                                    then let exception aliasIsSelf
+                                         in raise aliasIsSelf end
+                                    else ()
+                            val aliasColor =
+                                case Temp.Table.look(!accessTab, gtemp aliasN)
+                                 of SOME(i) => i
+                                  | NONE => let exception uncoloredAlias
+                                            in raise uncoloredAlias end
+                          in
+                            accessTab := Temp.Table.enter(!accessTab,
+                                                          gtemp n, aliasColor)
+                          end)
+                      (!coalescedSet));
+            print("****\n");
+            !accessTab
+          end
+            
       fun rewriteProgram() =
           let
-            val accessTab =
-                (WL.N.foldr
-                   (fn (t, tab) =>
-                       Temp.Table.enter(tab, t,
-                                        Frame.getOffset(Frame.allocLocal frame
-                                                                         true)))
-                   Temp.Table.empty
-                   (WL.N.map gtemp (WL.getNodeSet(WL.SPILLED))))
+            val accessTab = colorSpilled()
 
-            (* val _ = print("~~~~\nSpilling temp, offset\n") *)
-            (* val _ = (app (fn (t, nt) => *)
-            (*                  print("("^Temp.makeString(t)^", " *)
-            (*                        ^Int.toString(nt)^") ")) *)
-            (*              (Temp.Table.listItemsi(accessTab))) *)
-            (* val _ = print("\n~~~~\n") *)
+            val _ = print("~~~~\nSpilling temp, offset\n")
+            val _ = (app (fn (t, nt) =>
+                             print("("^Temp.makeString(t)^", "
+                                   ^Int.toString(nt)^") "))
+                         (Temp.Table.listItemsi(accessTab)))
+            val _ = print("\n~~~~\n")
 
             fun rewriteInstr(instr as Assem.LABEL{assem, lab}) = [instr]
               | rewriteInstr(instr) =
@@ -341,8 +542,9 @@ fun alloc(instrs, frame) =
                   fun findVarOffset(t) =
                       case Temp.Table.look(accessTab, t)
                        of SOME(offset) => Int.toString(offset)
-                        | NONE => let exception accessNotFound
-                                  in raise accessNotFound end
+                        | NONE => (print(Temp.makeString(t)^"\n");
+                                   let exception accessNotFound
+                                   in raise accessNotFound end)
 
                   (* Add instrs to handle spilling temps in srcs *)
                   val prevInstr =
@@ -441,7 +643,7 @@ fun alloc(instrs, frame) =
              else if WL.isNotNullN(WL.TOSPILL)
              then (selectSpill())
              else ());
-      if WL.isNotNullE(WL.FROZEN) then print("froze\n") else ();
+      if WL.isNotNullE(WL.FROZEN) then print("froze some move\n") else ();
       let
         val colorAlloc =
             (Color.color{interference=igraph,
@@ -449,16 +651,15 @@ fun alloc(instrs, frame) =
                          spillCost=
                          (fn n:UGraph.node => ~(ourDegree graph (n))),
                          registers=Frame.registers})
-
       in
         if WL.isNotNullN(WL.SPILLED)
-        then (print("spilled\n");alloc(rewriteProgram(), frame))
+        then (print("rewriting\n");alloc(rewriteProgram(), frame))
         else
           (* Set 2nd argument to true to keep redundant moves (commented out)
            * false will remove them from the list of instrs.
            * eventually the second argument to this can be removed.
            *)
-          (removeRedundantMoves(colorAlloc, false, instrs, []), colorAlloc)
+          (removeRedundantMoves(colorAlloc, true, instrs, []), colorAlloc)
       end
     end
 

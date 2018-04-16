@@ -68,6 +68,8 @@ sig
   val setColor: Temp.temp * Frame.register -> unit
   val updateSafeColors: unit -> unit
   val getAllocation: unit -> allocation
+
+  structure I: ORD_SET
 end
 
 structure WL:WL =
@@ -325,4 +327,7 @@ fun initialize() = (reset();())
 fun initializeWL(wl) = ()
                          (* fun makeWLs(igraph) = () *)
 
+structure I = BinarySetFn(type ord_key = int
+                          fun compare(e1, e2) = Int.compare(e1, e2))
+                         
 end
