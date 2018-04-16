@@ -301,7 +301,7 @@ fun alloc(instrs, frame) =
                        else ())
                    (UGraph.nodeSet graph))
             val spillAdjTab = copyAdjList(graph)
-                  
+
             (* Drop move table entries unless it's for a SPILLED node *)
             val moves' =
                 foldr (fn ((n, eSet), set) =>
@@ -406,7 +406,11 @@ fun alloc(instrs, frame) =
                                                            gtemp(getAlias(w)))
                                        of SOME(offset) =>
                                           (print(Int.toString(offset)^"\n");
-                                           WL.I.delete(availableColors, offset))
+                                           if WL.I.member(availableColors,
+                                           offset)
+                                           then
+                                           WL.I.delete(availableColors, offset)
+                                           else availableColors)
                                         | NONE => (print("\n");
                                                    availableColors))
                                   ) okColors (UGraph.lookUpNode(spillAdjTab, n)))
@@ -500,7 +504,6 @@ fun alloc(instrs, frame) =
       fun rewriteProgram() =
           let
             val accessTab = colorSpilled()
-
             val _ = print("~~~~\nSpilling temp, offset\n")
             val _ = (app (fn (t, nt) =>
                              print("("^Temp.makeString(t)^", "
