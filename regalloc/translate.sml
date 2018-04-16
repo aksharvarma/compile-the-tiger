@@ -2,7 +2,6 @@
  * allowing Semant to interact with both the MipsFrame module
  * (for frame analysis) and Tree (for AST to IR translation) module.
  *)
-
 structure Translate:>TRANSLATE =
 struct
 

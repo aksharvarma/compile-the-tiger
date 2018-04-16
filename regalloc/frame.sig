@@ -38,8 +38,7 @@ sig
   datatype frag = PROC of {body: Tree.stm, frame: frame}
                 | STRING of Temp.label * string
 
-  (* The following two functions are to facilitate debugging *)
-  val printAccess: access -> unit
+  (* The following function is to facilitate debugging *)
   val printFrame: frame -> unit
 end
 

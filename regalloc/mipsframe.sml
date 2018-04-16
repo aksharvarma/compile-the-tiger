@@ -76,9 +76,13 @@ datatype frag = PROC of {body: Tree.stm, frame: frame}
 fun exp(InFrame(k)) = (fn(ex) => T.MEM(T.BINOP(T.PLUS, ex, T.CONST(k))))
   | exp(InReg(t)) = (fn (ex) => T.TEMP t)
 
+(* getOffset : access -> int
+ *
+ * Given an access, returns the offset from the frame pointer if it was InFrame,
+ * otherwise, throw an exception
+ *)
 fun getOffset(InFrame(k)) = k
   | getOffset(InReg(t)) = let exception offSetOfReg in raise offSetOfReg end
-
 
 (* Printing functions for debugging *)
 (* printExp: string * Tree.exp -> unit *)
@@ -210,12 +214,12 @@ type register = string
  * Used for referencing the correct temp when assigning arguments
  * to arg regs
  *)
-val v1 = Temp.newTemp()
-and a0 = Temp.newTemp()
+val a0 = Temp.newTemp()
 and a1 = Temp.newTemp()
 and a2 = Temp.newTemp()
 and a3 = Temp.newTemp()
 and ra = Temp.newTemp()
+
 (* Includes return value ($v0), zero reg ($zero), return address ($ra), and
  * stack pointer ($sp)
  *)
@@ -234,8 +238,8 @@ val argRegs:(register * Temp.temp) list = [("$a0", a0),
  * return value register ($v1=$r3) as they will not be used for their
  * special purposes
  *)
-val calleeSaves:(register * Temp.temp) list = [("$s0", Temp.newTemp()),
-                                               ("$s1", Temp.newTemp()),
+val calleeSaves:(register * Temp.temp) list = [("$s0", Temp.newTemp())
+                                              (* ("$s1", Temp.newTemp()),
                                                ("$s2", Temp.newTemp()),
                                                ("$s3", Temp.newTemp()),
                                                ("$s4", Temp.newTemp()),
@@ -243,11 +247,11 @@ val calleeSaves:(register * Temp.temp) list = [("$s0", Temp.newTemp()),
                                                ("$s6", Temp.newTemp()),
                                                ("$s7", Temp.newTemp()),
                                                ("$r30", Temp.newTemp()),
-                                               ("$r3", v1)]
+                                               ("$r3", Temp.newTemp()) *)]
 
 (* Caller saved registers: $t0-$t9 *)
-val callerSaves:(register * Temp.temp) list = [("$t0", Temp.newTemp()),
-                                               ("$t1", Temp.newTemp()),
+val callerSaves:(register * Temp.temp) list = [("$t0", Temp.newTemp())
+                                               (*("$t1", Temp.newTemp()),
                                                ("$t2", Temp.newTemp()),
                                                ("$t3", Temp.newTemp()),
                                                ("$t4", Temp.newTemp()),
@@ -255,7 +259,7 @@ val callerSaves:(register * Temp.temp) list = [("$t0", Temp.newTemp()),
                                                ("$t6", Temp.newTemp()),
                                                ("$t7", Temp.newTemp()),
                                                ("$t8", Temp.newTemp()),
-                                               ("$t9", Temp.newTemp())]
+                                               ("$t9", Temp.newTemp()) *)]
 
 (* These are reserved registers that cannot be used by the program  *)
 val reservedRegs:(register * Temp.temp) list = [("$at", Temp.newTemp()),
@@ -263,7 +267,7 @@ val reservedRegs:(register * Temp.temp) list = [("$at", Temp.newTemp()),
                                                ("$k1", Temp.newTemp()),
                                                ("$gp", Temp.newTemp())]
 
-(* Some sugar-coating for the RHS *)
+(* Some useful lists of registers *)
 val allRegs = specialRegs@argRegs@calleeSaves@callerSaves@reservedRegs
 val allUserRegs = specialRegs@argRegs@calleeSaves@callerSaves
 val physicalRegsT = map (fn (s, t) => t) allUserRegs
@@ -271,21 +275,28 @@ val registers = map (fn (s, t) => s) allUserRegs
 val K = List.length(allUserRegs)
 val trashedByCall = ra::RV::(map (fn (s, t) => t) callerSaves)
 
+(* registerCompare : unit -> string * string -> order *)
 fun registerCompare() =
   let
+    (* The order in which we'd like the register allocator to select registers *)
     val preferredOrder =
       map (fn (r, t) => r) (callerSaves@calleeSaves@rev(argRegs)@specialRegs)
     val i = ref 0
+    (* Create a table of the indexes of each register in the preferred order
+     * list *)
     val indexTab = foldl (fn (r, tab) =>
                              (i := !i + 1;
                               Symbol.enter(tab, Symbol.symbolize(r), !i)))
                           Symbol.empty
                           preferredOrder
+    (* Extract the index of a given register from the index table *)
     fun getIndex(r) =
         case Symbol.look(indexTab, Symbol.symbolize r)
           of SOME(i) => i
            | NONE => let exception unknownRegister in raise unknownRegister end
   in
+      (* Create the comparator function for registers. Prefers registers with
+       * lower indices in the preferred order list *)
       fn(a, b) =>
         Int.compare(getIndex(a), getIndex(b))
   end
@@ -308,8 +319,11 @@ fun findTemp(queryStr) =
      of SOME((s,t)) => t
      | _ => Temp.newTemp()
 
-
-(* Nice printing of temps
+(* tempToString : register Temp.Table.table -> Temp.temp -> string
+ *
+ * Nice printing of temps.
+ * Given a temp map, produces a function that will look up the name of a given
+ * temp in the map and return that string, otherwise calls Temp.makeString
  *)
 fun tempToString map =
     (fn t => case Temp.Table.look(map, t)
@@ -368,8 +382,6 @@ fun procEntryExit3({name, formals, locals}, body: Assem.instr list) =
     {prolog="PROCEDURE "^Symbol.name(name)^"\n",
      body=body,
      epilog="jr $ra\nEND "^Symbol.name(name)^"\n"}
-
-
 end
 
 structure Frame:>FRAME = MipsFrame

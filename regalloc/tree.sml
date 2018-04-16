@@ -61,7 +61,10 @@ datatype stm = SEQ of stm * stm
      and relop = EQ | NE | LT | GT | LE | GE
                  | ULT | ULE | UGT | UGE
 
-
+(* notRel : relop -> relop
+ *
+ * Returns the relop that is logical not of the given relop
+ *)
 fun notRel(EQ) = NE
   | notRel(NE) = EQ
   | notRel(LT) = GE

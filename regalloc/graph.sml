@@ -1,3 +1,7 @@
+(* Graph module provided in the starter files.
+ * Used only as a directed graph.
+ * Modified to not add duplicate edges
+ *)
 structure Graph :> GRAPH =
 struct
   type node' = int

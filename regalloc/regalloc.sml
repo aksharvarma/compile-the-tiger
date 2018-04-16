@@ -281,7 +281,7 @@ fun alloc(instrs, frame) =
                 (UGraph.S.app
                    (fn n =>
                        if not(UGraph.S.isEmpty((UGraph.adjSet graph n)))
-                       then 
+                       then
                        (print(Temp.makeString(gtemp n)^":\n");
                         (UGraph.S.app (fn n => print(Temp.makeString(gtemp n)^" "))
                                       (UGraph.adjSet graph n)))
@@ -361,7 +361,7 @@ fun alloc(instrs, frame) =
 
             val accessTab = ref Temp.Table.empty
             fun color([], accessTab) = accessTab
-              | color(n::ns, accessTab) = 
+              | color(n::ns, accessTab) =
                 let
                   (* Table of used offsets, try to use these. *)
                   val okColors = (foldr (fn ((_, offset), set) =>
@@ -459,7 +459,7 @@ fun alloc(instrs, frame) =
             print("****\n");
             !accessTab
           end
-            
+
       fun rewriteProgram() =
           let
             val accessTab = colorSpilled()
@@ -645,12 +645,7 @@ fun alloc(instrs, frame) =
              else ());
       if WL.isNotNullE(WL.FROZEN) then print("froze some move\n") else ();
       let
-        val colorAlloc =
-            (Color.color{interference=igraph,
-                         adjTab=adjTab,
-                         spillCost=
-                         (fn n:UGraph.node => ~(ourDegree graph (n))),
-                         registers=Frame.registers})
+        val colorAlloc = Color.color{interference=igraph, adjTab=adjTab}
       in
         if WL.isNotNullN(WL.SPILLED)
         then (print("rewriting\n");alloc(rewriteProgram(), frame))

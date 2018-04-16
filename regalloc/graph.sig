@@ -1,3 +1,7 @@
+(* Graph module provided in the starter files.
+ * Used only as a directed graph.
+ * Modified to not add duplicate edges
+ *)
 signature GRAPH =
 sig
     type graph
@@ -18,7 +22,6 @@ sig
     structure Table : TABLE
     sharing type Table.key = node
     val lookUpNode: 'a Table.table * node -> 'a
-                                               
-    val nodename: node->string  (* for debugging only *)
 
+    val nodename: node->string  (* for debugging only *)
 end

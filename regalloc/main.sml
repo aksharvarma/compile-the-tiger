@@ -1,39 +1,5 @@
 structure Main = struct
 
-(* modifiedMakeString: Temp.temp -> string
- *
- * Look up the given temp in the tempMap.
- * If found, return that string, otherwise default to Temp.makeString.
- *)
-(* fun modifiedMakeString(t) = *)
-(*     case Temp.Table.look(Frame.tempMap, t) *)
-(*      of SOME(str) => str *)
-(*       | NONE => Temp.makeString(t) *)
-
-(* createFlowGraph : Assem.instr list * (Assem.instr -> string)
- *                                      -> Flow.flowgraph * Graph.node list
- *
- * Creates a control flow graph for the given list of assembly instructions,
- * after applying the given format instruction to the assembly string in each
- * instruction.
- *)
-fun createFlowGraph(body, format) =
-      let
-        (* replaceAssem : Assem.instr * string -> Assem.instr
-         *
-         * Replaces the assem string in the given instruction with the given new
-         * assem string and returns a new (updated assem instruction
-         *)
-        fun replaceAssem(Assem.OPER{assem, dst, src, jump}, newAssem) =
-            Assem.OPER{assem=newAssem, dst=dst, src=src, jump=jump}
-          | replaceAssem(Assem.MOVE{assem, dst, src}, newAssem) =
-            Assem.MOVE{assem=newAssem, dst=dst, src=src}
-          | replaceAssem(Assem.LABEL{assem, lab}, newAssem) =
-            Assem.LABEL{assem=newAssem, lab=lab}
-      in
-        MakeGraph.instrs2graph(ListPair.map replaceAssem (body, map format body))
-      end
-
 (* emitproc: TextIO.outstream -> Frame.frag -> unit
  *
  * Process and emit all function proc framents, but skip all string fragments
@@ -51,14 +17,15 @@ fun emitproc out (Frame.PROC{body,frame}) =
       val instrs =  List.concat(map (MipsGen.codeGen frame) stms')
       val instrs' = Frame.procEntryExit2(frame, instrs)
       val {prolog, body=finalBody, epilog} = Frame.procEntryExit3(frame, instrs')
+      (* Call the register allocator:
+       * - creates a CFG
+       * - computes liveness
+       * - builds an interference graph
+       * - runs register allocation and assigns final registers
+       *)
+      val (almostReggedInstrs, allocMap) = RegAlloc.alloc(finalBody, frame)
       (* Format the resulting assembly instructions to insert correct
        * temps/registers *)
-      (* Create the control flow graph for the formatted body *)
-      (* val (fg, nodes) = createFlowGraph(finalBody, format0) *)
-      (* Compute liveness for the CFG and create the interference graph *)
-      (* val interGraph = Liveness.computeLivenessAndBuild(fg) *)
-      (* val _ = Liveness.show(TextIO.stdOut, interGraph) *)
-      val (almostReggedInstrs, allocMap) = RegAlloc.alloc(finalBody, frame)
       val format0 = Assem.format(Frame.tempToString allocMap)
     in
       (* Output the prolog, then the final proc body, followed by the epilog *)

@@ -17,7 +17,6 @@ structure Ty = Types
 structure S = Symbol
 structure E = Env
 
-
 (* Main semantic analysis module *)
 signature SEMANT =
 sig

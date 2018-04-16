@@ -5,9 +5,10 @@ sig
 
   (* An interference graph and related information. Contains:
    * - graph : the actual interference graph
-   * - tnode : a mapping from temps to graph nodes
-   * - gtemp : the inverse mapping from graph nodes to temps
-   * - moves : a list of move instructions
+   * - tnode : a mapping from temps to UGraph nodes
+   * - gtemp : the inverse mapping from UGraph nodes to temps
+   * - moves : maps UGraph nodes to the set of move edges they are associated
+   *           with
    *)
   datatype igraph =
            IGRAPH of {graph: UGraph.graph,
@@ -15,28 +16,15 @@ sig
                       gtemp: gtempFn,
                       moves: WL.E.set UGraph.Table.table}
 
-
   (* Maps graph nodes to a particular live set *)
   type liveMap
-                       
+
   (* Constructs an interference graph from the given flow graph
    * by first computing liveness and then using the live out sets
    * to create the interference graph
    *)
-  val computeLivenessAndBuild:
-      Flow.flowgraph -> igraph (* * (UGraph.node -> Temp.temp list) *)
+  val computeLivenessAndBuild: Flow.flowgraph -> igraph
 
-  (* val computeLiveness: *)
-  (*     Flow.flowgraph -> {liveOut: liveMap, *)
-  (*                        tnode: tnodeFn, *)
-  (*                        gtemp: gtempFn, *)
-  (*                        moves: UGraph.graph} *)
-
-  (* val build: {liveOut: liveMap, *)
-  (*             tnode: tnodeFn, *)
-  (*             gtemp: gtempFn, *)
-  (*             moves: UGraph.graph} -> igraph *)
-                                   
   (* For debugging purposes: prints out a list of nodes in the interference
    * graph and a list of all nodes adjacent to it
    *)
@@ -49,21 +37,20 @@ end
 structure Liveness:LIVENESS =
 struct
 
-(* TODO: CHANGE TO REFLECT CHANGES
- * An interference graph and related information. Contains:
- * - graph : the actual interference graph
- * - tnode : a mapping from temps to graph nodes
- * - gtemp : the inverse mapping from graph nodes to temps
- * - moves : a list of move instructions
- *)
   type tnodeFn = Temp.temp -> UGraph.node
   type gtempFn = UGraph.node -> Temp.temp
+  (* An interference graph and related information. Contains:
+   * - graph : the actual interference graph
+   * - tnode : a mapping from temps to UGraph nodes
+   * - gtemp : the inverse mapping from UGraph nodes to temps
+   * - moves : maps UGraph nodes to the set of move edges they are associated
+   *           with
+   *)
   datatype igraph =
            IGRAPH of {graph: UGraph.graph,
                       tnode: tnodeFn,
                       gtemp: gtempFn,
                       moves: WL.E.set UGraph.Table.table}
-
 
 (* Represents a set of temps that are live at a particular time.
  * The representation is redundant:
@@ -75,16 +62,6 @@ type liveSet = unit Temp.Table.table * Temp.temp list
 (* Maps graph nodes to a particular live set *)
 type liveMap = liveSet Graph.Table.table
 
-
-(*   val computeLiveness:
-      Flow.flowgraph -> {liveOut: liveMap,
-                         tnode: tnodeFn,
-                         gtemp: gtempFn,
-                         moves: UGraph.graph}
- *)
-(* fun computeLiveness(Flow.FGRAPH{control, def, use, ismove}) = *)
-    
-                       
 (* interferenceGraph: Flow.flowgraph -> igraph * (Graph.node -> Temp.temp list
  *
  * Constructs an interference graph from the given flow graph
@@ -113,17 +90,6 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
                         of SOME(use) => use
                          | _ => let exception NoSrcFound
                                 in raise NoSrcFound end)
-
-      (* lookUpNode : 'a Graph.Table.table * Graph.node -> 'a
-       *
-       * Looks up the given node in the given graph table.
-       * If found, returns the value, else throws an exception
-       *)
-      (* fun lookUpNode(map, node) = *)
-      (*     (case Graph.Table.look(map, node) *)
-      (*       of SOME(t) => t *)
-      (*        | NONE => let exception NodeNotFound *)
-      (*                  in raise NodeNotFound end) *)
 
       (* createNodeTempMaps :
        *        Graph.node list * Temp.Table.table * Graph.Table.table
@@ -177,7 +143,7 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
       val (tnodeMap, gtempMap) =
           createNodeTempMaps(fgNodes, initTnode, initGtemp)
 
-                            
+
       (* tnodeFun : Temp.temp -> Graph.node
        *
        * The function version of the tnodeMap to actually be used in the igraph.
@@ -202,24 +168,18 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
        *)
       fun gtempFun(node) = UGraph.lookUpNode(gtempMap, node)
 
-      (* val _ = (print(concat(map (fn n => Frame.tempToString(gtempFun(n))^" ") *)
-      (*                           (UGraph.nodeList(interGraph)))); *)
-      (*          print("\n")) *)
-
+      (* interferePhysicalRegs: Temp.temp list -> unit
+       *
+       * Adds edges between all given physical registers in the interference
+       * graph
+       *)
       fun interferePhysicalRegs([]) = ()
-        | interferePhysicalRegs(r::regs) = 
+        | interferePhysicalRegs(r::regs) =
           ((app (fn t => UGraph.mkEdge interGraph (tnodeFun(r), tnodeFun(t)))
                 regs);
            interferePhysicalRegs(regs))
 
       val _ = interferePhysicalRegs(Frame.physicalRegsT)
-      (* val _ = *)
-      (*     (print(concat(map (fn n => Frame.tempToString(gtempFun(n))^" "^ *)
-      (*                                Int.toString(UGraph.S.numItems(UGraph.adjSet interGraph n))^"\n") *)
-      (*                       (UGraph.nodeList(interGraph)))); *)
-      (*          print("\n")) *)
-                                   
-      (* val _ = (app (fn r => (app (fn t => UGraph.mkEdge interGraph (tnodeFun(r), tnodeFun(t))) Frame.physicalRegs)) Frame.physicalRegs) *)
 
       (* computeMoves : Graph.node list -> (Graph.node * Graph.node) list
        *
@@ -402,8 +362,6 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
              * sizes of the lists *)
             val oldInSize = List.length(bInTemps)
             val newInSize = List.length(newInTemps)
-            val oldOutSize = List.length(bOutTemps)
-            val newOutSize = List.length(newOutTemps)
 
             val newWL = wl@
                         (* If the live in set for b changed, then we need to add
@@ -416,8 +374,7 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
           end
 
       (* Calculate the final live sets *)
-      val (finalLiveIn, finalLiveOut) = livenessWL(initialWL,
-                                                   liveIn, liveOut)
+      val (finalLiveIn, finalLiveOut) = livenessWL(initialWL, liveIn, liveOut)
 
       (* liveOutFun : Graph.node -> Temp.temp list
        *
@@ -468,13 +425,11 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
                       (* Delete the source of the copy instruction from
                        * the out list if it was a move. Since it was a move
                        * instruction, we know that it should have exactly one
-                       * thing in it's use set, so delete it *)
+                       * thing in its use set, so delete it *)
                       then
                         let
                           val s = tnodeFun(hd(getUse(n)))
                           val d = tnodeFun(hd(getDef(n)))
-                          val _ = if s=d
-                                  then print("OOPS!!\n") else ()
                         in (WL.addMove(WL.MOVES, WL.N.addList(WL.N.empty, [d, s]));
                             deleteFromList(hd(getUse(n)), outsWithoutSelf))
                         end
@@ -483,23 +438,16 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
                 in
                   (* Add edges between the nodes associated with the dst temps
                    * and the nodes in the live out set *)
-                  ((* print("d: "^(Frame.tempToString Frame.tempMap (d))^"\n"); *)
-                   (* (app (fn out => *)
-                   (*          print((Frame.tempToString Frame.tempMap (out))^" ")) *)
-                   (*      effectiveOuts); *)
-                   (* print("\n"); *)
-                   (app (fn out => UGraph.mkEdge interGraph
+                  ((app (fn out => UGraph.mkEdge interGraph
                                                  (tnodeFun d, tnodeFun out))
                         effectiveOuts);
                    goThroughDsts(ds))
                 end
           in
             (goThroughDsts(getDef(n));
-             (* print("----\n"); *)
              interfere(ns))
           end
     in
-      (* (print("uncomment-before-coalescing (liveness(EOF)\n"); *)
       (interfere(Graph.nodes(control));
        (IGRAPH{graph=interGraph,
                tnode=tnodeFun,

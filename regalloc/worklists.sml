@@ -301,7 +301,7 @@ fun getColor(t) =
 
 fun setColor(t, s) = color := Temp.Table.enter(!color, t, s)
 
-fun getAllocation() = !safeColor
+fun getAllocation() = !color
 
 fun reset() =
     (precolored := N.empty;
@@ -329,5 +329,5 @@ fun initializeWL(wl) = ()
 
 structure I = BinarySetFn(type ord_key = int
                           fun compare(e1, e2) = Int.compare(e1, e2))
-                         
+
 end
