@@ -1,48 +1,50 @@
 PROCEDURE tig_dereference_NIL
 tig_dereference_NIL:
-move $a3, $ra
-li $a0, ~1
-# move $a0, $a0
+la $t0 tig_dereference_NIL_framesize
+lw $t0 0($t0)
+add $t0, $sp, $t0
+sw $ra -4($t0)
+li $a0, -1
 jal tig_exit_TigMain
-move $ra, $a3
-j L2991
-L2991:
+la $t0 tig_dereference_NIL_framesize
+lw $t0 0($t0)
+add $t0, $sp, $t0
+lw $ra -4($t0)
+j L47
+L47:
 jr $ra
 END tig_dereference_NIL
 PROCEDURE tig_outOfBounds
 tig_outOfBounds:
-move $a3, $ra
-li $a0, ~2
-# move $a0, $a0
+la $t0 tig_outOfBounds_framesize
+lw $t0 0($t0)
+add $t0, $sp, $t0
+sw $ra -4($t0)
+li $a0, -2
 jal tig_exit_TigMain
-move $ra, $a3
-j L2992
-L2992:
+la $t0 tig_outOfBounds_framesize
+lw $t0 0($t0)
+add $t0, $sp, $t0
+lw $ra -4($t0)
+j L48
+L48:
 jr $ra
 END tig_outOfBounds
 PROCEDURE tig_MAIN_TIGER_PROG
 tig_MAIN_TIGER_PROG:
-move $a2, $ra
-li $a3, 1
-# move $a3, $a3
-li $a1, 0
-li $v0, 22
-li $a0, 7
-li $a1, 2
-mul $a1, $a1, $a3
-# move $a1, $a1
-div $a1, $v0, $a0
-# move $a1, $a1
-mul $a1, $a1, $a1
-# move $a1, $a1
-mul $a0, $a1, $a3
-li $a3, 2
-div $a3, $a0, $a3
-# move $a3, $a3
-div $v0, $a3, $a1
-# move $v0, $v0
-move $ra, $a2
-j L2993
-L2993:
+li $t0, 1
+li $t1, 0
+li $t3, 22
+li $t2, 7
+li $t1, 2
+mul $t0, $t1, $t0
+div $t0, $t3, $t2
+mul $t0, $t0, $t0
+mul $t2, $t0, $t0
+li $t1, 2
+div $t0, $t2, $t1
+div $v0, $t0, $t0
+j L49
+L49:
 jr $ra
 END tig_MAIN_TIGER_PROG

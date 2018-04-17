@@ -35,6 +35,7 @@ tree.sml
 types.sml
 ugraph.sig
 ugraph.sml
+worklists.sig
 worklists.sml
 $/basis.cm
 $/ml-yacc-lib.cm

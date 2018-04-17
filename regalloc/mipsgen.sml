@@ -77,6 +77,19 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
                           dst=[],
                           jump=NONE})
 
+        (* Note: This needs to be this high because any time that a MEM node is the
+         * left child of a move, we should interpret that as a store. If it is
+         * lower, one of the load cases might catch it mistakenly instead.
+         *
+         * Store into an address without offset
+         * Nodes: 2
+         *)
+        | munchStm(T.MOVE(T.MEM(e1), e2)) =
+          emit(Assem.OPER{assem="sw 's0, 0('s1)\n",
+                          src=[munchExp e2, munchExp e1],
+                          dst=[],
+                          jump=NONE})
+
         (* load from an address offset by a constant (right)
          * Nodes: 5
          *)
@@ -93,15 +106,6 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
           emit(Assem.OPER{assem="lw 'd0, "^Assem.ourIntToString(i)^"('s0)\n",
                           src=[munchExp e2],
                           dst=[munchExp e1],
-                          jump=NONE})
-
-        (* store into an address without offset
-         * Nodes: 2
-         *)
-        | munchStm(T.MOVE(T.MEM(e1), e2)) =
-          emit(Assem.OPER{assem="sw 's0, 0('s1)\n",
-                          src=[munchExp e2, munchExp e1],
-                          dst=[],
                           jump=NONE})
 
         (* Load constant into the destination e1
