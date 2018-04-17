@@ -7,6 +7,7 @@ sig
   val RV: Temp.temp
   val FP: Temp.temp
   val SP: Temp.temp
+  val zero: Temp.temp
 
   val wordSize: int
 

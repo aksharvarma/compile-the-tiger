@@ -162,8 +162,8 @@ fun getMoveContents(m) =
       else if nItems = 1
       then  ((hd mList), (hd mList))
       else
-         let exception edgeInvariantViolated
-         in raise edgeInvariantViolated end
+        let exception edgeInvariantViolated
+        in raise edgeInvariantViolated end
     end
 
 (* getNode: nodeWL -> UGraph.node
@@ -265,7 +265,7 @@ fun printNWL(n) =
     else if isNin(COALESCED_N, n) then print("COALESCED_N\n")
     else if isNin(COLORED, n) then print("COLORED\n")
     else if List.exists (fn stackN => n=stackN) (!selectStack)
-         then print("STACK\n")
+    then print("STACK\n")
     else let exception NotInAnyNWL in raise NotInAnyNWL end
 
 (* Set of (register) strings
@@ -295,8 +295,8 @@ fun hasFreeColor() = not(C.isEmpty(!okColors))
 fun getAvailableColor() =
     case C.find (fn _ => true) (!okColors)
      of SOME(n) => n
-      | NONE => let exception emptyMoveWL
-                in raise emptyMoveWL end
+      | NONE => let exception noColorAvailable
+                in raise noColorAvailable end
 
 (* Remove the given set of colors from the okColors set *)
 fun removeColors(badColors) = okColors := C.difference(!okColors, badColors)
@@ -335,19 +335,19 @@ val color: allocation ref = ref Temp.Table.empty
  *)
 fun precolor(gtemp) =
     color :=
-     (N.foldr
-        (fn (n, tab) =>
-            let
-              val t = gtemp(n)
-              val regStr = (case Temp.Table.look(Frame.tempMap, t)
-                             of SOME(s) => s
-                              | NONE => let exception unknownTemp
-                                        in raise unknownTemp end)
-            in
-              Temp.Table.enter(tab, t, regStr)
-            end)
-        Temp.Table.empty
-        (getNWL(PRECOLORED)))
+    (N.foldr
+       (fn (n, tab) =>
+           let
+             val t = gtemp(n)
+             val regStr = (case Temp.Table.look(Frame.tempMap, t)
+                            of SOME(s) => s
+                             | NONE => let exception unknownTemp
+                                       in raise unknownTemp end)
+           in
+             Temp.Table.enter(tab, t, regStr)
+           end)
+       Temp.Table.empty
+       (getNWL(PRECOLORED)))
 
 (* getColor : Temp.temp -> Frame.register
  * Get the color assigned to the given temp.

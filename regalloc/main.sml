@@ -7,7 +7,7 @@ structure Main = struct
 fun emitproc out (Frame.PROC{body,frame}) =
     let
       val _ = (* print to indicate start of new proc/frame *)
-          print ("####\nemit " ^ Symbol.name(Frame.name(frame)) ^ "\n")
+          print ("####\temit " ^ Symbol.name(Frame.name(frame)) ^ "\n")
       (* Call canonicalizer functions to linearize the body of the fragment
        * into basic blocks*)
       val stms = Canon.linearize body
@@ -51,7 +51,7 @@ fun emitString out (Frame.STRING(lab,s)) = TextIO.output(out, Frame.string(lab,s
 fun withOpenFile fname f =
     let val out = TextIO.openOut fname
     in (f out before TextIO.closeOut out)
-        handle e => (TextIO.closeOut out; raise e)
+       handle e => (TextIO.closeOut out; raise e)
     end
 
 (* compile: string -> unit

@@ -30,6 +30,7 @@ val FP:Temp.temp = Temp.newTemp()
 val SP:Temp.temp = Temp.newTemp()
 (* The return value register. This is fixed for all frames *)
 val RV:Temp.temp = Temp.newTemp()
+val zero:Temp.temp = Temp.newTemp()
 
 (* A stack frame contains the following information
  * - A label to the start of the function (check this)
@@ -224,7 +225,7 @@ and ra = Temp.newTemp()
  * stack pointer ($sp)
  *)
 val specialRegs:(register * Temp.temp) list = [("$v0", RV),
-                                               ("$zero", Temp.newTemp()),
+                                               ("$zero", zero),
                                                ("$ra", ra),
                                                ("$sp", SP)]
 (* Argument registers: $a0-$a3 *)
@@ -263,9 +264,9 @@ val callerSaves:(register * Temp.temp) list = [("$t0", Temp.newTemp()),
 
 (* These are reserved registers that cannot be used by the program  *)
 val reservedRegs:(register * Temp.temp) list = [("$at", Temp.newTemp()),
-                                               ("$k0", Temp.newTemp()),
-                                               ("$k1", Temp.newTemp()),
-                                               ("$gp", Temp.newTemp())]
+                                                ("$k0", Temp.newTemp()),
+                                                ("$k1", Temp.newTemp()),
+                                                ("$gp", Temp.newTemp())]
 
 (* Some useful lists of registers *)
 val allRegs = specialRegs@argRegs@calleeSaves@callerSaves@reservedRegs
@@ -277,29 +278,29 @@ val trashedByCall = ra::RV::(map (fn (s, t) => t) (argRegs@callerSaves))
 
 (* registerCompare : unit -> string * string -> order *)
 fun registerCompare() =
-  let
-    (* The order in which we'd like the register allocator to select registers *)
-    val preferredOrder =
-      map (fn (r, t) => r) (callerSaves@calleeSaves@rev(argRegs)@specialRegs)
-    val i = ref 0
-    (* Create a table of the indexes of each register in the preferred order
-     * list *)
-    val indexTab = foldl (fn (r, tab) =>
-                             (i := !i + 1;
-                              Symbol.enter(tab, Symbol.symbolize(r), !i)))
-                          Symbol.empty
-                          preferredOrder
-    (* Extract the index of a given register from the index table *)
-    fun getIndex(r) =
-        case Symbol.look(indexTab, Symbol.symbolize r)
-          of SOME(i) => i
-           | NONE => let exception unknownRegister in raise unknownRegister end
-  in
+    let
+      (* The order in which we'd like the register allocator to select registers *)
+      val preferredOrder =
+          map (fn (r, t) => r) (callerSaves@calleeSaves@rev(argRegs)@specialRegs)
+      val i = ref 0
+      (* Create a table of the indexes of each register in the preferred order
+       * list *)
+      val indexTab = foldl (fn (r, tab) =>
+                               (i := !i + 1;
+                                Symbol.enter(tab, Symbol.symbolize(r), !i)))
+                           Symbol.empty
+                           preferredOrder
+      (* Extract the index of a given register from the index table *)
+      fun getIndex(r) =
+          case Symbol.look(indexTab, Symbol.symbolize r)
+           of SOME(i) => i
+            | NONE => let exception unknownRegister in raise unknownRegister end
+    in
       (* Create the comparator function for registers. Prefers registers with
        * lower indices in the preferred order list *)
       fn(a, b) =>
-        Int.compare(getIndex(a), getIndex(b))
-  end
+         Int.compare(getIndex(a), getIndex(b))
+    end
 
 (* tempMap: register Temp.Table.table
  *
@@ -317,7 +318,7 @@ val tempMap:register Temp.Table.table =
 fun findTemp(queryStr) =
     case List.find (fn (str, t) => str=queryStr) allUserRegs
      of SOME((s,t)) => t
-     | _ => Temp.newTemp()
+      | _ => Temp.newTemp()
 
 (* tempToString : register Temp.Table.table -> Temp.temp -> string
  *
@@ -340,23 +341,23 @@ fun tempToString map =
  * added to the body here.
  *)
 fun procEntryExit1(frame, body) =
-  let
-    val regsToSave = ra::(map (fn (s, t) => t) calleeSaves)
-    (* Temp, reg pairs for everything we want to put in prolog *)
-    val tempTemps = map (fn reg => (Temp.newTemp(), reg)) regsToSave
-    (* Generate the tree statements to save the callee save registers in new
-     * temps *)
-    val prolog = (foldr (fn ((t, r), stm) => T.SEQ(T.MOVE(T.TEMP(t),
-                                                     T.TEMP(r)), stm))
-                        (T.EXP(T.CONST(0))) tempTemps)
-    (* Generate the tree statements to restore the callee save registers *)
-    val epilog = (foldr (fn ((t, r), stm) => T.SEQ(T.MOVE(T.TEMP(r),
-                                                     T.TEMP(t)), stm))
-                        (T.EXP(T.CONST(0))) tempTemps)
-  in
-    (* Surround the body in the prolog and epilog *)
-    T.SEQ(T.LABEL(name(frame)), T.SEQ(prolog, T.SEQ(body, epilog)))
-  end
+    let
+      val regsToSave = ra::(map (fn (s, t) => t) calleeSaves)
+      (* Temp, reg pairs for everything we want to put in prolog *)
+      val tempTemps = map (fn reg => (Temp.newTemp(), reg)) regsToSave
+      (* Generate the tree statements to save the callee save registers in new
+       * temps *)
+      val prolog = (foldr (fn ((t, r), stm) => T.SEQ(T.MOVE(T.TEMP(t),
+                                                            T.TEMP(r)), stm))
+                          (T.EXP(T.CONST(0))) tempTemps)
+      (* Generate the tree statements to restore the callee save registers *)
+      val epilog = (foldr (fn ((t, r), stm) => T.SEQ(T.MOVE(T.TEMP(r),
+                                                            T.TEMP(t)), stm))
+                          (T.EXP(T.CONST(0))) tempTemps)
+    in
+      (* Surround the body in the prolog and epilog *)
+      T.SEQ(T.LABEL(name(frame)), T.SEQ(prolog, T.SEQ(body, epilog)))
+    end
 
 (* procEntryExit2: frame * Assem.instr list -> Assem.instr list
  *
@@ -367,9 +368,9 @@ fun procEntryExit2(frame, body) =
     let
       val liveTemps = map (fn (str, tmp) => tmp) (specialRegs@calleeSaves)
     in
-    body @ [Assem.OPER{assem="",
-                       src=liveTemps, dst=[],
-                       jump=SOME[]}]
+      body @ [Assem.OPER{assem="",
+                         src=liveTemps, dst=[],
+                         jump=SOME[]}]
     end
 
 (* procEntryExit3: frame * Assem.instr list -> {prolog:string,
