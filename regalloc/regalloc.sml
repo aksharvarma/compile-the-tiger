@@ -37,9 +37,17 @@ fun alloc(instrs, frame) =
       val originalAdjTab = copyAdjList(graph)
       val adjTab = ref originalAdjTab
 
+      fun copyMoves(moves) =
+          (foldr (fn ((n, set), tab) =>
+                     UGraph.Table.enter(tab, n, set))
+                 UGraph.Table.empty
+                       (UGraph.Table.listItemsi(moves)))
+
+      val movesCopy = ref (copyMoves(moves))
+
       fun nodeMoves(n) =
           let
-            val movesTab = (case UGraph.Table.look(moves, n)
+            val movesTab = (case UGraph.Table.look(!movesCopy, n)
                              of SOME(t) => t
                               | NONE => WL.E.empty)
           in
@@ -169,9 +177,9 @@ fun alloc(instrs, frame) =
                  else WL.removeNode(WL.TOSPILL, v);
                  WL.addNode(WL.COALESCED_N, v);
                  WL.setAlias(v, u);
-                 UGraph.Table.enter(moves, u,
-                                    WL.E.union(UGraph.lookUpNode(moves, u),
-                                               UGraph.lookUpNode(moves, v)));
+                 movesCopy := UGraph.Table.enter(!movesCopy, u,
+                                    WL.E.union(UGraph.lookUpNode(!movesCopy, u),
+                                               UGraph.lookUpNode(!movesCopy, v)));
                  enableMoves(WL.N.singleton(v));
                  (WL.N.app
                    (fn t =>
