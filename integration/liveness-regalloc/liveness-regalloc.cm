@@ -1,0 +1,17 @@
+Group is
+
+(* includes lexer-parser files inside it*)
+../static-and-frame-analysis-IR-insnsln/static-and-frame-analysis-IR-insnsln.cm
+color.sml
+flowgraph.sml
+graph.sig
+graph.sml
+liveness.sml
+makegraph.sml
+regalloc.sml
+ugraph.sig
+ugraph.sml
+worklists.sig
+worklists.sml
+$/basis.cm
+$/smlnj-lib.cm
