@@ -23,8 +23,8 @@ fun alloc(instrs, frame) =
           Liveness.computeLivenessAndBuild(cfg)
 
       (* copyAdjList: Ugraph.graph -> UGraph.Table.table
-       * 
-       * Keep a copy of the adjacency list for coloring. 
+       *
+       * Keep a copy of the adjacency list for coloring.
        *)
       fun copyAdjList(graph) =
           (foldr (fn ((n, adjSet), tab) =>
@@ -37,12 +37,12 @@ fun alloc(instrs, frame) =
        * (used during allocating stack slots in Part 4) *)
       val originalAdjTab = copyAdjList(graph)
 
-      (* A copy which will include changes due to coalescing 
+      (* A copy which will include changes due to coalescing
        * (used for main coloring) *)
       val adjTab = ref originalAdjTab
 
       (* copyMoves: UGraph.Table.table -> UGraph.Table.table
-       * 
+       *
        * Make a copy of the moves so that the original moves doesn't change
        * original is used for allocating stack slots in Part 4
        *)
@@ -57,9 +57,9 @@ fun alloc(instrs, frame) =
       (* val movesCopy = ref moves *)
 
       (* nodeMoves: UGraph.node -> WL.E.set
-       * 
-       * Returns the intersection of move edges, and the union of the 
-       * ACTIVE and MOVES move worklists. 
+       *
+       * Returns the intersection of move edges, and the union of the
+       * ACTIVE and MOVES move worklists.
        *)
       fun nodeMoves(n) =
           let
@@ -72,8 +72,8 @@ fun alloc(instrs, frame) =
           end
 
       (* moveRelated: UGraph.node -> bool
-       * 
-       * Returns true if a node is move related, false otherwise        
+       *
+       * Returns true if a node is move related, false otherwise
        *)
       fun moveRelated(n) = not(WL.E.isEmpty(nodeMoves(n)))
 
@@ -115,7 +115,7 @@ fun alloc(instrs, frame) =
       val _ = WL.precolor(gtemp)
 
       (* adjacent: UGraph.node -> WL.N.set
-       * 
+       *
        * Returns the adjacency list of the original untouched graph
        * This bridges differences between our Graph module invariants
        * and the invariants that Appel's algorithm assumes.
@@ -130,7 +130,7 @@ fun alloc(instrs, frame) =
                                           WL.getNodeSet(WL.COALESCED_N)))
 
       (* enableMoves: UGraphs.node list -> unit
-       * 
+       *
        * Change worklists of nodeMoves(n) (for every n \in nodes)
        * so that they are now enabled for coalescing.
        *)
@@ -148,7 +148,7 @@ fun alloc(instrs, frame) =
        *
        * Does what decrementDegree(m) did in the book, but does it for
        * all m at once.
-       * This can be done because decrementDegree is always called with 
+       * This can be done because decrementDegree is always called with
        * the adjacent(n) in the algorithm.
        *)
       fun processNeighbours(n, []) = ()
@@ -165,7 +165,7 @@ fun alloc(instrs, frame) =
            processNeighbours(n, ms))
 
       (* simplify: unit -> unit
-       * 
+       *
        * Does the simplify phase (Simplify() from the book)
        *)
       fun simplify() =
@@ -179,7 +179,7 @@ fun alloc(instrs, frame) =
 
       (* coalesce: unit -> unit
        *
-       * Does the coalescing phase (Coalesce() from the book) 
+       * Does the coalescing phase (Coalesce() from the book)
        *)
       fun coalesce() =
           let
@@ -226,7 +226,7 @@ fun alloc(instrs, frame) =
 
             (* combine: UGraph.node * UGraph.node -> unit
              *
-             * Does the actual coalescing of v into u. 
+             * Does the actual coalescing of v into u.
              *)
             fun combine(u, v) =
                 (if WL.isNin(WL.FREEZE, v)
@@ -262,7 +262,7 @@ fun alloc(instrs, frame) =
                  else ())
 
             (* OK: UGraph.node * UGraph.node -> bool
-             * 
+             *
              * Does part of the test needed for the George heuristic
              *)
             fun OK(t, r) =
@@ -271,14 +271,14 @@ fun alloc(instrs, frame) =
                 orelse UGraph.S.member(UGraph.lookUpNode(!adjTab, r), t)
 
             (* coalesceGeorge: UGraph.node * UGraph.node -> bool
-             * 
+             *
              * The George Heuristic.
              *)
             fun coalesceGeorge(u, v) =
                 not((WL.N.exists (fn t => not(OK(t, u))) (adjacent(v))))
 
             (* conservative: UGraph.node * UGraph.node -> bool
-             * 
+             *
              * Does part of the test needed for the Briggs heuristic.
              * Counts the number of elements in the nodes set which have degree
              * greater than K. If there are < K such elements, return true
@@ -289,7 +289,7 @@ fun alloc(instrs, frame) =
                                 nodes) < Frame.K
 
             (* coalesceGeorge: UGraph.node * UGraph.node -> bool
-             * 
+             *
              * The Briggs Heuristic.
              *)
             fun coalesceBriggs(u, v) =
@@ -309,7 +309,7 @@ fun alloc(instrs, frame) =
                     if u=v
                     then (WL.addMove(WL.COALESCED_E, m);
                           addWorkList(u))
-                    else if WL.isNin(WL.PRECOLORED, v) orelse 
+                    else if WL.isNin(WL.PRECOLORED, v) orelse
                             UGraph.S.member(UGraph.lookUpNode(!adjTab, u), v)
                     then (WL.addMove(WL.CONSTRAINED, m);
                           addWorkList(u);
@@ -329,7 +329,7 @@ fun alloc(instrs, frame) =
       (* freezeMoves: UGraph.node -> unit
        *
        * Moves nodes to the frozen worklist, if allocation cannot happen
-       * otherwise. 
+       * otherwise.
        *)
       fun freezeMoves(u) =
           (WL.E.app (fn m =>
@@ -352,7 +352,7 @@ fun alloc(instrs, frame) =
 
       (* freeze: unit -> unit
        *
-       * Does the freezing phase (Freeze() from the book) 
+       * Does the freezing phase (Freeze() from the book)
        *)
       fun freeze() = let val u = WL.getAndRemoveNode(WL.FREEZE)
                      in (WL.addNode(WL.SIMPLIFY, u); freezeMoves(u)) end
@@ -360,7 +360,7 @@ fun alloc(instrs, frame) =
 
       (* selectSpill: unit -> unit
        *
-       * Does maybe spill phase (SelectSpill() from the book) 
+       * Does maybe spill phase (SelectSpill() from the book)
        *)
       fun selectSpill() =
           let
@@ -378,7 +378,7 @@ fun alloc(instrs, frame) =
           end
 
       (* allocateStackSlots: unit -> Temp.Table.table
-       * 
+       *
        * Allocates stack frame slots to temps that cannot need to be spilled
        * Uses coloring to do this smarter than "give every temp a new slot".
        *)
@@ -388,7 +388,7 @@ fun alloc(instrs, frame) =
              * Start with all the nodes,
              * remove edges containing non-spilling nodes
              * add edges containing spilling nodes
-             * 
+             *
              * These are necessary to get the correct interference graph
              * and remove any effects of the simplify/coalesce phases earlier
              *)
@@ -434,7 +434,7 @@ fun alloc(instrs, frame) =
                        WL.E.empty
                        moves')
 
-            (* Table keeping track of the aliases of nodes (for coalescing) 
+            (* Table keeping track of the aliases of nodes (for coalescing)
              * and getter/setter for the table.
              *)
             val aliasTab =
@@ -454,8 +454,8 @@ fun alloc(instrs, frame) =
             val coalescedSet = ref WL.N.empty
 
             (* combine: UGraph.node * UGraph.node -> unit
-             * 
-             * Does the actual coalescing of v into u. 
+             *
+             * Does the actual coalescing of v into u.
              * Much leaner than main coloring.
              *)
             fun combine(u, v) =
@@ -581,10 +581,10 @@ fun alloc(instrs, frame) =
                           let exception labelNotCaught
                           in raise labelNotCaught end
 
-                  (* replaceTemp: Temp.temp list * Temp.temp list * 
-                   *              Temp.Table.table * bool -> 
+                  (* replaceTemp: Temp.temp list * Temp.temp list *
+                   *              Temp.Table.table * bool ->
                    *              Temp.temp list * Temp.Table.table * bool
-                   * 
+                   *
                    * Go through either dsts or srcs and replace spillers
                    * with new temps, and keep track of the changes
                    *)
@@ -619,7 +619,7 @@ fun alloc(instrs, frame) =
 
 
                   (* putFPintoTemp: Temp.temp -> Assem.instr
-                   * 
+                   *
                    * Returns an instr that puts "FP" into input temp
                    * so that we can access things in the frame.
                    *)
@@ -639,7 +639,7 @@ fun alloc(instrs, frame) =
                       end
 
                   (* findVarOffset: Temp.temp -> string
-                   * 
+                   *
                    * Find the offset from FP, given a spilling temp *)
                   fun findVarOffset(t) =
                       case Temp.Table.look(accessTab, t)
@@ -717,7 +717,7 @@ fun alloc(instrs, frame) =
                                instrs, newInstrs) =
           let
             (* actual: Temp.temp -> Temp.temp
-             * Find the actual chosen register for given temp. 
+             * Find the actual chosen register for given temp.
              *)
             fun actual(t) = case Temp.Table.look(colorMap, t)
                              of SOME(t') => t'
@@ -725,7 +725,7 @@ fun alloc(instrs, frame) =
                                         in raise uncoloredTemp end
 
             (* dropMove: Assem.instr list * Assem.instr list -> Assem.instr list
-             * Actual removal happens here. 
+             * Actual removal happens here.
              *)
             fun dropMove([], newInstrs) = rev(newInstrs)
               | dropMove((instr as Assem.MOVE{assem, src, dst})::instrs,

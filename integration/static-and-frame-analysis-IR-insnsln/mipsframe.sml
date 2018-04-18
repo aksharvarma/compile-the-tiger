@@ -32,6 +32,17 @@ val SP:Temp.temp = Temp.newTemp()
 val RV:Temp.temp = Temp.newTemp()
 val zero:Temp.temp = Temp.newTemp()
 
+(* Pulls out the temp values for the argument registers.
+ * Used for referencing the correct temp when assigning arguments
+ * to arg regs
+ *)
+val a0 = Temp.newTemp()
+and a1 = Temp.newTemp()
+and a2 = Temp.newTemp()
+and a3 = Temp.newTemp()
+and ra = Temp.newTemp()
+
+
 (* A stack frame contains the following information
  * - A label to the start of the function (check this)
  * - A list of the accesses associated with each formal parameter
@@ -143,7 +154,7 @@ fun newFrame({name: Temp.label, formals: bool list}) =
     in
       (* 0 offset is the static link. It's where the FP points to *)
       {name=name,
-       formals= createAccesses(formals, 0),
+       formals=createAccesses(formals, 0),
        locals= ref 0}
     end
 
@@ -210,16 +221,6 @@ fun string(lab, str) = (Symbol.name(lab) ^ ": .asciiz \"" ^ str ^ "\"\n")
 
 (* Registers *)
 type register = string
-
-(* Pulls out the temp values for the argument registers.
- * Used for referencing the correct temp when assigning arguments
- * to arg regs
- *)
-val a0 = Temp.newTemp()
-and a1 = Temp.newTemp()
-and a2 = Temp.newTemp()
-and a3 = Temp.newTemp()
-and ra = Temp.newTemp()
 
 (* Includes return value ($v0), zero reg ($zero), return address ($ra), and
  * stack pointer ($sp)
@@ -334,14 +335,44 @@ fun tempToString map =
 (* procEntryExit1: frame * Tree.stm -> Tree.stm
  *
  * This is the function that adds the prologue and epilogue to the code
- * of the function. Currently it includes only part of the prologue and
- * epilogue. The parts related to moving the arguments/view shift are not yet
- * implemented.
- * The tree statements needed to save/restore the callee save registers are
- * added to the body here.
+ * of the function.
+ * The tree move statements needed to process the incoming arguments are created
+ * by genViewShiftMoves and they are added in front of the body along with
+ * the tree statements needed to save the callee save registers.
+ * The statements needed to restore the callee save registers are appended after
+ * the body.
  *)
-fun procEntryExit1(frame, body) =
+fun procEntryExit1(frame as {name, formals, locals}, body) =
     let
+      (* genViewShiftMoves: access list * int * Tree.stm -> Tree.stm
+       *
+       * Generates the tree moves to move the arguments from where they were
+       * passed in to their correct locations according to the list of accesses.
+       * Arguments 1-4 are taken from registers $a0-$a3.
+       * Arguments >4 are read from the appropriate place above the frame
+       * pointer.
+       *)
+      fun genViewShiftMoves([], index, stm) = stm
+        | genViewShiftMoves(access::accesses, index, stm) =
+          let
+            val fromLoc = case index
+                            of 0 => T.TEMP(a0)
+                             | 1 => T.TEMP(a1)
+                             | 2 => T.TEMP(a2)
+                             | 3 => T.TEMP(a3)
+                             | _ => T.MEM(T.BINOP(T.PLUS, T.TEMP FP,
+                                                  T.CONST(index * wordSize)))
+
+            val newStm =
+              case access
+                of InFrame(k) =>
+                      T.SEQ(T.MOVE(T.MEM(T.BINOP(T.PLUS, T.TEMP FP, T.CONST k)),
+                                 fromLoc), stm)
+                 | InReg(t) => T.SEQ(T.MOVE(T.TEMP t, fromLoc), stm)
+          in
+            genViewShiftMoves(accesses, index + 1, newStm)
+          end
+
       val regsToSave = ra::(map (fn (s, t) => t) calleeSaves)
       (* Temp, reg pairs for everything we want to put in prolog *)
       val tempTemps = map (fn reg => (Temp.newTemp(), reg)) regsToSave
@@ -356,7 +387,8 @@ fun procEntryExit1(frame, body) =
                           (T.EXP(T.CONST(0))) tempTemps)
     in
       (* Surround the body in the prolog and epilog *)
-      T.SEQ(T.LABEL(name(frame)), T.SEQ(prolog, T.SEQ(body, epilog)))
+      T.SEQ(T.LABEL(name),
+            T.SEQ(prolog, genViewShiftMoves(formals, 0, T.SEQ(body, epilog))))
     end
 
 (* procEntryExit2: frame * Assem.instr list -> Assem.instr list
