@@ -624,19 +624,10 @@ fun alloc(instrs, frame) =
                    * so that we can access things in the frame.
                    *)
                   fun putFPintoTemp(fpTemp) =
-                      let
-                        val t1 = Temp.newTemp() and t2 = Temp.newTemp()
-                      in
-                        [Assem.OPER{assem="la 'd0, "^
+                        Assem.OPER{assem="addi 'd0, 's0, "^
                                           Symbol.name(Frame.name(frame))
                                           ^"_framesize\n",
-                                    dst=[t1], src=[], jump=NONE},
-                         Assem.OPER{assem="lw 'd0, 0('s0)\n",
-                                    dst=[t2], src=[t1], jump=NONE},
-                         Assem.OPER{assem="add 'd0, 's0, 's1\n",
-                                    dst=[fpTemp], src=[Frame.SP, t2],
-                                    jump=NONE}]
-                      end
+                                   dst=[fpTemp], src=[Frame.SP], jump=NONE}
 
                   (* findVarOffset: Temp.temp -> string
                    *
@@ -654,7 +645,7 @@ fun alloc(instrs, frame) =
                       then
                         let val fpTemp = Temp.newTemp() in
                           putFPintoTemp(fpTemp)
-                          @(map (fn (t, newT) =>
+                          ::(map (fn (t, newT) =>
                                      Assem.OPER({assem="lw 'd0 "^
                                                        findVarOffset(t)
                                                        ^"('s0)\n",
@@ -670,7 +661,7 @@ fun alloc(instrs, frame) =
                       then
                         let val fpTemp = Temp.newTemp() in
                           putFPintoTemp(fpTemp)
-                          @(map (fn (t, newT) =>
+                          ::(map (fn (t, newT) =>
                                      Assem.OPER({assem="sw 's0 "^
                                                        findVarOffset(t)^"('s1)\n",
                                                  src=[newT, fpTemp], jump=NONE,

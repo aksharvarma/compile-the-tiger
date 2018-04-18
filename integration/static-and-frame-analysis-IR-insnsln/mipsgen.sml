@@ -28,7 +28,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
       val fs = Symbol.symbolize(Symbol.name(Frame.name(frame))^"_framesize")
 
       (* Tree code for adding the framesize to the stack pointer: SP + fs *)
-      val FPtoSP = T.BINOP(T.PLUS, T.TEMP Frame.SP, T.MEM(T.NAME fs))
+      val FPtoSP = T.BINOP(T.PLUS, T.TEMP Frame.SP, T.NAME fs)
 
       (* emit : Assem.instr -> unit
        *
@@ -394,6 +394,20 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
           if t=Frame.FP
           then munchExp(FPtoSP)
           else t
+
+        (***************************FPtoSP***************************)
+        (* This case should only catch the conversion from FPtoSP.
+         * We should only be adding a label to the SP, so if the given temp is
+         * not the SP, then throw an exception to indicate a buh.
+         *
+         * Nodes: 4
+         *)
+        | munchExp(T.BINOP(T.PLUS, T.TEMP(t), T.NAME fs)) =
+          if t=Frame.SP
+          then
+            (result(fn r => emit(Assem.OPER{assem="addi 'd0, 's0, "^Symbol.name(fs)^"\n",
+                                            src=[Frame.SP], dst=[r], jump=NONE})))
+          else let exception AddingLabelToNotSP in raise AddingLabelToNotSP end
 
         (***************************T.MEM***************************)
         (* Load from an address offset by a constant (right)
