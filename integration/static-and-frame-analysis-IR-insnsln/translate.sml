@@ -672,11 +672,10 @@ fun forExp(level, iAccess:access, brkLabel, lo:exp, hi:exp, body:exp) =
 
 (* procEntryExit: {level:level, body:exp, isProcedure:bool, isMain:bool} -> unit
  *
- * This is the function that calls the Frame.procEntryExit1
- * Based on the list of items from the book, we don't do these yet:
- * 1-3, 9-11,
- * This functions combines 6 and 7 (move result to RV)
- * 4, 5, 8 are machine dependent and are done by the Frame module.
+ * Referring to the list of steps for function definitions on p.167-168:
+ *  - This functions combines 6 and 7 (move result to RV)
+ *  - 4, 5, 8 are machine dependent and are done by the Frame.procEntryExit1
+ * Also adds in the error handling procs if this is called for the main fragment
  *)
 fun procEntryExit({level, body, isProcedure, isMain}) =
     let
@@ -722,8 +721,7 @@ fun procEntryExit({level, body, isProcedure, isMain}) =
           end
 
       (* items 6-7: Move result of exp into RV
-       * But do that only if it is not a procedure
-       *)
+       * But do that only if it is not a procedure *)
       val bodyWithRV = if isProcedure
                        then unNx(body)
                        else T.MOVE(T.TEMP Frame.RV, unEx(body))
