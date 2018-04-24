@@ -433,7 +433,7 @@ fun procEntryExit3({name, formals, maxOutgoing, locals}, body: Assem.instr list)
     val spim_version = Symbol.name(name)^"_framesize="
   in
     {prolog=Symbol.name(name)^":\n"
-            ^ mars_version
+            ^ spim_version
             ^Assem.ourIntToString(wordSize * (!locals + !maxOutgoing))^"\n"
             ^"addi $sp, $sp, -"^frameSize^"\n",
      body=body,

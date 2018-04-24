@@ -452,6 +452,24 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
                                           src=[munchExp e], dst=[r],
                                           jump=NONE})))
 
+        (* Subtract a constant from the result of the expression on the left
+         * Nodes: 3
+         *)
+        | munchExp(T.BINOP(T.MINUS, e, T.CONST i)) =
+          (result(fn r => emit(Assem.OPER{assem="addi 'd0, 's0, -"
+                                                 ^Assem.ourIntToString(i)^"\n",
+                                          src=[munchExp e], dst=[r],
+                                          jump=NONE})))
+
+        (* Subtract a constant to the result of the expression on the right
+         * Nodes: 3
+         *)
+        | munchExp(T.BINOP(T.MINUS, T.CONST i, e)) =
+          (result(fn r => emit(Assem.OPER{assem="addi 'd0, 's0, -"
+                                                 ^Assem.ourIntToString(i)^"\n",
+                                          src=[munchExp e], dst=[r],
+                                          jump=NONE})))
+
         (* Add the results of the two given expressions
          * Nodes: 2
          *)
