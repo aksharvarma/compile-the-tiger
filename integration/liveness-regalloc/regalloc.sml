@@ -646,7 +646,7 @@ fun alloc(instrs, frame) =
                         let val fpTemp = Temp.newTemp() in
                           putFPintoTemp(fpTemp)
                           ::(map (fn (t, newT) =>
-                                     Assem.OPER({assem="lw 'd0 "^
+                                     Assem.OPER({assem="lw 'd0, "^
                                                        findVarOffset(t)
                                                        ^"('s0)\n",
                                                  src=[fpTemp], jump=NONE,
@@ -662,7 +662,7 @@ fun alloc(instrs, frame) =
                         let val fpTemp = Temp.newTemp() in
                           putFPintoTemp(fpTemp)
                           ::(map (fn (t, newT) =>
-                                     Assem.OPER({assem="sw 's0 "^
+                                     Assem.OPER({assem="sw 's0, "^
                                                        findVarOffset(t)^"('s1)\n",
                                                  src=[newT, fpTemp], jump=NONE,
                                                  dst=[]}))
