@@ -551,7 +551,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
                 argTemp::munchArgs(i+1, args))
               end
            else (* Put on the stack frame *)
-             (emit(Assem.OPER{assem="sw 's0,"^Assem.ourIntToString(i*Frame.wordSize)
+             (emit(Assem.OPER{assem="sw 's0, "^Assem.ourIntToString(i*Frame.wordSize)
                                      ^"($sp)\n",
                               src=[munchExp arg, Frame.SP],
                               dst=[],
