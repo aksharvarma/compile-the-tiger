@@ -67,8 +67,6 @@ main:
 	b	.L26
 .L27:
 	move	$a0,$zero
-#	la	$t9,tig_main
-#	jr	$t9
         jal tig_main
 	move	$v1,$v0
 	move	$v0,$v1
@@ -85,6 +83,7 @@ main:
 	.globl malloc
 	.ent malloc
 	.text
+tig_malloc:
 malloc:
 	# round up the requested amount to a multiple of 4
 	add $a0, $a0, 3
@@ -94,12 +93,12 @@ malloc:
 	# allocate the memory with sbrk()
 	li $v0, 9
 	syscall
-	
+
 	jr $ra
 
 	.end malloc
 
-	
+
 
 	.data
 	.align 4
@@ -116,7 +115,7 @@ getchar:
 	# return it
 	lb $v0, ($a0)
 	jr $ra
-	
+
 
 	.data
 	.align 4
@@ -124,7 +123,7 @@ putchar_buf:	.byte 0, 0
 
 	.text
 putchar:
-	# save the character so that it is NUL-terminated 
+	# save the character so that it is NUL-terminated
 	la $t0, putchar_buf
 	sb $a0, ($t0)
 
@@ -136,7 +135,7 @@ putchar:
 	jr $ra
 
 
-	.text	
+	.text
 # just prints the format string, not the arguments
 printf:
 	li $v0, 4
@@ -148,7 +147,7 @@ printf:
 exit:
 	li $v0, 10
 	syscall
-	
+
 
 #.file	1 "runtime.c"
 	.option pic2
@@ -178,8 +177,7 @@ tig_initArray:
 	move	$v1,$v0
 	sll	$v0,$v1,2
 	move	$a0,$v0
-	la	$t9,malloc
-	jr	$t9
+        jal malloc
 	sw	$v0,28($fp)
 	lw	$v0,28($fp)
 	lw	$v1,16($fp)
@@ -238,8 +236,7 @@ tig_allocRecord:
 	.set	at
 	sw	$a0,16($fp)
 	lw	$a0,16($fp)
-	la	$t9,malloc
-	jr	$t9
+        jal malloc
 	move	$v1,$v0
 	move	$v0,$v1
 	sw	$v0,28($fp)
@@ -356,7 +353,7 @@ tig_stringLt:
 	addiu $a0,$a0,4
 	addiu $a1,$a1,4
         li $t0, 0
-Lt_test:   
+Lt_test:
         bge $t0, $a2, Lt_outOfBody
         bge $t0, $a3, Lt_outOfBody
 Lt_body:
@@ -432,8 +429,7 @@ tig_print:
 	lw	$v0,24($fp)
 	lbu	$v1,0($v0)
 	move	$a0,$v1
-	la	$t9,putchar
-	jr	$t9
+        jal putchar
 .L23:
 	lw	$v0,20($fp)
 	addu	$v1,$v0,1
@@ -514,8 +510,7 @@ tig_chr:
 	b	.L34
 .L35:
 	li	$a0,1			# 0x1
-	la	$t9,exit
-	jr	$t9
+        jal exit
 .L34:
 	lw	$v0,16($fp)
 	move	$v1,$v0
@@ -606,11 +601,9 @@ tig_substring:
 	lw	$a1,0($v0)
 	lw	$a2,20($fp)
 	lw	$a3,24($fp)
-	la	$t9,printf
-	jr	$t9
+        jal printf
 	li	$a0,1			# 0x1
-	la	$t9,exit
-	jr	$t9
+        jal exit
 .L38:
 	lw	$v0,24($fp)
 	li	$v1,1			# 0x1
@@ -630,8 +623,7 @@ tig_substring:
 	lw	$v1,24($fp)
 	addu	$v0,$v1,4
 	move	$a0,$v0
-	la	$t9,malloc
-	jr	$t9
+        jal malloc
 	sw	$v0,28($fp)
 	lw	$v0,28($fp)
 	lw	$v1,24($fp)
@@ -718,8 +710,7 @@ tig_concat:
 	lw	$v1,28($fp)
 	addu	$v0,$v1,4
 	move	$a0,$v0
-	la	$t9,malloc
-	jr	$t9
+        jal malloc
 	sw	$v0,32($fp)
 	lw	$v0,32($fp)
 	lw	$v1,28($fp)
@@ -840,11 +831,9 @@ tig_getchar:
 .LCFI55:
 	.set	noat
 	.set	at
-	la	$t9,getchar
-	jr	$t9
+        jal getchar
 	move	$a0,$v0
-	la	$t9,tig_chr
-	jr	$t9
+        jal tig_chr
 	move	$v1,$v0
 	move	$v0,$v1
 	b	.L59
@@ -880,11 +869,8 @@ outOfBounds_Lab:
         la $a0, indexOutOfBounds_str
         li $v0, 4
         syscall
-return_Lab:     
+return_Lab:
         li $v0, 10
         syscall
 .end_tig_exit_TigMain:
         .end    tig_exit_TigMain
-
-tig_main:
-        jr $ra
