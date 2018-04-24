@@ -14,6 +14,7 @@ sig
   val newFrame: {name: Temp.label, formals: bool list} -> frame
   val formals: frame -> access list
   val name: frame -> Temp.label
+  val setOutgoingArgs: frame * int -> unit
   val allocLocal: frame -> bool -> access
 
   val string: Temp.label * string -> string

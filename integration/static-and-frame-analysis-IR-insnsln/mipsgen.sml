@@ -516,20 +516,14 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Call: simple jal to the callee's function label
          *)
         | munchExp(T.CALL(T.NAME(funName), args)) =
-          let
-            (* Gets all of the temps for the registers that are expected
-             * to be trashed by a function call:
-             * caller-saves, return address, return value
-             *)
-          in
-              (* Actual function call *)
-              (emit(Assem.OPER{assem="jal "^Symbol.name(funName)^"\n",
-                              src=munchArgs(0, args),
-                              dst=Frame.trashedByCall,
-                              jump=NONE});
-              (* Return the return value *)
-              Frame.RV)
-          end
+            (* Actual function call *)
+            (Frame.setOutgoingArgs(frame, List.length(args));
+            emit(Assem.OPER{assem="jal "^Symbol.name(funName)^"\n",
+                            src=munchArgs(0, args),
+                            dst=Frame.trashedByCall,
+                            jump=NONE});
+            (* Return the return value *)
+            Frame.RV)
 
         (* The cases above should cover all legal cases. If we get
          * here without matching, then that is a compiler bug

@@ -16,14 +16,15 @@ fun emitproc out (Frame.PROC{body,frame}) =
        * a list of mips assembly instructions *)
       val instrs =  List.concat(map (MipsGen.codeGen frame) stms')
       val instrs' = Frame.procEntryExit2(frame, instrs)
-      val {prolog, body=finalBody, epilog} = Frame.procEntryExit3(frame, instrs')
       (* Call the register allocator:
        * - creates a CFG
        * - computes liveness
        * - builds an interference graph
        * - runs register allocation and assigns final registers
        *)
-      val (almostReggedInstrs, allocMap) = RegAlloc.alloc(finalBody, frame)
+      val (almostReggedInstrs, allocMap) = RegAlloc.alloc(instrs', frame)
+      val {prolog, body=finalBody, epilog} = Frame.procEntryExit3(frame,
+                                                                  almostReggedInstrs)
       (* Format the resulting assembly instructions to insert correct
        * temps/registers *)
       val format0 = Assem.format(Frame.tempToString allocMap)

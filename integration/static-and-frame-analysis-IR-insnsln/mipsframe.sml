@@ -55,6 +55,7 @@ and ra = Temp.newTemp()
  *)
 type frame = {name:Temp.label,
               formals: access list,
+              maxOutgoing: int ref,
               locals: int ref}
 
 (* The final translation is going to be a list of these fragments
@@ -107,10 +108,11 @@ fun printAccess(InReg(t)) = print("in reg: t"^Int.toString(t)^"\n")
   | printAccess(InFrame(i)) = print("frame offset: "^Int.toString(i)^"\n")
 
 (* printFrame: frame -> unit *)
-fun printFrame({name, formals, locals}) =
+fun printFrame({name, formals, maxOutgoing, locals}) =
     (printExp("Frame name", T.LABEL name);
      print("num formals: "^Int.toString(List.length(formals))^"\n");
      (app printAccess formals);
+     print("\nmax outgoing args: " ^Int.toString(!maxOutgoing));
      print("\nlocals: " ^ Int.toString(!locals) ^ "\n"))
 
 (* newFrame: {name: Temp.label, formals: bool list} -> frame
@@ -119,6 +121,7 @@ fun printFrame({name, formals, locals}) =
  * - name is the label of the function
  * - formals is a list of bools denoting whether the formals escape.
  *   The static link is always added to this list as an escaping arg.
+ * - maxOutgoing is the max number of outgoing arguments
  *
  * This is the function that will actually do the view shift
  * It is not being done now because we need many more machine specific
@@ -155,16 +158,23 @@ fun newFrame({name: Temp.label, formals: bool list}) =
       (* 0 offset is the static link. It's where the FP points to *)
       {name=name,
        formals=createAccesses(formals, 0),
+       maxOutgoing= ref 0,
        locals= ref 0}
     end
 
 (* name: frame -> Temp.label
  * Get the name (label) of the given frame (function) *)
-fun name({name, formals, locals}) = name
+fun name({name, formals, maxOutgoing, locals}) = name
 
 (* formals: frame -> access list
  * Get list of accesses for formal parameters of the given frame  *)
-fun formals({name, formals, locals}) = formals
+fun formals({name, formals, maxOutgoing, locals}) = formals
+
+(* setOutgoingArgs: frame * int -> unit
+ * Set the max outgoing args for the given frame if n is larger than the current
+ * max *)
+fun setOutgoingArgs({name, formals, maxOutgoing, locals}, n) =
+    if n > !maxOutgoing then maxOutgoing := n else ()
 
 (* allocLocal: frame -> bool -> access
  *
@@ -192,7 +202,7 @@ fun formals({name, formals, locals}) = formals
  * We keep the earlier signature until we find out why the signature
  * changes later.
  *)
-fun allocLocal({name, formals, locals}) =
+fun allocLocal({name, formals, maxOutgoing, locals}) =
     fn (b) => if b
               then (locals := !locals + 1;
                     InFrame(~(!locals) * wordSize))
@@ -342,7 +352,7 @@ fun tempToString map =
  * The statements needed to restore the callee save registers are appended after
  * the body.
  *)
-fun procEntryExit1(frame as {name, formals, locals}, body) =
+fun procEntryExit1(frame as {name, formals, maxOutgoing, locals}, body) =
     let
       (* genViewShiftMoves: access list * int * Tree.stm -> Tree.stm
        *
@@ -387,8 +397,7 @@ fun procEntryExit1(frame as {name, formals, locals}, body) =
                           (T.EXP(T.CONST(0))) tempTemps)
     in
       (* Surround the body in the prolog and epilog *)
-      T.SEQ(T.LABEL(name),
-            T.SEQ(prolog, genViewShiftMoves(formals, 0, T.SEQ(body, epilog))))
+      T.SEQ(prolog, genViewShiftMoves(formals, 0, T.SEQ(body, epilog)))
     end
 
 (* procEntryExit2: frame * Assem.instr list -> Assem.instr list
@@ -409,12 +418,21 @@ fun procEntryExit2(frame, body) =
  *                                              body: Assem.instr list,
  *                                              epilog:string}
  *
- * Adds the prolog and epilog to the functions. (Will be filled later)
+ * Adds the prolog and epilog to the functions.
+ * Also writes the framesize to a constant at the beginning of the function
  *)
-fun procEntryExit3({name, formals, locals}, body: Assem.instr list) =
-    {prolog="PROCEDURE "^Symbol.name(name)^"\n",
+fun procEntryExit3({name, formals, maxOutgoing, locals}, body: Assem.instr list) =
+  let
+    val frameSize = Assem.ourIntToString(wordSize * (!maxOutgoing + !locals))
+  in
+    {prolog=Symbol.name(name)^":\n"
+            ^ Symbol.name(name)^"_framesize="
+            ^Assem.ourIntToString(wordSize * (!locals + !maxOutgoing))^"\n"
+            ^"addi $sp, $sp, -"^frameSize^"\n",
      body=body,
-     epilog="jr $ra\nEND "^Symbol.name(name)^"\n"}
+     epilog="addi $sp, $sp, "^frameSize^"\n"
+            ^"jr $ra\n"}
+  end
 end
 
 structure Frame:>FRAME = MipsFrame
