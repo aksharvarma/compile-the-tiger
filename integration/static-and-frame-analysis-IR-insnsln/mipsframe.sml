@@ -425,9 +425,15 @@ fun procEntryExit2(frame, body) =
 fun procEntryExit3({name, formals, maxOutgoing, locals}, body: Assem.instr list) =
   let
     val frameSize = Assem.ourIntToString(wordSize * (!maxOutgoing + !locals))
+    (* Use the correct version for the emulator you are using.
+     * Nothing else needs to be changed. The runtime has been modified
+     * to accommodate both.
+     *)
+    val mars_version = ".eqv "^Symbol.name(name)^"_framesize, "
+    val spim_version = Symbol.name(name)^"_framesize="
   in
     {prolog=Symbol.name(name)^":\n"
-            ^ Symbol.name(name)^"_framesize="
+            ^ mars_version
             ^Assem.ourIntToString(wordSize * (!locals + !maxOutgoing))^"\n"
             ^"addi $sp, $sp, -"^frameSize^"\n",
      body=body,
