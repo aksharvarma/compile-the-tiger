@@ -227,7 +227,8 @@ fun externalCall(s, args) = T.CALL(T.NAME(Temp.namedLabel(s)), args)
  *
  * Translates a string literal to the correct assembly form
  *)
-fun string(lab, str) = (Symbol.name(lab) ^ ": .asciiz \"" ^ str ^ "\"\n")
+fun string(lab, str) = (Symbol.name(lab) ^ ":\n.word "^Int.toString(String.size(str))
+                        ^"\n.ascii \"" ^ str ^ "\"\n")
 
 (* Registers *)
 type register = string

@@ -65,7 +65,9 @@ fun compile filename =
                      Translate.getResult())
     in
       withOpenFile (filename ^ ".s")
-                   (fn out => ((app (emitString out) frags);
+                   (fn out => (TextIO.output(out, ".data\n.align 4\n");
+                               (app (emitString out) frags);
+                               TextIO.output(out, ".text\n");
                                (app (emitproc out) (tl frags));
                                (emitproc out) (hd frags)))
     end
