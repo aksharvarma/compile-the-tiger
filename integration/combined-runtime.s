@@ -216,61 +216,6 @@ tig_initArray:
 	jr	$ra
 .LFE1:
 	.end	tig_initArray
-	.globl	tig_allocRecord
-	.ent	tig_allocRecord
-tig_allocRecord:
-.LFB2:
-	.frame	$fp,64,$ra		# vars= 16, regs= 3/0, args= 0, extra= 16
-	.mask	0xd0000000,-16
-	.fmask	0x00000000,0
-	subu	$sp,$sp,64
-.LCFI5:
-	sw	$ra,48($sp)
-.LCFI6:
-	sw	$fp,40($sp)
-.LCFI7:
-.LCFI8:
-	move	$fp,$sp
-.LCFI9:
-	.set	noat
-	.set	at
-	sw	$a0,16($fp)
-	lw	$a0,16($fp)
-        jal malloc
-	move	$v1,$v0
-	move	$v0,$v1
-	sw	$v0,28($fp)
-	sw	$v0,24($fp)
-	sw	$zero,20($fp)
-.L8:
-	lw	$v0,20($fp)
-	lw	$v1,16($fp)
-	slt	$v0,$v0,$v1
-	bne	$v0,$zero,.L11
-	b	.L9
-.L11:
-	addu	$v0,$fp,24
-	lw	$v1,0($v0)
-	sw	$zero,0($v1)
-	addu	$v1,$v1,4
-	sw	$v1,0($v0)
-.L10:
-	lw	$v0,20($fp)
-	addu	$v1,$v0,4
-	sw	$v1,20($fp)
-	b	.L8
-.L9:
-	lw	$v1,28($fp)
-	move	$v0,$v1
-	b	.L7
-.L7:
-	move	$sp,$fp
-	lw	$ra,48($sp)
-	lw	$fp,40($sp)
-	addu	$sp,$sp,64
-	jr	$ra
-.LFE2:
-	.end	tig_allocRecord
 	.globl	tig_stringEqual
 	.ent	tig_stringEqual
 tig_stringEqual:
