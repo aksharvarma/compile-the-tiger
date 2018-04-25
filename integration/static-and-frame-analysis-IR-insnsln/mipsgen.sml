@@ -436,6 +436,34 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
 
 
         (***************************T.BINOP***************************)
+        (* Add two constants - the addition can be done at compile time
+         * and the resulting expression can merely become another constant
+         * Nodes: 4
+         *)
+        | munchExp(T.BINOP(T.PLUS, T.CONST i, T.CONST j)) =
+            munchExp(T.CONST(i + j))
+
+        (* Subtract two constants - the subtraction can be done at compile time
+         * and the resulting expression can merely become another constant
+         * Nodes: 4
+         *)
+        | munchExp(T.BINOP(T.MINUS, T.CONST i, T.CONST j)) =
+            munchExp(T.CONST(i - j))
+
+        (* Multiply two constants - the multiplication can be done at compile time
+         * and the resulting expression can merely become another constant
+         * Nodes: 4
+         *)
+        | munchExp(T.BINOP(T.MUL, T.CONST i, T.CONST j)) =
+            munchExp(T.CONST(i * j))
+
+        (* Divide two constants - the division can be done at compile time
+         * and the resulting expression can merely become another constant
+         * Nodes: 4
+         *)
+        | munchExp(T.BINOP(T.DIV, T.CONST i, T.CONST j)) =
+            munchExp(T.CONST(i div j))
+
         (* Add a constant to the result of the expression on the left
          * Nodes: 3
          *)
@@ -518,6 +546,12 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
 
 
         (************************T.CONST*****************************)
+        (* Use the $zero register for T.CONST 0
+         * No need to emit an instruction when munching this expression.
+         * Nodes: 1
+         *)
+        | munchExp(T.CONST(0)) = Frame.zero
+
         (* Load the given constant into a temp
          * Nodes: 1
          *)

@@ -42,7 +42,6 @@ and a2 = Temp.newTemp()
 and a3 = Temp.newTemp()
 and ra = Temp.newTemp()
 
-
 (* A stack frame contains the following information
  * - A label to the start of the function (check this)
  * - A list of the accesses associated with each formal parameter
@@ -122,12 +121,6 @@ fun printFrame({name, formals, maxOutgoing, locals}) =
  * - formals is a list of bools denoting whether the formals escape.
  *   The static link is always added to this list as an escaping arg.
  * - maxOutgoing is the max number of outgoing arguments
- *
- * This is the function that will actually do the view shift
- * It is not being done now because we need many more machine specific
- * details including the names for various special registers.
- * Since this is not available as of now, we defer the view shift
- * implementation until later.
  *)
 fun newFrame({name: Temp.label, formals: bool list}) =
     let
@@ -424,7 +417,8 @@ fun procEntryExit2(frame, body) =
  *)
 fun procEntryExit3({name, formals, maxOutgoing, locals}, body: Assem.instr list) =
   let
-    val frameSize = Assem.ourIntToString(wordSize * (!maxOutgoing + !locals))
+    val fs = wordSize * (!maxOutgoing + !locals)
+    val fsStr = Assem.ourIntToString(fs)
     (* Use the correct version for the emulator you are using.
      * Nothing else needs to be changed. The runtime has been modified
      * to accommodate both.
@@ -435,9 +429,9 @@ fun procEntryExit3({name, formals, maxOutgoing, locals}, body: Assem.instr list)
     {prolog=Symbol.name(name)^":\n"
             ^ spim_version
             ^Assem.ourIntToString(wordSize * (!locals + !maxOutgoing))^"\n"
-            ^"addi $sp, $sp, -"^frameSize^"\n",
+            ^(if fs = 0 then "" else "addi $sp, $sp, -"^fsStr^"\n"),
      body=body,
-     epilog="addi $sp, $sp, "^frameSize^"\n"
+     epilog=(if fs = 0 then "" else "addi $sp, $sp, "^fsStr^"\n")
             ^"jr $ra\n"}
   end
 end
