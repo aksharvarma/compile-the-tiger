@@ -3,7 +3,14 @@
 1. Caitlin Matuszak
 2. Akshar Varma
 
+# Changes for final submission
+* All changes from previous resubmissions are propagated through here as well.
+* Updates and simplifies the instrucitions added when spilling to accommodate the FPtoSP translation change.
+* Fills out procEntryExit3 to write the final frame size at the beginning of the function and add/subtract the framesize from the stack pointer during the prolog/epilog.`
+
 Our register allocator does spilling, coalescing as well as coloring of stack frame slots (all the levels).
+
+Note: To force aggressive spilling for testing purposes, you can comment out all but one of the callee saves registers in mipsframe.
 
 The algorithm and logic for simplify, coalescing, spilling, and stack slot allocation of spilled temps are written in the `regalloc.sml` file, while the `color.sml` file does the actual coloring part of the algorithms, both for temps and stack slots. We have a worklists module which we use to keep track of all of the necessary data structures that are mentioned in the book.
 
@@ -15,19 +22,19 @@ This module allows us to abstract out details related to the dozen or so worklis
 
 There are functions that are visible to other modules that allow
 * detemining if a worklist is empty or not,
-* adding/removing specific elements to/from worklists, 
+* adding/removing specific elements to/from worklists,
 * getting an arbitrary element (and potentially removing it) from a worklist,
 * determining if an element is in a particular worklist or not,
 * and getting the full set of elements in a worklist.
 
-This module also contains the logic for manipulating available colors for a temp, as well as managing aliases for temps. Lastly, this is the module which keeps track of the coloring/allocation that is given to a temp. 
+This module also contains the logic for manipulating available colors for a temp, as well as managing aliases for temps. Lastly, this is the module which keeps track of the coloring/allocation that is given to a temp.
 
 (Note: we deviate from the given API by moving the `allocation` type to the worklists module from the color module since all other such data structure related content is in this module helping in keeping a cleaner abstraction.)
 
 ## datatype nodeWL
-This is a datatype that keeps track of the various worklists that nodes/temps can be in at a time. These include most things mentioned in the "Node worklists, sets and stacks" subsection on Pg. 242. 
+This is a datatype that keeps track of the various worklists that nodes/temps can be in at a time. These include most things mentioned in the "Node worklists, sets and stacks" subsection on Pg. 242.
 
-Since we do not have a need to keep track of an explicit initial worklist, we get rid of it and use all the nodes of the graph as our initial worklist. 
+Since we do not have a need to keep track of an explicit initial worklist, we get rid of it and use all the nodes of the graph as our initial worklist.
 
 Also, we keep track of the stack separately from this datatype, as the others in the list are all better represented as sets, while the stack is naturally represented as an SML list.
 
@@ -53,7 +60,7 @@ This goes through the list of elements in `availableColors` and returns the firs
 At a high level, our register allocation algorithm is pretty much exactly what is present in the book. However, due to differences in our representation of graphs and worklists, there are things that are done slightly differently to get the same effect.
 
 ## effectiveDegree
-We want the degree of precolored nodes to be very high all the time. And since we use our graph module to find the degree, we get the current degree (possibly with some edges removed). However, there are places where the book's algorithm assumes (as an invariant) that precolored nodes have higher degree than everything else. 
+We want the degree of precolored nodes to be very high all the time. And since we use our graph module to find the degree, we get the current degree (possibly with some edges removed). However, there are places where the book's algorithm assumes (as an invariant) that precolored nodes have higher degree than everything else.
 
 To avoid any potential issues, we write a wrapper around our degree function from the UGraph module, to return an impossibly high value (number of registers * number of nodes) as the degree of precolored nodes.
 
@@ -84,9 +91,9 @@ Note: The signature that we have is much leaner than what is mentioned in the bo
 
 # Changes to previous code/design
 ## Interference Graphs
-We changed earlier code to use the UGraph module for creating interefernce graphs, instead of a directed graph. We also added the interference between the physical registers so that register allocation works correctly. 
+We changed earlier code to use the UGraph module for creating interefernce graphs, instead of a directed graph. We also added the interference between the physical registers so that register allocation works correctly.
 
 ## Frame
 We add the necessary prolog code for moving the callee saves registers to temporary temps and epilog code for moving them back in `procEntryExit1`.
 
-We also decide that argument registers are considered caller saves and hence go into the trashedByCall set which is set as defs for a `jal funLabel` function call. 
+We also decide that argument registers are considered caller saves and hence go into the trashedByCall set which is set as defs for a `jal funLabel` function call.

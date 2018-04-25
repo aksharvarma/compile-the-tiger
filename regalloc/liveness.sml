@@ -143,7 +143,6 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
       val (tnodeMap, gtempMap) =
           createNodeTempMaps(fgNodes, initTnode, initGtemp)
 
-
       (* tnodeFun : Temp.temp -> Graph.node
        *
        * The function version of the tnodeMap to actually be used in the igraph.
@@ -181,10 +180,10 @@ fun computeLivenessAndBuild(Flow.FGRAPH{control, def, use, ismove}) =
 
       val _ = interferePhysicalRegs(Frame.physicalRegsT)
 
-      (* computeMoves : Graph.node list -> (Graph.node * Graph.node) list
+      (* computeMoves : Graph.node list * UGraph.Table.table -> UGraph.Table.table
        *
-       * Returns a list of the move instructions associated with the given list
-       * of nodes in the form of a (fromNode, toNode) pair.
+       * Returns a table mapping interference graph nodes to the set of move instructions
+       * they are associated with.
        *)
       fun computeMoves([], tab) = tab
         | computeMoves(n::ns, tab) =
