@@ -63,12 +63,20 @@ fun compile filename =
     let val absyn = Parse.parse filename
         val frags = (FindEscape.findEscape absyn; Semant.transProg absyn;
                      Translate.getResult())
+
+        fun isStringFrag(Frame.STRING(_)) = true
+          | isStringFrag(Frame.PROC(_)) = false
+
+        val strFrags = List.filter isStringFrag frags
+        val procFrags = List.filter (fn f => not(isStringFrag f)) frags
     in
       withOpenFile (filename ^ ".s")
-                   (fn out => (TextIO.output(out, ".data\n.align 4\n");
-                               (app (emitString out) frags);
+                   (fn out => (if List.null(strFrags)
+                               then ()
+                               else TextIO.output(out, ".data\n.align 4\n");
+                               (app (emitString out) strFrags);
                                TextIO.output(out, ".text\n");
-                               (app (emitproc out) (tl frags));
-                               (emitproc out) (hd frags)))
+                               (app (emitproc out) (tl procFrags));
+                               (emitproc out) (hd procFrags)))
     end
 end
