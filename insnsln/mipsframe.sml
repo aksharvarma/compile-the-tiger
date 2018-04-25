@@ -30,6 +30,17 @@ val FP:Temp.temp = Temp.newTemp()
 val SP:Temp.temp = Temp.newTemp()
 (* The return value register. This is fixed for all frames *)
 val RV:Temp.temp = Temp.newTemp()
+val zero:Temp.temp = Temp.newTemp()
+
+(* Pulls out the temp values for the argument registers.
+ * Used for referencing the correct temp when assigning arguments
+ * to arg regs
+ *)
+val a0 = Temp.newTemp()
+and a1 = Temp.newTemp()
+and a2 = Temp.newTemp()
+and a3 = Temp.newTemp()
+and ra = Temp.newTemp()
 
 (* A stack frame contains the following information
  * - A label to the start of the function (check this)
@@ -43,6 +54,7 @@ val RV:Temp.temp = Temp.newTemp()
  *)
 type frame = {name:Temp.label,
               formals: access list,
+              maxOutgoing: int ref,
               locals: int ref}
 
 (* The final translation is going to be a list of these fragments
@@ -88,10 +100,11 @@ fun printAccess(InReg(t)) = print("in reg: t"^Int.toString(t)^"\n")
   | printAccess(InFrame(i)) = print("frame offset: "^Int.toString(i)^"\n")
 
 (* printFrame: frame -> unit *)
-fun printFrame({name, formals, locals}) =
+fun printFrame({name, formals, maxOutgoing, locals}) =
     (printExp("Frame name", T.LABEL name);
      print("num formals: "^Int.toString(List.length(formals))^"\n");
      (app printAccess formals);
+     print("\nmax outgoing args: " ^Int.toString(!maxOutgoing));
      print("\nlocals: " ^ Int.toString(!locals) ^ "\n"))
 
 (* newFrame: {name: Temp.label, formals: bool list} -> frame
@@ -100,12 +113,7 @@ fun printFrame({name, formals, locals}) =
  * - name is the label of the function
  * - formals is a list of bools denoting whether the formals escape.
  *   The static link is always added to this list as an escaping arg.
- *
- * This is the function that will actually do the view shift
- * It is not being done now because we need many more machine specific
- * details including the names for various special registers.
- * Since this is not available as of now, we defer the view shift
- * implementation until later.
+ * - maxOutgoing is the max number of outgoing arguments
  *)
 fun newFrame({name: Temp.label, formals: bool list}) =
     let
@@ -135,17 +143,24 @@ fun newFrame({name: Temp.label, formals: bool list}) =
     in
       (* 0 offset is the static link. It's where the FP points to *)
       {name=name,
-       formals= createAccesses(formals, 0),
+       formals=createAccesses(formals, 0),
+       maxOutgoing= ref 0,
        locals= ref 0}
     end
 
 (* name: frame -> Temp.label
  * Get the name (label) of the given frame (function) *)
-fun name({name, formals, locals}) = name
+fun name({name, formals, maxOutgoing, locals}) = name
 
 (* formals: frame -> access list
  * Get list of accesses for formal parameters of the given frame  *)
-fun formals({name, formals, locals}) = formals
+fun formals({name, formals, maxOutgoing, locals}) = formals
+
+(* setOutgoingArgs: frame * int -> unit
+ * Set the max outgoing args for the given frame if n is larger than the current
+ * max *)
+fun setOutgoingArgs({name, formals, maxOutgoing, locals}, n) =
+    if n > !maxOutgoing then maxOutgoing := n else ()
 
 (* allocLocal: frame -> bool -> access
  *
@@ -173,7 +188,7 @@ fun formals({name, formals, locals}) = formals
  * We keep the earlier signature until we find out why the signature
  * changes later.
  *)
-fun allocLocal({name, formals, locals}) =
+fun allocLocal({name, formals, maxOutgoing, locals}) =
     fn (b) => if b
               then (locals := !locals + 1;
                     InFrame(~(!locals) * wordSize))
@@ -198,27 +213,18 @@ fun externalCall(s, args) = T.CALL(T.NAME(Temp.namedLabel(s)), args)
  *
  * Translates a string literal to the correct assembly form
  *)
-fun string(lab, str) = (Symbol.name(lab) ^ ": .asciiz \"" ^ str ^ "\"\n")
+fun string(lab, str) = (Symbol.name(lab) ^ ":\n.word "^Int.toString(String.size(str))
+                        ^"\n.ascii \"" ^ str ^ "\"\n")
 
 (* Registers *)
 type register = string
-
-(* Pulls out the temp values for the argument registers.
- * Used for referencing the correct temp when assigning arguments
- * to arg regs
- *)
-val v1 = Temp.newTemp()
-and a0 = Temp.newTemp()
-and a1 = Temp.newTemp()
-and a2 = Temp.newTemp()
-and a3 = Temp.newTemp()
 
 (* Includes return value ($v0), zero reg ($zero), return address ($ra), and
  * stack pointer ($sp)
  *)
 val specialRegs:(register * Temp.temp) list = [("$v0", RV),
-                                               ("$zero", Temp.newTemp()),
-                                               ("$ra", Temp.newTemp()),
+                                               ("$zero", zero),
+                                               ("$ra", ra),
                                                ("$sp", SP)]
 (* Argument registers: $a0-$a3 *)
 val argRegs:(register * Temp.temp) list = [("$a0", a0),
@@ -228,7 +234,7 @@ val argRegs:(register * Temp.temp) list = [("$a0", a0),
 
 (* Callee saved registers: $s0-$s7.
  * This list also includes the frame pointer register ($r30) and the second
- * return value register ($v1) because they will not otherwise be used for their
+ * return value register ($v1=$r3) as they will not be used for their
  * special purposes
  *)
 val calleeSaves:(register * Temp.temp) list = [("$s0", Temp.newTemp()),
@@ -240,7 +246,7 @@ val calleeSaves:(register * Temp.temp) list = [("$s0", Temp.newTemp()),
                                                ("$s6", Temp.newTemp()),
                                                ("$s7", Temp.newTemp()),
                                                ("$r30", Temp.newTemp()),
-                                               ("$v1", v1)]
+                                               ("$r3", Temp.newTemp())]
 
 (* Caller saved registers: $t0-$t9 *)
 val callerSaves:(register * Temp.temp) list = [("$t0", Temp.newTemp()),
@@ -256,58 +262,13 @@ val callerSaves:(register * Temp.temp) list = [("$t0", Temp.newTemp()),
 
 (* These are reserved registers that cannot be used by the program  *)
 val reservedRegs:(register * Temp.temp) list = [("$at", Temp.newTemp()),
-                                               ("$k0", Temp.newTemp()),
-                                               ("$k1", Temp.newTemp()),
-                                               ("$gp", Temp.newTemp())]
+                                                ("$k0", Temp.newTemp()),
+                                                ("$k1", Temp.newTemp()),
+                                                ("$gp", Temp.newTemp())]
 
-(* Some sugar-coating for the RHS *)
+(* Some useful lists of registers *)
 val allUserRegs = specialRegs@argRegs@calleeSaves@callerSaves@reservedRegs
-
-(* procEntryExit1: frame * Tree.stm -> Tree.stm
- *
- * This is the function that adds the prologue and epilogue to the code
- * of the function. Currently it is quite barren and will be filled in
- * at a later stage when we have more details of MIPS (esp. registers)
- *
- * The required code will come in the following helper functions:
- * - moveArgs: will move escaping args (including SL) into frame
-   and others into fresh temporary registers.
- * - storeCalleeSaves: store the callee-saves registers in frame
- * - restoreCalleeSaves: restore the callee-saves registers from frame
- * - combine: combine prologue+body+epilogue
- *)
-fun procEntryExit1(frame, body) = body
-
-(* procEntryExit2: frame * Assem.instr list -> Assem.instr list
- *
- * Adds a vacuous instruction to the end of a function body so that liveness
- * analysis can know that certain registers are live when a function returns.
- *)
-fun procEntryExit2(frame, body) =
-    let
-      val liveTemps = map (fn (str, tmp) => tmp) (specialRegs@calleeSaves)
-    in
-    body @ [Assem.OPER{assem="",
-                       src=liveTemps, dst=[],
-                       jump=SOME[]}]
-    end
-
-(* procEntryExit3: frame * Assem.instr list -> {prolog:string,
- *                                              body: Assem.instr list,
- *                                              epilog:string}
- *
- * Adds the prolog and epilog to the functions. (Will be filled later)
- *)
-fun procEntryExit3({name, formals, locals}, body: Assem.instr list) =
-    let
-      fun getAssem(Assem.OPER{assem, dst, src, jump}) = assem
-        | getAssem(Assem.LABEL{assem, lab}) = assem
-        | getAssem(Assem.MOVE{assem, dst, src}) = assem
-    in
-      {prolog="PROCEDURE "^Symbol.name(name)^"\n"^getAssem(hd body),
-       body=(tl body),
-       epilog="jr $ra\nEND "^Symbol.name(name)^"\n"}
-    end
+val trashedByCall = ra::RV::(map (fn (s, t) => t) (argRegs@callerSaves))
 
 (* tempMap: register Temp.Table.table
  *
@@ -325,7 +286,91 @@ val tempMap:register Temp.Table.table =
 fun findTemp(queryStr) =
     case List.find (fn (str, t) => str=queryStr) allUserRegs
      of SOME((s,t)) => t
-     | _ => Temp.newTemp()
+      | _ => Temp.newTemp()
+
+(* procEntryExit1: frame * Tree.stm -> Tree.stm
+ *
+ * This is the function that adds the prologue and epilogue to the code
+ * of the function.
+ * The tree move statements needed to process the incoming arguments are created
+ * by genViewShiftMoves and they are added in front of the body along with
+ * the tree statements needed to save the callee save registers.
+ * The statements needed to restore the callee save registers are appended after
+ * the body.
+ *)
+fun procEntryExit1(frame as {name, formals, maxOutgoing, locals}, body) =
+    let
+      (* genViewShiftMoves: access list * int * Tree.stm -> Tree.stm
+       *
+       * Generates the tree moves to move the arguments from where they were
+       * passed in to their correct locations according to the list of accesses.
+       * Arguments 1-4 are taken from registers $a0-$a3.
+       * Arguments >4 are read from the appropriate place above the frame
+       * pointer.
+       *)
+      fun genViewShiftMoves([], index, stm) = stm
+        | genViewShiftMoves(access::accesses, index, stm) =
+          let
+            val fromLoc = case index
+                            of 0 => T.TEMP(a0)
+                             | 1 => T.TEMP(a1)
+                             | 2 => T.TEMP(a2)
+                             | 3 => T.TEMP(a3)
+                             | _ => T.MEM(T.BINOP(T.PLUS, T.TEMP FP,
+                                                  T.CONST(index * wordSize)))
+
+            val newStm =
+              case access
+                of InFrame(k) =>
+                      T.SEQ(T.MOVE(T.MEM(T.BINOP(T.PLUS, T.TEMP FP, T.CONST k)),
+                                 fromLoc), stm)
+                 | InReg(t) => T.SEQ(T.MOVE(T.TEMP t, fromLoc), stm)
+          in
+            genViewShiftMoves(accesses, index + 1, newStm)
+          end
+
+      val regsToSave = ra::(map (fn (s, t) => t) calleeSaves)
+      (* Temp, reg pairs for everything we want to put in prolog *)
+      val tempTemps = map (fn reg => (Temp.newTemp(), reg)) regsToSave
+      (* Generate the tree statements to save the callee save registers in new
+       * temps *)
+      val prolog = (foldr (fn ((t, r), stm) => T.SEQ(T.MOVE(T.TEMP(t),
+                                                            T.TEMP(r)), stm))
+                          (T.EXP(T.CONST(0))) tempTemps)
+      (* Generate the tree statements to restore the callee save registers *)
+      val epilog = (foldr (fn ((t, r), stm) => T.SEQ(T.MOVE(T.TEMP(r),
+                                                            T.TEMP(t)), stm))
+                          (T.EXP(T.CONST(0))) tempTemps)
+    in
+      (* Surround the body in the prolog and epilog *)
+      T.SEQ(prolog, genViewShiftMoves(formals, 0, T.SEQ(body, epilog)))
+    end
+
+(* procEntryExit2: frame * Assem.instr list -> Assem.instr list
+ *
+ * Adds a vacuous instruction to the end of a function body so that liveness
+ * analysis can know that certain registers are live when a function returns.
+ *)
+fun procEntryExit2(frame, body) =
+    let
+      val liveTemps = map (fn (str, tmp) => tmp) (specialRegs@calleeSaves)
+    in
+      body @ [Assem.OPER{assem="",
+                         src=liveTemps, dst=[],
+                         jump=SOME[]}]
+    end
+
+(* procEntryExit3: frame * Assem.instr list -> {prolog:string,
+ *                                              body: Assem.instr list,
+ *                                              epilog:string}
+ *
+ * Adds the prolog and epilog to the functions.
+ * Also writes the framesize to a constant at the beginning of the function
+ *)
+fun procEntryExit3({name, formals, maxOutgoing, locals}, body: Assem.instr list) =
+    {prolog=Symbol.name(name)^":\n",
+     body=body,
+     epilog="jr $ra\n"}
 end
 
 structure Frame:>FRAME = MipsFrame

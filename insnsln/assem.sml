@@ -13,8 +13,14 @@ structure Assem = struct
                             dst: temp,
                             src: temp}
 
+  (* ourIntToString : int -> string
+   *
+   * Converts the given int to a string, using "-" for negatives rather than "~"
+   *)
+  fun ourIntToString(i) = if i < 0 then "-"^Int.toString(~i) else Int.toString(i)
+
   fun format saytemp =
-    let
+      let
         fun speak(assem,dst,src,jump) =
             let val saylab = Symbol.name
                 fun f(#"'":: #"s":: i::rest) =
@@ -36,6 +42,5 @@ structure Assem = struct
           | LABEL{assem,...} => assem
           | MOVE{assem,dst,src} => speak(assem,[dst],[src],nil))
      end
-
 end
 

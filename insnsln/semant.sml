@@ -17,7 +17,6 @@ structure Ty = Types
 structure S = Symbol
 structure E = Env
 
-
 (* Main semantic analysis module *)
 signature SEMANT =
 sig
@@ -879,7 +878,7 @@ fun transProg(e) =
        (* Used to create a frag for the whole program *)
        val mainLevel =
            Translate.newLevel {parent=Translate.outermost,
-                               name=Temp.namedLabel("MAIN_TIGER_PROG"),
+                               name=Temp.namedLabel("main"),
                                formals=[]}
 
        (* The brklabel for outermost doesn't matter.

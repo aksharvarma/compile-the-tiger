@@ -3,7 +3,24 @@
 1. Caitlin Matuszak
 2. Akshar Varma
 
-Changes and bug fixes added on the last submission are detailed at the end of the file.
+# Changes made for the final resubmission
+* Adds Assem.ourIntToString to convert ints to string for use in the assembly files, with "-" used for the negative sign rather than "~"
+* Adds a few new utility methods to frame.sig that will be used in mipsgen.sml
+* Modifies main to output .data and .align directives if string fragments are present, places all string fragments at the top of the file, and places the .text directive before outputting the function procs
+* Adds the maxOutgoing field to the frame datatype to record the max number of outgoing arguments each frame will have. This will aid in the calculation of the final frame size after register allocation. The max number of outgoing arguments is updated by mipsgen.sml whenever we encounter a T.CALL expression.
+* Frame.string is updated to produce the string label followed by a word indicating the size of the string followed by the string itself.
+* Move instructions to implement the view shift are added in procEntryExit1. Tree statements to move the callee save registers to fresh temps are also inserted in procEntryExit1.
+* The FPtoSP conversion previously had used one unnecessary memory access. This is now removed.
+* mipsgen has been refactored to create the correct Assem.OPER or Assem.MOVE in the correct places.
+* A bug regarding the dst and src lists for sw instructions has been corrected, now making both registers involved sources for the instruction.
+* A few optimizations regarding constants have been added. For example, T.CONST 0 now uses the $zero register, and a few optimizations regarding simple arithmetic of two constants have been introduced.
+* The main fragment name has been changed to be just "tig\_main" now.
+* The changes involved in the previous resubmission of Frame analysis/IR Generation are also incorporated in this submission.
+* An updated assembly file for test4.tig (factorial) has been included as test4.tig.s.
+
+
+
+Changes and bug fixes added on the second submission are detailed at the end of the file.
 
 Takes the IR Tree, canonicalizes it and performs instruction selection.
 

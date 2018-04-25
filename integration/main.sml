@@ -52,7 +52,7 @@ fun emitString out (Frame.STRING(lab,s)) = TextIO.output(out, Frame.string(lab,s
 fun withOpenFile fname f =
     let val out = TextIO.openOut fname
     in (f out before TextIO.closeOut out)
-       handle e => (TextIO.closeOut out; raise e)
+        handle e => (TextIO.closeOut out; raise e)
     end
 
 (* compile: string -> unit

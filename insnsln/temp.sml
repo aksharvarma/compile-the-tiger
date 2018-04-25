@@ -10,7 +10,6 @@ structure Table = IntMapTable(type key = int
 
 fun makeString t = "t" ^ Int.toString t
 
-
 type label = Symbol.symbol
 
 local structure F = Format
@@ -25,6 +24,4 @@ fun newLabel() = Symbol.symbolize(F.format "L%d" [F.INT(postinc labs)])
  *)
 val namedLabel = (fn s => Symbol.symbolize("tig_"^s))
 end
-
-
 end
