@@ -41,7 +41,7 @@ fun createFlowGraph(body, format) =
 fun emitproc out (Frame.PROC{body,frame}) =
     let
       val _ = (* print to indicate start of new proc/frame *)
-          print ("emit " ^ Symbol.name(Frame.name(frame)) ^ "\n")
+          print ("####\temit " ^ Symbol.name(Frame.name(frame)) ^ "\n")
       (* Call canonicalizer functions to linearize the body of the fragment
        * into basic blocks*)
       val stms = Canon.linearize body
@@ -57,7 +57,7 @@ fun emitproc out (Frame.PROC{body,frame}) =
       (* Create the control flow graph for the formatted body *)
       val (fg, nodes) = createFlowGraph(finalBody, format0)
       (* Compute liveness for the CFG and create the interference graph *)
-      val (interGraph, liveOutFn) = Liveness.interferenceGraph(fg)
+      val interGraph = Liveness.computeLivenessAndBuild(fg)
     in
       (* Output the prolog, then the final proc body, followed by the epilog *)
       (TextIO.output(out, prolog);
@@ -93,10 +93,20 @@ fun compile filename =
     let val absyn = Parse.parse filename
         val frags = (FindEscape.findEscape absyn; Semant.transProg absyn;
                      Translate.getResult())
+
+        fun isStringFrag(Frame.STRING(_)) = true
+          | isStringFrag(Frame.PROC(_)) = false
+
+        val strFrags = List.filter isStringFrag frags
+        val procFrags = List.filter (fn f => not(isStringFrag f)) frags
     in
       withOpenFile (filename ^ ".s")
-                   (fn out => ((app (emitString out) frags);
-                               (app (emitproc out) (tl frags));
-                               (emitproc out) (hd frags)))
+                   (fn out => (if List.null(strFrags)
+                               then ()
+                               else TextIO.output(out, ".data\n.align 4\n");
+                               (app (emitString out) strFrags);
+                               TextIO.output(out, ".text\n");
+                               (app (emitproc out) (tl procFrags));
+                               (emitproc out) (hd procFrags)))
     end
 end

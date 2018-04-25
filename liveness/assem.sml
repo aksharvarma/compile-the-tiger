@@ -13,6 +13,12 @@ structure Assem = struct
                             dst: temp,
                             src: temp}
 
+  (* ourIntToString : int -> string
+   *
+   * Converts the given int to a string, using "-" for negatives rather than "~"
+   *)
+  fun ourIntToString(i) = if i < 0 then "-"^Int.toString(~i) else Int.toString(i)
+
   (* getAssem : instr -> string
    *
    * Extracts the assem string from the given instr

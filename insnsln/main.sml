@@ -26,10 +26,10 @@ fun emitproc out (Frame.PROC{body,frame}) =
        * a list of mips assembly instructions *)
       val instrs =  List.concat(map (MipsGen.codeGen frame) stms')
       val instrs' = Frame.procEntryExit2(frame, instrs)
-        val {prolog, body=finalBody, epilog} = Frame.procEntryExit3(frame, instrs')
-        (* Format the resulting assembly instructions to insert correct
-         * temps/registers *)
-        val format0 = Assem.format(modifiedMakeString)
+      val {prolog, body=finalBody, epilog} = Frame.procEntryExit3(frame, instrs')
+      (* Format the resulting assembly instructions to insert correct
+       * temps/registers *)
+      val format0 = Assem.format(modifiedMakeString)
     in
       (* Output the prolog, then the final proc body, followed by the epilog *)
       (TextIO.output(out, prolog);

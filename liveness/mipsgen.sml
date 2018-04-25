@@ -28,7 +28,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
       val fs = Symbol.symbolize(Symbol.name(Frame.name(frame))^"_framesize")
 
       (* Tree code for adding the framesize to the stack pointer: SP + fs *)
-      val FPtoSP = T.BINOP(T.PLUS, T.TEMP Frame.SP, T.MEM(T.NAME fs))
+      val FPtoSP = T.BINOP(T.PLUS, T.TEMP Frame.SP, T.NAME fs)
 
       (* emit : Assem.instr -> unit
        *
@@ -63,7 +63,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Nodes: 5
          *)
         | munchStm(T.MOVE(T.MEM(T.BINOP(T.PLUS, e1, T.CONST i)), e2)) =
-          emit(Assem.OPER{assem="sw 's0, "^Int.toString(i)^"('s1)\n",
+          emit(Assem.OPER{assem="sw 's0, "^Assem.ourIntToString(i)^"('s1)\n",
                           src=[munchExp e2, munchExp e1],
                           dst=[],
                           jump=NONE})
@@ -72,30 +72,16 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Nodes: 5
          *)
         | munchStm(T.MOVE(T.MEM(T.BINOP(T.PLUS, T.CONST i, e1)), e2)) =
-          emit(Assem.OPER{assem="sw 's0, "^Int.toString(i)^"('s1)\n",
+          emit(Assem.OPER{assem="sw 's0, "^Assem.ourIntToString(i)^"('s1)\n",
                           src=[munchExp e2, munchExp e1],
                           dst=[],
                           jump=NONE})
 
-        (* load from an address offset by a constant (right)
-         * Nodes: 5
-         *)
-        | munchStm(T.MOVE(e1, T.MEM(T.BINOP(T.PLUS, e2, T.CONST i)))) =
-          emit(Assem.OPER{assem="lw 'd0, "^Int.toString(i)^"('s0)\n",
-                          src=[munchExp e2],
-                          dst=[munchExp e1],
-                          jump=NONE})
-
-        (* load from an address offset by a constant (left)
-         * Nodes: 5
-         *)
-        | munchStm(T.MOVE(e1, T.MEM(T.BINOP(T.PLUS, T.CONST i, e2)))) =
-          emit(Assem.OPER{assem="lw 'd0, "^Int.toString(i)^"('s0)\n",
-                          src=[munchExp e2],
-                          dst=[munchExp e1],
-                          jump=NONE})
-
-        (* store into an address without offset
+        (* Note: This needs to be this high because any time that a MEM node is the
+         * left child of a move, we should interpret that as a store. If it is
+         * lower, one of the load cases might catch it mistakenly instead.
+         *
+         * Store into an address without offset
          * Nodes: 2
          *)
         | munchStm(T.MOVE(T.MEM(e1), e2)) =
@@ -104,11 +90,29 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
                           dst=[],
                           jump=NONE})
 
+        (* load from an address offset by a constant (right)
+         * Nodes: 5
+         *)
+        | munchStm(T.MOVE(e1, T.MEM(T.BINOP(T.PLUS, e2, T.CONST i)))) =
+          emit(Assem.OPER{assem="lw 'd0, "^Assem.ourIntToString(i)^"('s0)\n",
+                          src=[munchExp e2],
+                          dst=[munchExp e1],
+                          jump=NONE})
+
+        (* load from an address offset by a constant (left)
+         * Nodes: 5
+         *)
+        | munchStm(T.MOVE(e1, T.MEM(T.BINOP(T.PLUS, T.CONST i, e2)))) =
+          emit(Assem.OPER{assem="lw 'd0, "^Assem.ourIntToString(i)^"('s0)\n",
+                          src=[munchExp e2],
+                          dst=[munchExp e1],
+                          jump=NONE})
+
         (* Load constant into the destination e1
          * Nodes: 2
          *)
         | munchStm(T.MOVE(e1, T.CONST i)) =
-          emit(Assem.OPER({assem="li 'd0, "^Int.toString(i)^"\n",
+          emit(Assem.OPER({assem="li 'd0, "^Assem.ourIntToString(i)^"\n",
                            src=[],
                            dst=[munchExp e1],
                            jump=NONE}))
@@ -391,12 +395,26 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
           then munchExp(FPtoSP)
           else t
 
+        (***************************FPtoSP***************************)
+        (* This case should only catch the conversion from FPtoSP.
+         * We should only be adding a label to the SP, so if the given temp is
+         * not the SP, then throw an exception to indicate a buh.
+         *
+         * Nodes: 4
+         *)
+        | munchExp(T.BINOP(T.PLUS, T.TEMP(t), T.NAME fs)) =
+          if t=Frame.SP
+          then
+            (result(fn r => emit(Assem.OPER{assem="addi 'd0, 's0, "^Symbol.name(fs)^"\n",
+                                            src=[Frame.SP], dst=[r], jump=NONE})))
+          else let exception AddingLabelToNotSP in raise AddingLabelToNotSP end
+
         (***************************T.MEM***************************)
         (* Load from an address offset by a constant (right)
          * Nodes: 4
          *)
         | munchExp(T.MEM(T.BINOP(T.PLUS, e1, T.CONST i))) =
-          (result(fn r => emit(Assem.OPER{assem="lw 'd0, "^Int.toString(i)^"('s0)\n",
+          (result(fn r => emit(Assem.OPER{assem="lw 'd0, "^Assem.ourIntToString(i)^"('s0)\n",
                                           src=[munchExp e1], dst=[r],
                                           jump=NONE})))
 
@@ -404,7 +422,7 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Nodes: 4
          *)
         | munchExp(T.MEM(T.BINOP(T.PLUS, T.CONST i, e1))) =
-          (result(fn r => emit(Assem.OPER{assem="lw 'd0, "^Int.toString(i)^"('s0)\n",
+          (result(fn r => emit(Assem.OPER{assem="lw 'd0, "^Assem.ourIntToString(i)^"('s0)\n",
                                           src=[munchExp e1], dst=[r],
                                           jump=NONE})))
 
@@ -418,11 +436,39 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
 
 
         (***************************T.BINOP***************************)
+        (* Add two constants - the addition can be done at compile time
+         * and the resulting expression can merely become another constant
+         * Nodes: 4
+         *)
+        | munchExp(T.BINOP(T.PLUS, T.CONST i, T.CONST j)) =
+            munchExp(T.CONST(i + j))
+
+        (* Subtract two constants - the subtraction can be done at compile time
+         * and the resulting expression can merely become another constant
+         * Nodes: 4
+         *)
+        | munchExp(T.BINOP(T.MINUS, T.CONST i, T.CONST j)) =
+            munchExp(T.CONST(i - j))
+
+        (* Multiply two constants - the multiplication can be done at compile time
+         * and the resulting expression can merely become another constant
+         * Nodes: 4
+         *)
+        | munchExp(T.BINOP(T.MUL, T.CONST i, T.CONST j)) =
+            munchExp(T.CONST(i * j))
+
+        (* Divide two constants - the division can be done at compile time
+         * and the resulting expression can merely become another constant
+         * Nodes: 4
+         *)
+        | munchExp(T.BINOP(T.DIV, T.CONST i, T.CONST j)) =
+            munchExp(T.CONST(i div j))
+
         (* Add a constant to the result of the expression on the left
          * Nodes: 3
          *)
         | munchExp(T.BINOP(T.PLUS, e, T.CONST i)) =
-          (result(fn r => emit(Assem.OPER{assem="addi 'd0, 's0, "^Int.toString(i)^"\n",
+          (result(fn r => emit(Assem.OPER{assem="addi 'd0, 's0, "^Assem.ourIntToString(i)^"\n",
                                           src=[munchExp e], dst=[r],
                                           jump=NONE})))
 
@@ -430,7 +476,25 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Nodes: 3
          *)
         | munchExp(T.BINOP(T.PLUS, T.CONST i, e)) =
-          (result(fn r => emit(Assem.OPER{assem="addi 'd0, 's0, "^Int.toString(i)^"\n",
+          (result(fn r => emit(Assem.OPER{assem="addi 'd0, 's0, "^Assem.ourIntToString(i)^"\n",
+                                          src=[munchExp e], dst=[r],
+                                          jump=NONE})))
+
+        (* Subtract a constant from the result of the expression on the left
+         * Nodes: 3
+         *)
+        | munchExp(T.BINOP(T.MINUS, e, T.CONST i)) =
+          (result(fn r => emit(Assem.OPER{assem="addi 'd0, 's0, -"
+                                                 ^Assem.ourIntToString(i)^"\n",
+                                          src=[munchExp e], dst=[r],
+                                          jump=NONE})))
+
+        (* Subtract a constant to the result of the expression on the right
+         * Nodes: 3
+         *)
+        | munchExp(T.BINOP(T.MINUS, T.CONST i, e)) =
+          (result(fn r => emit(Assem.OPER{assem="addi 'd0, 's0, -"
+                                                 ^Assem.ourIntToString(i)^"\n",
                                           src=[munchExp e], dst=[r],
                                           jump=NONE})))
 
@@ -482,11 +546,17 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
 
 
         (************************T.CONST*****************************)
+        (* Use the $zero register for T.CONST 0
+         * No need to emit an instruction when munching this expression.
+         * Nodes: 1
+         *)
+        | munchExp(T.CONST(0)) = Frame.zero
+
         (* Load the given constant into a temp
          * Nodes: 1
          *)
         | munchExp(T.CONST(i)) =
-          (result(fn r => emit(Assem.OPER{assem="li 'd0, "^Int.toString(i)^"\n",
+          (result(fn r => emit(Assem.OPER{assem="li 'd0, "^Assem.ourIntToString(i)^"\n",
                                           src=[], dst=[r],
                                           jump=NONE})))
 
@@ -498,23 +568,14 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
          * Call: simple jal to the callee's function label
          *)
         | munchExp(T.CALL(T.NAME(funName), args)) =
-          let
-            (* Gets all of the temps for the registers that are expected
-             * to be trashed by a function call:
-             * caller-saves, return address, return value
-             *)
-            val trashedByCall = map Frame.findTemp ["$t0", "$t1", "$t2", "$t3",
-                                                    "$t4", "$t5", "$t6", "$t7",
-                                                    "$t8", "$t9", "$ra"]
-          in
-              (* Actual function call *)
-              (emit(Assem.OPER{assem="jal "^Symbol.name(funName)^"\n",
-                              src=munchArgs(0, args),
-                              dst=Frame.RV::trashedByCall,
-                              jump=NONE});
-              (* Return the return value *)
-              Frame.RV)
-          end
+            (* Actual function call *)
+            (Frame.setOutgoingArgs(frame, List.length(args));
+            emit(Assem.OPER{assem="jal "^Symbol.name(funName)^"\n",
+                            src=munchArgs(0, args),
+                            dst=Frame.trashedByCall,
+                            jump=NONE});
+            (* Return the return value *)
+            Frame.RV)
 
         (* The cases above should cover all legal cases. If we get
          * here without matching, then that is a compiler bug
@@ -534,15 +595,16 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
            (if i<4
            then (* Pass in $a0--$a3 *)
              let
-               val argTemp = Frame.findTemp("$a"^Int.toString(i))
+               val argTemp = Frame.findTemp("$a"^Assem.ourIntToString(i))
              in
-               (emit(Assem.MOVE{assem="move $a"^Int.toString(i)^", 's0\n",
+               (emit(Assem.MOVE{assem="move $a"^Assem.ourIntToString(i)^", 's0\n",
                                 src=(munchExp arg),
                                 dst=argTemp});
                 argTemp::munchArgs(i+1, args))
               end
            else (* Put on the stack frame *)
-             (emit(Assem.OPER{assem="sw 's0,"^Int.toString(i*Frame.wordSize)^"($sp)\n",
+             (emit(Assem.OPER{assem="sw 's0, "^Assem.ourIntToString(i*Frame.wordSize)
+                                     ^"($sp)\n",
                               src=[munchExp arg, Frame.SP],
                               dst=[],
                               jump=NONE});

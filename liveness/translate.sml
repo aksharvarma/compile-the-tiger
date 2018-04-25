@@ -2,7 +2,6 @@
  * allowing Semant to interact with both the MipsFrame module
  * (for frame analysis) and Tree (for AST to IR translation) module.
  *)
-
 structure Translate:>TRANSLATE =
 struct
 
@@ -673,11 +672,10 @@ fun forExp(level, iAccess:access, brkLabel, lo:exp, hi:exp, body:exp) =
 
 (* procEntryExit: {level:level, body:exp, isProcedure:bool, isMain:bool} -> unit
  *
- * This is the function that calls the Frame.procEntryExit1-3 functions
- * Based on the list of items from the book, we don't do these yet:
- * 1-3, 9-11,
- * This functions combines 6 and 7 (move result to RV)
- * 4, 5, 8 are machine dependent and are done by the Frame module.
+ * Referring to the list of steps for function definitions on p.167-168:
+ *  - This functions combines 6 and 7 (move result to RV)
+ *  - 4, 5, 8 are machine dependent and are done by the Frame.procEntryExit1
+ * Also adds in the error handling procs if this is called for the main fragment
  *)
 fun procEntryExit({level, body, isProcedure, isMain}) =
     let
@@ -708,10 +706,12 @@ fun procEntryExit({level, body, isProcedure, isMain}) =
             val outOfBoundsFrame = Frame.newFrame{name=outOfBounds,
             formals=[false]}
 
-            val derefNilBody = T.SEQ(T.LABEL(Frame.name(derefNilFrame)),
+            val derefNilBody =
+                Frame.procEntryExit1(derefNilFrame,
                                      T.EXP(Frame.externalCall("exit_TigMain",
                                                         [T.CONST(badDerefExit)])))
-            val outOfBoundsBody = T.SEQ(T.LABEL(Frame.name(outOfBoundsFrame)),
+            val outOfBoundsBody =
+                Frame.procEntryExit1(outOfBoundsFrame,
                                      T.EXP(Frame.externalCall("exit_TigMain",
                                                         [T.CONST(outOfBoundsExit)])))
 
@@ -721,17 +721,13 @@ fun procEntryExit({level, body, isProcedure, isMain}) =
           end
 
       (* items 6-7: Move result of exp into RV
-       * But do that only if it is not a procedure
-       *)
+       * But do that only if it is not a procedure *)
       val bodyWithRV = if isProcedure
                        then unNx(body)
                        else T.MOVE(T.TEMP Frame.RV, unEx(body))
 
-      (* Add in the function label to the start of the body *)
-      val bodyWithRvAndLabel = T.SEQ(T.LABEL(Frame.name(frame)), bodyWithRV)
-
       (* procEntryExit1 modifies the body to do items 4-8. *)
-      val modifiedBody = Frame.procEntryExit1(frame, bodyWithRvAndLabel)
+      val modifiedBody = Frame.procEntryExit1(frame, bodyWithRV)
 
       (* If isMain, then append the runtime error procs to the frag list *)
       val _ = if isMain then (addErrorProcs()) else ()

@@ -31,6 +31,8 @@ translate.sig
 translate.sml
 tree.sml
 types.sml
+ugraph.sig
+ugraph.sml
 $/basis.cm
 $/ml-yacc-lib.cm
 $/smlnj-lib.cm

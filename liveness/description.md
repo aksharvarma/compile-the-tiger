@@ -3,6 +3,14 @@
 1. Caitlin Matuszak
 2. Akshar Varma
 
+# Changes for final submission
+* All changes made for the resubmission of instruction selection are also propagated here.
+* Adds the UGraph module (ugraph.sig and ugraph.sml) which implements an undirected graph.
+* Inteference graphs are modified to use the UGraph module (undirected) rather than the previous directed version presented by the Graph module. Flowgraphs remain directed, using the Graph module.
+* Edges are added between all physical registers in the interference graph to prepare for register allocation.
+* Corrects a few bugs with the liveness algorithm in livenessWL
+
+
 ## MakeGraph
 One thing to note here is that we may come to know about the existence of a label before we actually see the instruction corresponding to the label. We handle this by keeping a mapping between labels and nodes of the CFG. If we see a label first, we store the node it was assigned, if we see a reference to the label first, we create a node, add the required edge, and remember that that particular label already has a node.
 
