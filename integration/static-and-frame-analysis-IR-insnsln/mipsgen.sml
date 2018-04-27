@@ -459,10 +459,18 @@ fun codeGen(frame) (stm: Tree.stm) : Assem.instr list =
 
         (* Divide two constants - the division can be done at compile time
          * and the resulting expression can merely become another constant
+         * Do this only if you are not dividing by 0.
          * Nodes: 4
          *)
         | munchExp(T.BINOP(T.DIV, T.CONST i, T.CONST j)) =
-            munchExp(T.CONST(i div j))
+          if j <> 0
+          then munchExp(T.CONST(i div j))
+          else (result(fn r => emit(Assem.OPER{assem="div 'd0, 's0, 's1\n",
+                                               src=[munchExp(T.CONST i),
+                                                    munchExp(T.CONST j)],
+                                               dst=[r],
+                                               jump=NONE})))
+
 
         (* Add a constant to the result of the expression on the left
          * Nodes: 3

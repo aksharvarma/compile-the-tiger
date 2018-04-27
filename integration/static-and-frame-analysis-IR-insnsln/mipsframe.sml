@@ -338,23 +338,21 @@ fun tempToString map =
 
 (* procEntryExit1: frame * Tree.stm -> Tree.stm
  *
- * This is the function that adds the prologue and epilogue to the code
- * of the function.
- * The tree move statements needed to process the incoming arguments are created
- * by genViewShiftMoves and they are added in front of the body along with
- * the tree statements needed to save the callee save registers.
- * The statements needed to restore the callee save registers are appended after
- * the body.
+ * This function adds tree move statements to do the following things:
+ * Prepended before function body
+ * 1. Process incoming arguments (using genViewShiftMoves)
+ * 2. Save the callee save registers.
+ * Appended after function body
+ * 3. Restore the callee save registers.
  *)
 fun procEntryExit1(frame as {name, formals, maxOutgoing, locals}, body) =
     let
       (* genViewShiftMoves: access list * int * Tree.stm -> Tree.stm
        *
-       * Generates the tree moves to move the arguments from where they were
-       * passed in to their correct locations according to the list of accesses.
+       * Generates the tree moves to move the arguments in to their correct
+       * locations according to the list of accesses.
        * Arguments 1-4 are taken from registers $a0-$a3.
-       * Arguments >4 are read from the appropriate place above the frame
-       * pointer.
+       * Arguments >4 are read from the appropriate place above the FP
        *)
       fun genViewShiftMoves([], index, stm) = stm
         | genViewShiftMoves(access::accesses, index, stm) =
@@ -377,11 +375,11 @@ fun procEntryExit1(frame as {name, formals, maxOutgoing, locals}, body) =
             genViewShiftMoves(accesses, index + 1, newStm)
           end
 
+      (* Save the callee saves registers *)
       val regsToSave = ra::(map (fn (s, t) => t) calleeSaves)
-      (* Temp, reg pairs for everything we want to put in prolog *)
+      (* Temp to save calleeSaves in, paired with respective regs *)
       val tempTemps = map (fn reg => (Temp.newTemp(), reg)) regsToSave
-      (* Generate the tree statements to save the callee save registers in new
-       * temps *)
+      (* Actual tree stms to save the callee save registers in new temps *)
       val prolog = (foldr (fn ((t, r), stm) => T.SEQ(T.MOVE(T.TEMP(t),
                                                             T.TEMP(r)), stm))
                           (T.EXP(T.CONST(0))) tempTemps)
@@ -390,7 +388,7 @@ fun procEntryExit1(frame as {name, formals, maxOutgoing, locals}, body) =
                                                             T.TEMP(t)), stm))
                           (T.EXP(T.CONST(0))) tempTemps)
     in
-      (* Surround the body in the prolog and epilog *)
+      (* Surround the body (including ViewShift) with prolog and epilog *)
       T.SEQ(prolog, genViewShiftMoves(formals, 0, T.SEQ(body, epilog)))
     end
 
@@ -412,7 +410,7 @@ fun procEntryExit2(frame, body) =
  *                                              body: Assem.instr list,
  *                                              epilog:string}
  *
- * Adds the prolog and epilog to the functions.
+ * Adds the prolog and epilog for functions.
  * Also writes the framesize to a constant at the beginning of the function
  *)
 fun procEntryExit3({name, formals, maxOutgoing, locals}, body: Assem.instr list) =
@@ -421,11 +419,13 @@ fun procEntryExit3({name, formals, maxOutgoing, locals}, body: Assem.instr list)
     val fsStr = Assem.ourIntToString(fs)
     (* Use the correct version for the emulator you are using.
      * Nothing else needs to be changed. The runtime has been modified
-     * to accommodate both.
+     * to accommodate both. Defaults to spim_version.
      *)
     val mars_version = ".eqv "^Symbol.name(name)^"_framesize, "
     val spim_version = Symbol.name(name)^"_framesize="
   in
+    (* We have an optimization that doesn't add the framesize instr if
+     * the framesize is 0. That is what the if condition does. *)
     {prolog=Symbol.name(name)^":\n"
             ^ spim_version
             ^Assem.ourIntToString(wordSize * (!locals + !maxOutgoing))^"\n"
