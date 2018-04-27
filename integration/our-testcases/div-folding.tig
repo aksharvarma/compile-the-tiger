@@ -1,0 +1,5 @@
+let
+var d := 18/2
+in
+d
+end

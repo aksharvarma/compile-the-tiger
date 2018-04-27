@@ -1,0 +1,6 @@
+let
+type rectype = {num: int}
+var a: rectype := nil
+in
+a.num
+end

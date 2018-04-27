@@ -55,9 +55,19 @@ fun withOpenFile fname f =
         handle e => (TextIO.closeOut out; raise e)
     end
 
+(* assemFilename: string -> string
+ * Get the filename to save compiled assembly into.
+ *)
+fun assemFilename(filename) = filename ^ ".swor"
+
+(* execFilename: string -> string
+ * Get the filename to save compiled assembly into.
+ *)
+fun execFilename(filename) = filename ^ ".s"
+
 (* compile: string -> unit
  *
- * Main entry point to the compiler.
+ * Main function that produces assembly code from tiger file.
  *)
 fun compile filename =
     let val absyn = Parse.parse filename
@@ -69,8 +79,9 @@ fun compile filename =
 
         val strFrags = List.filter isStringFrag frags
         val procFrags = List.filter (fn f => not(isStringFrag f)) frags
+        val outFilename = assemFilename(filename)
     in
-      withOpenFile (filename ^ ".s")
+      withOpenFile (outFilename)
                    (fn out => (if List.null(strFrags)
                                then ()
                                else TextIO.output(out, ".data\n.align 4\n");
@@ -79,4 +90,29 @@ fun compile filename =
                                (app (emitproc out) (tl procFrags));
                                (emitproc out) (hd procFrags)))
     end
+
+(* makeExecutable: string * string -> unit
+ * 
+ * Concatenate the runtime and the file to get executable assembly.
+ *)
+fun makeExecutable(runtime, filename) =
+      let
+        val assemFile =
+            TextIO.inputAll (TextIO.openIn (assemFilename filename))
+        val runtimeFile = TextIO.inputAll (TextIO.openIn runtime)
+      in
+        withOpenFile (execFilename(filename))
+                     (fn out =>
+                         (TextIO.output(out, runtimeFile);
+                          TextIO.output(out, assemFile)))
+      end
+
+(* compileToExecutable: string * string -> unit
+ *
+ * Compile the tiger file, then make executable assembly file.
+ *)
+fun compileToExecutable(runtime, filename) =
+    (compile(filename);
+     makeExecutable(runtime, filename))
+           
 end

@@ -1,0 +1,6 @@
+let
+type intArray = array of int
+var a := intArray [10] of 0
+in
+a[20]
+end

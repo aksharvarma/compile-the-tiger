@@ -1,0 +1,5 @@
+let
+var e := 9/0
+in
+e
+end
